@@ -48,7 +48,7 @@ export function OrderCrmExtras({ orderId }: Props) {
   async function save() {
     setBusy(true); setError(""); setNotice("");
     const [{ error: he }, { error: ce }] = await Promise.all([
-      supabase.rpc("set_order_health", { p_order_id: orderId, p_status: health, p_notes: healthNotes.trim() || null }),
+      supabase.rpc("set_order_health", { p_order_id: orderId, p_health_status: health, p_health_notes: healthNotes.trim() || null }),
       supabase.rpc("set_order_crm_extras", {
         p_order_id: orderId,
         p_additional_services: splitLines(additional),
