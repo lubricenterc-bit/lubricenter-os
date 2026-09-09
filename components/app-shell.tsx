@@ -8,6 +8,7 @@ const nav = [
   ["/", "⌂", "Inicio"],
   ["/orders/new", "+", "Orden"],
   ["/orders", "▤", "Órdenes"],
+  ["/customers", "◉", "Clientes"],
   ["/payroll", "$", "Nómina"],
   ["/settings", "⚙", "Config"],
 ] as const;
@@ -20,7 +21,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="shell">
       <header className="topbar">
-        <Link href="/" className="brand">Lubricenter<span>.</span> OS</Link>
+        <Link href="/" className="brand brand-lockup">
+          <img src="/lubricenter-logo.png" alt="Lubricenter" />
+          <span className="brand-copy">Lubricenter <b>OS</b></span>
+        </Link>
         <button
           className="btn btn-ghost"
           onClick={async () => {
@@ -34,7 +38,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {children}
       <nav className="nav">
         {nav.map(([href, icon, label]) => (
-          <Link key={href} href={href} style={{ color: pathname === href ? "#fff" : undefined }}>
+          <Link key={href} href={href} className={pathname === href ? "nav-active" : ""}>
             <strong>{icon}</strong>{label}
           </Link>
         ))}
