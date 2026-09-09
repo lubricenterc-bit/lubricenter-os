@@ -10,6 +10,7 @@ const nav = [
   ["/orders", "▤", "Órdenes"],
   ["/inventory", "▦", "Inventario"],
   ["/customers", "◉", "Clientes"],
+  ["/reminders", "🔔", "Avisos"],
   ["/receivables", "₿", "Cobros"],
   ["/cash", "▣", "Caja"],
   ["/payroll", "$", "Nómina"],
