@@ -39,11 +39,19 @@ export default function HomePage() {
   return (
     <main className="container stack">
       {error && <div className="error">{error}</div>}
+
+      <section className="brand-hero">
+        <div><div className="eyebrow">LUBRICENTER OS</div><h1>Atender cliente</h1><p>Abre la operación que necesitas. Las órdenes quedan guardadas en la nube y puedes retomarlas desde cualquier equipo.</p></div>
+        <img src="/lubricenter-logo.png" alt="Lubricenter" />
+      </section>
+
       <section className="grid quick-actions">
+        <Link className="card brand-card" href="/oil-change"><span className="emoji">◉</span><strong>Cambio de aceite</strong><span className="muted small">Cliente · vehículo · kilometraje · próximo servicio</span></Link>
         <Link className="card" href="/orders/new"><span className="emoji">＋</span><strong>Nueva orden</strong><span className="muted small">Tienda · Taller · Electroauto</span></Link>
-        <Link className="card" href="/orders"><span className="emoji">▤</span><strong>Ver órdenes</strong><span className="muted small">Abiertas y cerradas</span></Link>
-        <Link className="card" href="/payroll"><span className="emoji">$</span><strong>Nómina</strong><span className="muted small">Cheo y Alexis</span></Link>
-        <Link className="card" href="/settings"><span className="emoji">↗</span><strong>Tasas</strong><span className="muted small">BCV y operativa</span></Link>
+        <Link className="card" href="/customers"><span className="emoji">♙</span><strong>Clientes</strong><span className="muted small">Buscar, registrar y ver vehículos</span></Link>
+        <Link className="card" href="/orders"><span className="emoji">▤</span><strong>Órdenes</strong><span className="muted small">Abiertas, cerradas y Crédito LC</span></Link>
+        <Link className="card" href="/receivables"><span className="emoji">$</span><strong>Cobros pendientes</strong><span className="muted small">Crédito LC y abonos</span></Link>
+        <Link className="card" href="/payroll"><span className="emoji">%</span><strong>Nómina</strong><span className="muted small">Cheo y Alexis</span></Link>
       </section>
 
       <h2 className="section-title">Hoy</h2>
@@ -54,7 +62,7 @@ export default function HomePage() {
       </section>
 
       <section className="card">
-        <div className="row-between"><strong>Tasas actuales</strong><span className="pill ok">Snapshot por operación</span></div>
+        <div className="row-between"><strong>Tasas actuales</strong><Link href="/settings" className="pill ok">Configurar</Link></div>
         <div className="divider" />
         <div className="grid grid-2">
           <div><div className="muted small">BCV OFICIAL</div><div className="money-lg">{data.bcv.toLocaleString("es-VE", { maximumFractionDigits: 4 })}</div></div>
