@@ -95,14 +95,20 @@ export default function HomePage() {
       <div>
         <div className="eyebrow">CENTRO DE CONTROL · {dateLabel(data.localDate).toUpperCase()}</div>
         <h1>¿Qué está pasando ahora?</h1>
-        <p>Operación, clientes y dinero separados. Entra solo al área que necesitas atender.</p>
+        <p>Ventas rápidas al mostrador, operación del taller, clientes y dinero desde un solo sistema.</p>
       </div>
       <img src="/lubricenter-logo.png" alt="Lubricenter" />
     </section>
 
-    <section className="grid grid-2">
-      <Link className="btn btn-primary btn-block" style={{ padding: 18, fontSize: 17 }} href="/orders/new">＋ Nueva orden</Link>
-      <button className="btn btn-block" style={{ padding: 18 }} onClick={load}>{loading ? "Cargando…" : "↻ Actualizar resumen"}</button>
+    <section className="grid grid-3">
+      <Link className="btn btn-primary btn-block" style={{ padding: 18, fontSize: 17 }} href="/quick-sale">$ Venta rápida</Link>
+      <Link className="btn btn-block" style={{ padding: 18 }} href="/orders/new">＋ Nueva orden</Link>
+      <button className="btn btn-block" style={{ padding: 18 }} onClick={load}>{loading ? "Cargando…" : "↻ Actualizar"}</button>
+    </section>
+
+    <section className="card stack" style={{ borderColor: "rgba(255,93,21,.4)" }}>
+      <div className="row-between"><div><div className="eyebrow">MOSTRADOR</div><h2 className="section-title" style={{ marginBottom: 0 }}>Cotiza y cobra sin frenar la atención</h2></div><Link href="/quick-sale" className="btn btn-primary">Abrir venta</Link></div>
+      <div className="muted small">Busca precio sin crear una OS. Si hay stock lo descuenta al cerrar; si no hay stock confirmado puedes vender desde catálogo o manualmente. Para pagos mixtos, Crédito LC o un cliente específico, la misma venta continúa como orden completa.</div>
     </section>
 
     <section className="card stack">
@@ -156,12 +162,12 @@ export default function HomePage() {
     <section className="card stack">
       <div className="row-between"><strong>Accesos por área</strong><Link href="/more" className="btn btn-ghost">Ver todo</Link></div>
       <div className="grid grid-3">
+        <Link href="/quick-sale" className="btn">$ Venta</Link>
         <Link href="/orders" className="btn">▤ Órdenes</Link>
         <Link href="/customers" className="btn">◉ Clientes</Link>
         <Link href="/inventory" className="btn">▦ Inventario</Link>
         <Link href="/receivables" className="btn">$ Cobros</Link>
         <Link href="/payroll" className="btn">% Nómina</Link>
-        <Link href="/settings" className="btn">⚙ Config</Link>
       </div>
     </section>
 
