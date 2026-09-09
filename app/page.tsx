@@ -41,12 +41,13 @@ export default function HomePage() {
       {error && <div className="error">{error}</div>}
 
       <section className="brand-hero">
-        <div><div className="eyebrow">LUBRICENTER OS</div><h1>Atender cliente</h1><p>Abre la operación que necesitas. Las órdenes quedan guardadas en la nube y puedes retomarlas desde cualquier equipo.</p></div>
+        <div><div className="eyebrow">LUBRICENTER OS</div><h1>Atender cliente</h1><p>Abre la operación que necesitas. Las órdenes, el inventario, los cobros y el historial quedan conectados en un solo sistema.</p></div>
         <img src="/lubricenter-logo.png" alt="Lubricenter" />
       </section>
 
       <section className="grid quick-actions">
-        <Link className="card brand-card" href="/oil-change"><span className="emoji">◉</span><strong>Cambio de aceite</strong><span className="muted small">Cliente · vehículo · kilometraje · próximo servicio</span></Link>
+        <Link className="card brand-card" href="/oil-change"><span className="emoji">◉</span><strong>Cambio de aceite</strong><span className="muted small">Cliente · vehículo · aceite · filtro · próximo servicio</span></Link>
+        <Link className="card" href="/inventory"><span className="emoji">▦</span><strong>Inventario</strong><span className="muted small">Existencias reales · aceites · filtros · conteos</span></Link>
         <Link className="card" href="/orders/new"><span className="emoji">＋</span><strong>Nueva orden</strong><span className="muted small">Tienda · Taller · Electroauto</span></Link>
         <Link className="card" href="/customers"><span className="emoji">♙</span><strong>Clientes</strong><span className="muted small">Buscar, registrar y ver vehículos</span></Link>
         <Link className="card" href="/orders"><span className="emoji">▤</span><strong>Órdenes</strong><span className="muted small">Abiertas, cerradas y Crédito LC</span></Link>
