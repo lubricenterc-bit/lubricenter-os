@@ -1,0 +1,5 @@
+.nav { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+@media (max-width: 700px) {
+  .nav a { font-size: 8px; padding-inline: 1px; }
+  .nav strong { font-size: 16px; }
+}
