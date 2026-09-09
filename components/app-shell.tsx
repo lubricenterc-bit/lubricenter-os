@@ -8,6 +8,7 @@ const nav = [
   ["/", "⌂", "Inicio"],
   ["/orders/new", "+", "Orden"],
   ["/orders", "▤", "Órdenes"],
+  ["/inventory", "▦", "Inventario"],
   ["/customers", "◉", "Clientes"],
   ["/receivables", "₿", "Cobros"],
   ["/cash", "▣", "Caja"],
@@ -34,7 +35,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {nav.map(([href, icon, label]) => {
           const active = href === "/orders"
             ? pathname === "/orders" || (pathname.startsWith("/orders/") && pathname !== "/orders/new")
-            : pathname === href;
+            : pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
           return <Link key={href} href={href} className={active ? "nav-active" : ""}><strong>{icon}</strong>{label}</Link>;
         })}
       </nav>
