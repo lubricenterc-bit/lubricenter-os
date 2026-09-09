@@ -20,6 +20,17 @@ type InventoryProduct = {
   needs_review: boolean;
 };
 
+type CatalogProduct = {
+  id: string;
+  name: string;
+  category: string | null;
+  filter_code: string | null;
+  available: boolean;
+  cash_usd_base_price: number;
+  current_price_ves: number | null;
+  current_ref_bcv: number | null;
+};
+
 type Customer = {
   id: string;
   name: string | null;
@@ -90,7 +101,8 @@ export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) 
   const router = useRouter();
   const [orderId, setOrderId] = useState<string | null>(initialOrderId ?? null);
   const [order, setOrder] = useState<OrderRecord | null>(null);
-  const [products, setProducts] = useState<InventoryProduct[]>([]);
+  const [inventoryProducts, setInventoryProducts] = useState<InventoryProduct[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<CatalogProduct[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -154,7 +166,7 @@ export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) 
     setLoading(true);
     setError("");
     try {
-      const [{ data: p, error: pe }, { data: r, error: re }, directory] = await Promise.all([
+      const [{ data: inv, error: invError }, { data: cat, error: catError }, { data: r, error: re }, directory] = await Promise.all([
         supabase
           .from("inventory_current")
           .select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,needs_review")
@@ -165,17 +177,30 @@ export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) 
           .order("brand")
           .order("sku")
           .limit(1000),
+        supabase
+          .from("product_catalog_current")
+          .select("id,name,category,filter_code,available,cash_usd_base_price,current_price_ves,current_ref_bcv")
+          .eq("available", true)
+          .order("name")
+          .limit(1000),
         supabase.rpc("get_current_rates"),
         loadDirectory(),
       ]);
-      if (pe) throw pe;
+      if (invError) throw invError;
+      if (catError) throw catError;
       if (re) throw re;
-      setProducts((p ?? []).map((x: any) => ({
+      setInventoryProducts((inv ?? []).map((x: any) => ({
         ...x,
         quantity_on_hand: Number(x.quantity_on_hand ?? 0),
         current_price_ves: x.current_price_ves == null ? null : Number(x.current_price_ves),
         current_ref_bcv: x.current_ref_bcv == null ? null : Number(x.current_ref_bcv),
       })) as InventoryProduct[]);
+      setCatalogProducts((cat ?? []).map((x: any) => ({
+        ...x,
+        cash_usd_base_price: Number(x.cash_usd_base_price ?? 0),
+        current_price_ves: x.current_price_ves == null ? null : Number(x.current_price_ves),
+        current_ref_bcv: x.current_ref_bcv == null ? null : Number(x.current_ref_bcv),
+      })) as CatalogProduct[]);
       const rateRow = Array.isArray(r) ? r[0] : r;
       setRates({ bcv: Number(rateRow?.bcv_rate ?? 0), operative: Number(rateRow?.operative_rate ?? 0) });
       if (initialOrderId) await loadOrder(initialOrderId, directory);
@@ -335,7 +360,7 @@ export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) 
       </section> : <button className="btn btn-ghost btn-block" onClick={() => router.push("/orders")}>Volver a órdenes</button>}
 
       {modal === "PARTY" && <PartySheet customers={customers} vehicles={vehicles} currentCustomer={customer} currentVehicle={vehicle} ensureOrder={ensureOrder} reloadDirectory={loadDirectory} onDone={async (c, v, id) => { setCustomer(c); setVehicle(v); setModal(null); const fresh = await loadDirectory(); await loadOrder(id, fresh); }} onCancel={() => setModal(null)} />}
-      {modal === "PRODUCT" && <ProductSheet products={products} rates={rates} ensureOrder={ensureOrder} onDone={async id => { setModal(null); await refresh(id); }} onCancel={() => setModal(null)} />}
+      {modal === "PRODUCT" && <ProductSheet inventoryProducts={inventoryProducts} catalogProducts={catalogProducts} rates={rates} ensureOrder={ensureOrder} onDone={async id => { setModal(null); await refresh(id); }} onCancel={() => setModal(null)} />}
       {modal === "SERVICE" && <ServiceSheet ensureOrder={ensureOrder} onDone={async id => { setModal(null); await refresh(id); }} onCancel={() => setModal(null)} />}
       {modal === "PAYMENT" && <PaymentSheet ensureOrder={ensureOrder} remainingVes={remainingVes} rates={rates} onDone={async id => { setModal(null); await refresh(id); }} onCancel={() => setModal(null)} />}
       {modal === "CREDIT" && orderId && <CreditSheet orderId={orderId} customer={customer} remainingVes={remainingVes} remainingRef={remainingRef} onDone={() => { setModal(null); router.push("/orders"); router.refresh(); }} onCancel={() => setModal(null)} />}
@@ -454,68 +479,151 @@ function PartySheet({ customers, vehicles, currentCustomer, currentVehicle, ensu
   </div></div>;
 }
 
-function ProductSheet({ products, rates, ensureOrder, onDone, onCancel }: { products: InventoryProduct[]; rates: Rates; ensureOrder: () => Promise<string>; onDone: (id: string) => void | Promise<void>; onCancel: () => void; }) {
+function ProductSheet({ inventoryProducts, catalogProducts, rates, ensureOrder, onDone, onCancel }: {
+  inventoryProducts: InventoryProduct[];
+  catalogProducts: CatalogProduct[];
+  rates: Rates;
+  ensureOrder: () => Promise<string>;
+  onDone: (id: string) => void | Promise<void>;
+  onCancel: () => void;
+}) {
+  const [mode, setMode] = useState<"STOCK" | "CATALOG" | "MANUAL">("STOCK");
   const [search, setSearch] = useState("");
-  const [productId, setProductId] = useState("");
+  const [selectedId, setSelectedId] = useState("");
   const [qty, setQty] = useState(1);
   const [unitRef, setUnitRef] = useState("");
+  const [manualDescription, setManualDescription] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const filtered = products.filter(p => `${p.sku} ${p.brand ?? ""} ${p.description} ${p.catalog_product_name ?? ""} ${p.category ?? ""}`.toLowerCase().includes(search.toLowerCase())).slice(0, 60);
-  const selected = products.find(p => p.id === productId) ?? null;
-  const suggestedRef = selected?.current_ref_bcv ?? null;
+
+  const q = search.trim().toLowerCase();
+  const filteredInventory = inventoryProducts.filter(p => `${p.sku} ${p.brand ?? ""} ${p.description} ${p.catalog_product_name ?? ""} ${p.category ?? ""}`.toLowerCase().includes(q)).slice(0, 60);
+  const filteredCatalog = catalogProducts.filter(p => `${p.filter_code ?? ""} ${p.name} ${p.category ?? ""}`.toLowerCase().includes(q)).slice(0, 60);
+  const selectedInventory = mode === "STOCK" ? inventoryProducts.find(p => p.id === selectedId) ?? null : null;
+  const selectedCatalog = mode === "CATALOG" ? catalogProducts.find(p => p.id === selectedId) ?? null : null;
+  const suggestedRef = selectedInventory?.current_ref_bcv ?? selectedCatalog?.current_ref_bcv ?? null;
   const effectiveUnitRef = unitRef === "" ? (suggestedRef ?? 0) : Number(unitRef);
 
-  function chooseProduct(id: string) {
-    const p = products.find(x => x.id === id);
-    setProductId(id);
+  function switchMode(next: "STOCK" | "CATALOG" | "MANUAL") {
+    setMode(next);
+    setSelectedId("");
+    setUnitRef("");
+    setError("");
+    if (next === "MANUAL" && search.trim()) setManualDescription(search.trim());
+  }
+
+  function chooseInventory(id: string) {
+    const p = inventoryProducts.find(x => x.id === id);
+    setSelectedId(id);
+    setUnitRef(p?.current_ref_bcv != null ? Number(p.current_ref_bcv).toFixed(2) : "");
+    setError("");
+  }
+
+  function chooseCatalog(id: string) {
+    const p = catalogProducts.find(x => x.id === id);
+    setSelectedId(id);
     setUnitRef(p?.current_ref_bcv != null ? Number(p.current_ref_bcv).toFixed(2) : "");
     setError("");
   }
 
   async function add() {
-    if (!selected || qty <= 0) return;
-    if (qty > selected.quantity_on_hand) return setError(`Stock insuficiente. Disponible: ${selected.quantity_on_hand}.`);
+    if (qty <= 0) return setError("La cantidad debe ser mayor que cero.");
     if (!Number.isFinite(effectiveUnitRef) || effectiveUnitRef <= 0) return setError("Indica el precio unitario REF que vas a cobrar.");
     setBusy(true); setError("");
     try {
       const id = await ensureOrder();
-      const { error } = await supabase.rpc("add_inventory_product_item", {
-        p_order_id: id,
-        p_inventory_item_id: selected.id,
-        p_quantity: qty,
-        p_manual_unit_ref: effectiveUnitRef,
-        p_business_area: "STORE",
-      });
-      if (error) throw error;
+      if (mode === "STOCK") {
+        if (!selectedInventory) throw new Error("Selecciona un producto del inventario.");
+        if (qty > selectedInventory.quantity_on_hand) throw new Error(`Stock insuficiente. Disponible: ${selectedInventory.quantity_on_hand}. Usa “Catálogo sin stock” si igual necesitas venderlo.`);
+        const { error } = await supabase.rpc("add_inventory_product_item", {
+          p_order_id: id,
+          p_inventory_item_id: selectedInventory.id,
+          p_quantity: qty,
+          p_manual_unit_ref: effectiveUnitRef,
+          p_business_area: "STORE",
+        });
+        if (error) throw error;
+      } else if (mode === "CATALOG") {
+        if (!selectedCatalog) throw new Error("Selecciona un producto del catálogo.");
+        const { error } = await supabase.rpc("add_catalog_product_item_override", {
+          p_order_id: id,
+          p_product_id: selectedCatalog.id,
+          p_quantity: qty,
+          p_manual_unit_ref: effectiveUnitRef,
+        });
+        if (error) throw error;
+      } else {
+        if (!manualDescription.trim()) throw new Error("Escribe el nombre o descripción del producto.");
+        const { error } = await supabase.rpc("add_manual_product_item", {
+          p_order_id: id,
+          p_description: manualDescription.trim(),
+          p_quantity: qty,
+          p_unit_ref: effectiveUnitRef,
+        });
+        if (error) throw error;
+      }
       await onDone(id);
     } catch (e: any) { setError(e.message ?? String(e)); }
     finally { setBusy(false); }
   }
 
+  const canAdd = mode === "STOCK" ? !!selectedInventory : mode === "CATALOG" ? !!selectedCatalog : !!manualDescription.trim();
+
   return <div className="overlay"><div className="sheet stack">
-    <div className="row-between"><div><h2 style={{ margin: 0 }}>Agregar producto</h2><div className="muted small">Inventario físico · Cabudare</div></div><button className="btn btn-ghost" onClick={onCancel}>Cerrar</button></div>
-    <label><span className="label">Buscar inventario</span><input className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="SKU, marca, filtro, aceite o descripción" autoFocus /></label>
-    <div className="muted small">{products.length} referencias con existencia disponibles para vender.</div>
-    <div className="stack" style={{ maxHeight: 320, overflow: "auto" }}>
-      {filtered.map(p => <button key={p.id} className="btn btn-ghost" style={{ textAlign: "left", borderColor: p.id === productId ? "#ff5d15" : undefined }} onClick={() => chooseProduct(p.id)}>
-        <div className="row-between"><strong>{p.sku} · {p.brand ?? p.catalog_product_name ?? "Producto"}</strong><span className="pill">Stock {p.quantity_on_hand}</span></div>
-        <div className="small">{p.description}</div>
-        <div className="muted small">{p.category ?? "Sin rubro"} · {p.current_ref_bcv != null ? `${fmtRef(p.current_ref_bcv)} sugerido` : "sin precio vinculado"}</div>
-      </button>)}
-      {!filtered.length && <div className="card muted">No hay productos con existencia que coincidan.</div>}
+    <div className="row-between"><div><h2 style={{ margin: 0 }}>Agregar producto</h2><div className="muted small">Puedes vender con stock, sin stock o manualmente.</div></div><button className="btn btn-ghost" onClick={onCancel}>Cerrar</button></div>
+
+    <div className="segmented">
+      <button className={`btn ${mode === "STOCK" ? "btn-primary" : "btn-ghost"}`} onClick={() => switchMode("STOCK")}>Con stock</button>
+      <button className={`btn ${mode === "CATALOG" ? "btn-primary" : "btn-ghost"}`} onClick={() => switchMode("CATALOG")}>Catálogo sin stock</button>
+      <button className={`btn ${mode === "MANUAL" ? "btn-primary" : "btn-ghost"}`} onClick={() => switchMode("MANUAL")}>Venta manual</button>
     </div>
-    {selected && <div className="card stack">
-      <div className="row-between"><div><strong>{selected.sku} · {selected.brand ?? "Producto"}</strong><div className="muted small">{selected.description}</div></div><span className="pill">Disponible {selected.quantity_on_hand}</span></div>
+
+    {mode !== "MANUAL" && <label><span className="label">Buscar producto</span><input className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="SKU, marca, filtro, aceite o descripción" autoFocus /></label>}
+
+    {mode === "STOCK" && <>
+      <div className="muted small">{inventoryProducts.length} referencias con existencia física disponibles.</div>
+      <div className="stack" style={{ maxHeight: 300, overflow: "auto" }}>
+        {filteredInventory.map(p => <button key={p.id} className="btn btn-ghost" style={{ textAlign: "left", borderColor: p.id === selectedId ? "#ff5d15" : undefined }} onClick={() => chooseInventory(p.id)}>
+          <div className="row-between"><strong>{p.sku} · {p.brand ?? p.catalog_product_name ?? "Producto"}</strong><span className="pill">Stock {p.quantity_on_hand}</span></div>
+          <div className="small">{p.description}</div>
+          <div className="muted small">{p.category ?? "Sin rubro"} · {p.current_ref_bcv != null ? `${fmtRef(p.current_ref_bcv)} sugerido` : "precio manual"}</div>
+        </button>)}
+        {!filteredInventory.length && <div className="card stack"><strong>No aparece con stock.</strong><div className="muted small">Puedes venderlo igualmente desde “Catálogo sin stock” o “Venta manual”.</div><button className="btn" onClick={() => switchMode("CATALOG")}>Buscar en catálogo</button></div>}
+      </div>
+    </>}
+
+    {mode === "CATALOG" && <>
+      <div className="success small">Esta venta no descuenta inventario físico. Úsala cuando el conteo todavía no esté actualizado o la existencia real aún no esté cargada.</div>
+      <div className="muted small">{catalogProducts.length} productos disponibles en el catálogo.</div>
+      <div className="stack" style={{ maxHeight: 300, overflow: "auto" }}>
+        {filteredCatalog.map(p => <button key={p.id} className="btn btn-ghost" style={{ textAlign: "left", borderColor: p.id === selectedId ? "#ff5d15" : undefined }} onClick={() => chooseCatalog(p.id)}>
+          <div className="row-between"><strong>{p.filter_code ? `${p.filter_code} · ` : ""}{p.name}</strong><span className="pill">SIN CONTROL STOCK</span></div>
+          <div className="muted small">{p.category ?? "Producto"} · {p.current_ref_bcv != null ? `${fmtRef(p.current_ref_bcv)} sugerido` : "confirma precio"}</div>
+        </button>)}
+        {!filteredCatalog.length && <div className="card stack"><strong>No aparece en el catálogo.</strong><div className="muted small">Regístralo como venta manual para no frenar la atención.</div><button className="btn" onClick={() => switchMode("MANUAL")}>Vender manualmente</button></div>}
+      </div>
+    </>}
+
+    {mode === "MANUAL" && <div className="card stack">
+      <div className="success small">Para productos que todavía no están bien cargados en catálogo/inventario. Queda en la orden, pero no altera stock.</div>
+      <label><span className="label">Producto / descripción</span><input className="input" value={manualDescription} onChange={e => setManualDescription(e.target.value)} placeholder="Ej. Valvoline 10W30 Mineral" autoFocus /></label>
+    </div>}
+
+    {(selectedInventory || selectedCatalog || mode === "MANUAL") && <div className="card stack">
+      <div className="row-between">
+        <div><strong>{selectedInventory ? `${selectedInventory.sku} · ${selectedInventory.brand ?? "Producto"}` : selectedCatalog?.name ?? manualDescription || "Producto manual"}</strong>{selectedInventory && <div className="muted small">{selectedInventory.description}</div>}</div>
+        {selectedInventory ? <span className="pill">Disponible {selectedInventory.quantity_on_hand}</span> : <span className="pill warn">SIN DESCUENTO STOCK</span>}
+      </div>
       <div className="grid grid-2">
-        <label><span className="label">Cantidad</span><input className="input" type="number" min={0.01} max={selected.quantity_on_hand} step={0.01} value={qty} onChange={e => setQty(Number(e.target.value))} /></label>
+        <label><span className="label">Cantidad</span><input className="input" type="number" min={0.01} step={0.01} value={qty} onChange={e => setQty(Number(e.target.value))} /></label>
         <label><span className="label">Precio a cobrar REF · unitario</span><input className="input" type="number" min="0.01" step="0.01" value={unitRef} onChange={e => setUnitRef(e.target.value)} placeholder={suggestedRef != null ? suggestedRef.toFixed(2) : "Precio manual"} /></label>
       </div>
-      {suggestedRef != null && <div className="muted small">Sugerido por catálogo/Notion: {fmtRef(suggestedRef)} por unidad. Puedes cambiarlo solo para esta venta.</div>}
+      {suggestedRef != null && <div className="muted small">Precio sugerido actual: {fmtRef(suggestedRef)} por unidad. Puedes modificarlo solo para esta orden.</div>}
       <div className="row-between"><span>Total a cobrar</span><div style={{ textAlign: "right" }}><strong>{fmtRef(effectiveUnitRef * qty)}</strong><div className="muted small">{fmtVes(effectiveUnitRef * qty * rates.bcv)}</div></div></div>
     </div>}
+
     {error && <div className="error">{error}</div>}
-    <button className="btn btn-primary btn-block" disabled={busy || !selected || effectiveUnitRef <= 0 || qty <= 0} onClick={add}>{busy ? "Agregando…" : "Agregar a la orden"}</button>
+    <button className="btn btn-primary btn-block" disabled={busy || !canAdd || effectiveUnitRef <= 0 || qty <= 0} onClick={add}>{busy ? "Agregando…" : mode === "STOCK" ? "Agregar y descontar stock" : "Agregar a la orden"}</button>
   </div></div>;
 }
 
