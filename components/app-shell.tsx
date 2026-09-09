@@ -7,7 +7,7 @@ import { PricingStatus } from "@/components/pricing-status";
 
 const nav = [
   ["/", "⌂", "Inicio"],
-  ["/orders/new", "+", "Orden"],
+  ["/quick-sale", "$", "Venta"],
   ["/workshop", "⚒", "Taller"],
   ["/reminders", "♡", "CRM"],
   ["/more", "•••", "Más"],
@@ -22,7 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
-    if (href === "/orders/new") return pathname.startsWith("/orders");
+    if (href === "/quick-sale") return pathname.startsWith("/quick-sale");
     if (href === "/workshop") return pathname.startsWith("/workshop");
     if (href === "/reminders") return pathname.startsWith("/reminders");
     if (href === "/more") return morePaths.some(p => pathname === p || pathname.startsWith(`${p}/`));
