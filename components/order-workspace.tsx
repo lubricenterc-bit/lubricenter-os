@@ -6,15 +6,18 @@ import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
 import { electroautoAllocation, workshopAllocation } from "@/lib/domain/allocations";
 
-type Product = {
+type InventoryProduct = {
   id: string;
-  name: string;
+  sku: string;
+  brand: string | null;
+  description: string;
   category: string | null;
-  filter_code: string | null;
-  available: boolean;
-  cash_usd_base_price: number;
-  current_price_ves: number;
-  current_ref_bcv: number;
+  quantity_on_hand: number;
+  product_id: string | null;
+  catalog_product_name: string | null;
+  current_price_ves: number | null;
+  current_ref_bcv: number | null;
+  needs_review: boolean;
 };
 
 type Customer = {
@@ -81,14 +84,13 @@ type Receivable = {
 
 type Rates = { bcv: number; operative: number };
 type Modal = "PARTY" | "PRODUCT" | "SERVICE" | "PAYMENT" | "CREDIT" | null;
-
 type Directory = { customers: Customer[]; vehicles: Vehicle[] };
 
 export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) {
   const router = useRouter();
   const [orderId, setOrderId] = useState<string | null>(initialOrderId ?? null);
   const [order, setOrder] = useState<OrderRecord | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<InventoryProduct[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -153,13 +155,27 @@ export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) 
     setError("");
     try {
       const [{ data: p, error: pe }, { data: r, error: re }, directory] = await Promise.all([
-        supabase.from("product_catalog_current").select("*").order("name"),
+        supabase
+          .from("inventory_current")
+          .select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,needs_review")
+          .eq("location_code", "CABUDARE")
+          .gt("quantity_on_hand", 0)
+          .eq("needs_review", false)
+          .order("category")
+          .order("brand")
+          .order("sku")
+          .limit(1000),
         supabase.rpc("get_current_rates"),
         loadDirectory(),
       ]);
       if (pe) throw pe;
       if (re) throw re;
-      setProducts((p ?? []) as Product[]);
+      setProducts((p ?? []).map((x: any) => ({
+        ...x,
+        quantity_on_hand: Number(x.quantity_on_hand ?? 0),
+        current_price_ves: x.current_price_ves == null ? null : Number(x.current_price_ves),
+        current_ref_bcv: x.current_ref_bcv == null ? null : Number(x.current_ref_bcv),
+      })) as InventoryProduct[]);
       const rateRow = Array.isArray(r) ? r[0] : r;
       setRates({ bcv: Number(rateRow?.bcv_rate ?? 0), operative: Number(rateRow?.operative_rate ?? 0) });
       if (initialOrderId) await loadOrder(initialOrderId, directory);
@@ -209,6 +225,18 @@ export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) 
     if (!orderId || locked) return;
     const { error } = await supabase.rpc("delete_payment", { p_payment_id: id });
     if (error) setError(error.message); else await refresh(orderId);
+  }
+
+  async function deleteOrder() {
+    if (!orderId || locked) return;
+    const confirmed = window.confirm(`¿Eliminar ${order?.order_number ?? "esta orden"}?\n\nÚsalo solo para órdenes duplicadas o creadas por error. Esta acción no se puede deshacer.`);
+    if (!confirmed) return;
+    setBusy(true); setError("");
+    const { error } = await supabase.rpc("delete_open_order", { p_order_id: orderId, p_reason: "Orden duplicada o creada por error desde Lubricenter OS" });
+    setBusy(false);
+    if (error) return setError(error.message);
+    router.push("/orders");
+    router.refresh();
   }
 
   async function closePaid() {
@@ -303,10 +331,11 @@ export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) 
         <button className="btn btn-primary btn-block" disabled={busy || !items.length || remainingVes > 1} onClick={closePaid}>{busy ? "Cerrando…" : "Cobrar y cerrar"}</button>
         {remainingVes > 1 && <button className="btn btn-block" disabled={busy || !items.length || !customer} onClick={() => setModal("CREDIT")}>Cerrar con Crédito LC · {fmtVes(remainingVes)}</button>}
         {remainingVes > 1 && !customer && <div className="muted small" style={{ textAlign: "center" }}>Para Crédito LC primero asigna un cliente.</div>}
+        {orderId && <button className="btn btn-ghost btn-block" disabled={busy} style={{ borderColor: "rgba(255,80,80,.45)", color: "#ff8b8b" }} onClick={deleteOrder}>Eliminar orden duplicada</button>}
       </section> : <button className="btn btn-ghost btn-block" onClick={() => router.push("/orders")}>Volver a órdenes</button>}
 
-      {modal === "PARTY" && <PartySheet customers={customers} vehicles={vehicles} currentCustomer={customer} currentVehicle={vehicle} ensureOrder={ensureOrder} reloadDirectory={loadDirectory} onDone={async (c, v, id) => { setCustomer(c); setVehicle(v); setModal(null); await loadOrder(id, { customers: (await loadDirectory()).customers, vehicles: (await loadDirectory()).vehicles }); }} onCancel={() => setModal(null)} />}
-      {modal === "PRODUCT" && <ProductSheet products={products} ensureOrder={ensureOrder} onDone={async id => { setModal(null); await refresh(id); }} onCancel={() => setModal(null)} />}
+      {modal === "PARTY" && <PartySheet customers={customers} vehicles={vehicles} currentCustomer={customer} currentVehicle={vehicle} ensureOrder={ensureOrder} reloadDirectory={loadDirectory} onDone={async (c, v, id) => { setCustomer(c); setVehicle(v); setModal(null); const fresh = await loadDirectory(); await loadOrder(id, fresh); }} onCancel={() => setModal(null)} />}
+      {modal === "PRODUCT" && <ProductSheet products={products} rates={rates} ensureOrder={ensureOrder} onDone={async id => { setModal(null); await refresh(id); }} onCancel={() => setModal(null)} />}
       {modal === "SERVICE" && <ServiceSheet ensureOrder={ensureOrder} onDone={async id => { setModal(null); await refresh(id); }} onCancel={() => setModal(null)} />}
       {modal === "PAYMENT" && <PaymentSheet ensureOrder={ensureOrder} remainingVes={remainingVes} rates={rates} onDone={async id => { setModal(null); await refresh(id); }} onCancel={() => setModal(null)} />}
       {modal === "CREDIT" && orderId && <CreditSheet orderId={orderId} customer={customer} remainingVes={remainingVes} remainingRef={remainingRef} onDone={() => { setModal(null); router.push("/orders"); router.refresh(); }} onCancel={() => setModal(null)} />}
@@ -425,22 +454,39 @@ function PartySheet({ customers, vehicles, currentCustomer, currentVehicle, ensu
   </div></div>;
 }
 
-function ProductSheet({ products, ensureOrder, onDone, onCancel }: { products: Product[]; ensureOrder: () => Promise<string>; onDone: (id: string) => void | Promise<void>; onCancel: () => void; }) {
+function ProductSheet({ products, rates, ensureOrder, onDone, onCancel }: { products: InventoryProduct[]; rates: Rates; ensureOrder: () => Promise<string>; onDone: (id: string) => void | Promise<void>; onCancel: () => void; }) {
   const [search, setSearch] = useState("");
   const [productId, setProductId] = useState("");
   const [qty, setQty] = useState(1);
-  const [reveal, setReveal] = useState(false);
+  const [unitRef, setUnitRef] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const filtered = products.filter(p => `${p.filter_code ?? ""} ${p.name} ${p.category ?? ""}`.toLowerCase().includes(search.toLowerCase())).slice(0, 40);
-  const selected = products.find(p => p.id === productId);
+  const filtered = products.filter(p => `${p.sku} ${p.brand ?? ""} ${p.description} ${p.catalog_product_name ?? ""} ${p.category ?? ""}`.toLowerCase().includes(search.toLowerCase())).slice(0, 60);
+  const selected = products.find(p => p.id === productId) ?? null;
+  const suggestedRef = selected?.current_ref_bcv ?? null;
+  const effectiveUnitRef = unitRef === "" ? (suggestedRef ?? 0) : Number(unitRef);
+
+  function chooseProduct(id: string) {
+    const p = products.find(x => x.id === id);
+    setProductId(id);
+    setUnitRef(p?.current_ref_bcv != null ? Number(p.current_ref_bcv).toFixed(2) : "");
+    setError("");
+  }
 
   async function add() {
-    if (!productId || qty <= 0) return;
+    if (!selected || qty <= 0) return;
+    if (qty > selected.quantity_on_hand) return setError(`Stock insuficiente. Disponible: ${selected.quantity_on_hand}.`);
+    if (!Number.isFinite(effectiveUnitRef) || effectiveUnitRef <= 0) return setError("Indica el precio unitario REF que vas a cobrar.");
     setBusy(true); setError("");
     try {
       const id = await ensureOrder();
-      const { error } = await supabase.rpc("add_product_item", { p_order_id: id, p_product_id: productId, p_quantity: qty, p_reveal_cash_price: reveal });
+      const { error } = await supabase.rpc("add_inventory_product_item", {
+        p_order_id: id,
+        p_inventory_item_id: selected.id,
+        p_quantity: qty,
+        p_manual_unit_ref: effectiveUnitRef,
+        p_business_area: "STORE",
+      });
       if (error) throw error;
       await onDone(id);
     } catch (e: any) { setError(e.message ?? String(e)); }
@@ -448,12 +494,28 @@ function ProductSheet({ products, ensureOrder, onDone, onCancel }: { products: P
   }
 
   return <div className="overlay"><div className="sheet stack">
-    <div className="row-between"><h2 style={{ margin: 0 }}>Agregar producto</h2><button className="btn btn-ghost" onClick={onCancel}>Cerrar</button></div>
-    <label><span className="label">Buscar producto</span><input className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Código, nombre o categoría" autoFocus /></label>
-    <div className="stack" style={{ maxHeight: 300, overflow: "auto" }}>{filtered.map(p => <button key={p.id} className="btn btn-ghost" style={{ textAlign: "left", borderColor: p.id === productId ? "#ff5d15" : undefined }} onClick={() => setProductId(p.id)}><strong>{p.filter_code ? `${p.filter_code} · ` : ""}{p.name}</strong><div className="muted small">{fmtRef(p.current_ref_bcv)} · {fmtVes(p.current_price_ves)}</div></button>)}</div>
-    {selected && <div className="card stack"><div className="row-between"><strong>{selected.name}</strong><span className="pill">{selected.category ?? "Producto"}</span></div><div className="grid grid-2"><label><span className="label">Cantidad</span><input className="input" type="number" min={0.01} step={0.01} value={qty} onChange={e => setQty(Number(e.target.value))} /></label><div><span className="label">Cotización</span><strong>{fmtRef(selected.current_ref_bcv * qty)}</strong><div className="muted">{fmtVes(selected.current_price_ves * qty)}</div></div></div><label className="row"><input type="checkbox" checked={reveal} onChange={e => setReveal(e.target.checked)} /><span>Aplicar / revelar precio especial en divisas</span></label>{reveal && <div className="success">USD físico especial: <strong>${(selected.cash_usd_base_price * qty).toFixed(2)}</strong></div>}</div>}
+    <div className="row-between"><div><h2 style={{ margin: 0 }}>Agregar producto</h2><div className="muted small">Inventario físico · Cabudare</div></div><button className="btn btn-ghost" onClick={onCancel}>Cerrar</button></div>
+    <label><span className="label">Buscar inventario</span><input className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="SKU, marca, filtro, aceite o descripción" autoFocus /></label>
+    <div className="muted small">{products.length} referencias con existencia disponibles para vender.</div>
+    <div className="stack" style={{ maxHeight: 320, overflow: "auto" }}>
+      {filtered.map(p => <button key={p.id} className="btn btn-ghost" style={{ textAlign: "left", borderColor: p.id === productId ? "#ff5d15" : undefined }} onClick={() => chooseProduct(p.id)}>
+        <div className="row-between"><strong>{p.sku} · {p.brand ?? p.catalog_product_name ?? "Producto"}</strong><span className="pill">Stock {p.quantity_on_hand}</span></div>
+        <div className="small">{p.description}</div>
+        <div className="muted small">{p.category ?? "Sin rubro"} · {p.current_ref_bcv != null ? `${fmtRef(p.current_ref_bcv)} sugerido` : "sin precio vinculado"}</div>
+      </button>)}
+      {!filtered.length && <div className="card muted">No hay productos con existencia que coincidan.</div>}
+    </div>
+    {selected && <div className="card stack">
+      <div className="row-between"><div><strong>{selected.sku} · {selected.brand ?? "Producto"}</strong><div className="muted small">{selected.description}</div></div><span className="pill">Disponible {selected.quantity_on_hand}</span></div>
+      <div className="grid grid-2">
+        <label><span className="label">Cantidad</span><input className="input" type="number" min={0.01} max={selected.quantity_on_hand} step={0.01} value={qty} onChange={e => setQty(Number(e.target.value))} /></label>
+        <label><span className="label">Precio a cobrar REF · unitario</span><input className="input" type="number" min="0.01" step="0.01" value={unitRef} onChange={e => setUnitRef(e.target.value)} placeholder={suggestedRef != null ? suggestedRef.toFixed(2) : "Precio manual"} /></label>
+      </div>
+      {suggestedRef != null && <div className="muted small">Sugerido por catálogo/Notion: {fmtRef(suggestedRef)} por unidad. Puedes cambiarlo solo para esta venta.</div>}
+      <div className="row-between"><span>Total a cobrar</span><div style={{ textAlign: "right" }}><strong>{fmtRef(effectiveUnitRef * qty)}</strong><div className="muted small">{fmtVes(effectiveUnitRef * qty * rates.bcv)}</div></div></div>
+    </div>}
     {error && <div className="error">{error}</div>}
-    <button className="btn btn-primary btn-block" disabled={busy || !productId} onClick={add}>{busy ? "Agregando…" : "Agregar a la orden"}</button>
+    <button className="btn btn-primary btn-block" disabled={busy || !selected || effectiveUnitRef <= 0 || qty <= 0} onClick={add}>{busy ? "Agregando…" : "Agregar a la orden"}</button>
   </div></div>;
 }
 
