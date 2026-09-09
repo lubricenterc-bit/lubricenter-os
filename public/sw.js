@@ -1,5 +1,5 @@
-const CACHE = "lubricenter-os-v0.1-shell";
-const SHELL = ["/", "/orders", "/orders/new", "/payroll", "/settings", "/manifest.webmanifest"];
+const CACHE = "lubricenter-os-v0.2-products";
+const SHELL = ["/", "/orders", "/inventory", "/payroll", "/settings", "/manifest.webmanifest"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).catch(() => undefined));
   self.skipWaiting();
