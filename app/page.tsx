@@ -18,15 +18,17 @@ type Dashboard = {
 export default function HomePage() {
   const [data, setData] = useState<Dashboard>({ ordersToday: 0, salesVes: 0, salesRef: 0, openOrders: 0, payrollPending: 0, bcv: 0, operative: 0 });
   const [reminders, setReminders] = useState(0);
+  const [postService, setPostService] = useState(0);
   const [error, setError] = useState("");
 
   useEffect(() => {
     (async () => {
-      const [{ data, error }, { data: reminderRows, error: reminderError }] = await Promise.all([
+      const [{ data, error }, { data: reminderRows, error: reminderError }, { data: followupRows, error: followupError }] = await Promise.all([
         supabase.rpc("dashboard_today"),
         supabase.from("maintenance_reminders_current").select("service_record_id,urgency").in("urgency", ["DUE", "SOON"]),
+        supabase.from("customer_followups_current").select("id,status").eq("followup_type", "POST_SERVICE").eq("status", "PENDING"),
       ]);
-      if (error || reminderError) return setError(error?.message || reminderError?.message || "No pude cargar el inicio.");
+      if (error || reminderError || followupError) return setError(error?.message || reminderError?.message || followupError?.message || "No pude cargar el inicio.");
       const row = Array.isArray(data) ? data[0] : data;
       if (row) setData({
         ordersToday: Number(row.orders_today ?? 0),
@@ -38,6 +40,7 @@ export default function HomePage() {
         operative: Number(row.operative_rate ?? 0),
       });
       setReminders((reminderRows ?? []).length);
+      setPostService((followupRows ?? []).length);
     })();
   }, []);
 
@@ -46,15 +49,14 @@ export default function HomePage() {
       {error && <div className="error">{error}</div>}
 
       <section className="brand-hero">
-        <div><div className="eyebrow">LUBRICENTER OS</div><h1>Atender cliente</h1><p>Abre la operación que necesitas. Las órdenes, el inventario, los cobros y el historial quedan conectados en un solo sistema.</p></div>
+        <div><div className="eyebrow">LUBRICENTER OS</div><h1>Atender cliente</h1><p>Una sola orden para toda la visita: aceite, tienda, taller, electroauto, pagos, historial y seguimiento CRM.</p></div>
         <img src="/lubricenter-logo.png" alt="Lubricenter" />
       </section>
 
       <section className="grid quick-actions">
-        <Link className="card brand-card" href="/oil-change"><span className="emoji">◉</span><strong>Cambio de aceite</strong><span className="muted small">Cliente · vehículo · aceite · filtro · próximo servicio</span></Link>
-        <Link className="card" href="/reminders"><span className="emoji">🔔</span><strong>Recordatorios{reminders > 0 ? ` · ${reminders}` : ""}</strong><span className="muted small">WhatsApp listo · vencidos · próximos mantenimientos</span></Link>
+        <Link className="card brand-card" href="/orders/new"><span className="emoji">＋</span><strong>Nueva orden</strong><span className="muted small">Cambio de aceite · Productos · Taller · Electroauto</span></Link>
+        <Link className="card" href="/reminders"><span className="emoji">♡</span><strong>CRM{postService + reminders > 0 ? ` · ${postService + reminders}` : ""}</strong><span className="muted small">{postService} post-servicio · {reminders} mantenimientos por atender</span></Link>
         <Link className="card" href="/inventory"><span className="emoji">▦</span><strong>Inventario</strong><span className="muted small">Existencias reales · precios Notion · conteos</span></Link>
-        <Link className="card" href="/orders/new"><span className="emoji">＋</span><strong>Nueva orden</strong><span className="muted small">Tienda · Taller · Electroauto</span></Link>
         <Link className="card" href="/customers"><span className="emoji">♙</span><strong>Clientes</strong><span className="muted small">Buscar, registrar y ver vehículos</span></Link>
         <Link className="card" href="/orders"><span className="emoji">▤</span><strong>Órdenes</strong><span className="muted small">Abiertas, cerradas y Crédito LC</span></Link>
         <Link className="card" href="/receivables"><span className="emoji">$</span><strong>Cobros pendientes</strong><span className="muted small">Crédito LC y abonos</span></Link>
