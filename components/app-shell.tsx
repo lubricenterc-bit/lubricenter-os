@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { PricingStatus } from "@/components/pricing-status";
 
 const nav = [
   ["/", "⌂", "Inicio"],
@@ -29,7 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <img src="/lubricenter-logo.png" alt="Lubricenter" />
           <span className="brand-copy">Lubricenter <b>OS</b></span>
         </Link>
-        <button className="btn btn-ghost" onClick={async () => { await supabase.auth.signOut(); router.replace("/login"); }}>Salir</button>
+        <div className="row"><PricingStatus /><button className="btn btn-ghost" onClick={async () => { await supabase.auth.signOut(); router.replace("/login"); }}>Salir</button></div>
       </header>
       {children}
       <nav className="nav">
