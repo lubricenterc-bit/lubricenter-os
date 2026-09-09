@@ -9,8 +9,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <div><div className="eyebrow">MÓDULOS DE ESTA ORDEN</div><strong>Agrega todo lo realizado en la misma visita</strong></div>
         <span className="pill ok">1 ORDEN</span>
       </div>
-      <div className="muted small">Productos, taller, electroauto y cambio de aceite pueden convivir dentro del mismo número OS.</div>
-      <Link className="btn btn-primary btn-block" href={`/orders/${id}/oil-change`}>+ Agregar cambio de aceite</Link>
+      <div className="muted small">Productos, taller, electroauto y cambio de aceite conviven dentro del mismo número OS.</div>
+      <div className="grid grid-2">
+        <Link className="btn btn-primary" href={`/orders/${id}/oil-change`}>+ Cambio de aceite</Link>
+        <Link className="btn" href={`/orders/${id}/delivery`}>Salida / mensaje CRM</Link>
+      </div>
     </section>
     <OrderWorkspace initialOrderId={id} />
   </main>;
