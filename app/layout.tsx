@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./nav.css";
+import "./receipt.css";
 import { AuthGuard } from "@/components/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { PwaRegister } from "@/components/pwa-register";
