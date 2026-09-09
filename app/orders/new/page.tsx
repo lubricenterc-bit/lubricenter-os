@@ -1,5 +1,5 @@
-import { OrderBuilder } from "@/components/order-builder";
+import { OrderBuilderV2 } from "@/components/order-builder-v2";
 
 export default function NewOrderPage() {
-  return <main className="container"><OrderBuilder /></main>;
+  return <main className="container"><OrderBuilderV2 /></main>;
 }
