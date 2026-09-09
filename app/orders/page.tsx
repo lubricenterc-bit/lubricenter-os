@@ -29,6 +29,7 @@ export default function OrdersPage() {
   const [filter, setFilter] = useState<Filter>("ALL");
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function load() {
     setError("");
@@ -65,6 +66,21 @@ export default function OrdersPage() {
   const creditOpen = receivables.filter(r => r.status === "OPEN");
   const creditTotal = creditOpen.reduce((a, r) => a + Number(r.outstanding_ves || 0), 0);
 
+  async function deleteOrder(o: Order) {
+    if (o.status !== "OPEN") return;
+    const confirmed = window.confirm(`¿Eliminar ${o.order_number}?\n\nHazlo solo si es una orden duplicada o creada por error. Las órdenes cerradas no se pueden borrar.`);
+    if (!confirmed) return;
+    setDeletingId(o.id);
+    setError("");
+    const { error } = await supabase.rpc("delete_open_order", {
+      p_order_id: o.id,
+      p_reason: "Orden duplicada o creada por error desde listado de órdenes",
+    });
+    setDeletingId(null);
+    if (error) return setError(error.message);
+    await load();
+  }
+
   return (
     <main className="container stack">
       <div className="row-between">
@@ -91,20 +107,23 @@ export default function OrdersPage() {
           const c = o.customer_id ? customerMap.get(o.customer_id) : undefined;
           const v = o.vehicle_id ? vehicleMap.get(o.vehicle_id) : undefined;
           const credit = receivableMap.get(o.id);
-          return <Link href={`/orders/${o.id}`} className="card stack" key={o.id}>
-            <div className="row-between">
-              <div><div className="muted small">{fmtDate(o.closed_at ?? o.opened_at)}</div><div className="money-lg">{o.order_number}</div></div>
-              <span className={`pill ${o.status === "CLOSED" ? "ok" : "warn"}`}>{o.status === "OPEN" ? "ABIERTA" : o.status === "CLOSED" ? "CERRADA" : "CANCELADA"}</span>
-            </div>
-            <div>
-              <strong>{c?.name || c?.phone || "Cliente no asignado"}</strong>
-              <div className="muted small">{v ? [v.plate, v.make, v.model].filter(Boolean).join(" · ") : "Sin vehículo"}</div>
-            </div>
-            <div className="row-between">
-              <div>{credit ? <><span className={`pill ${credit.status === "PAID" ? "ok" : "warn"}`}>Crédito LC {credit.status === "PAID" ? "pagado" : "pendiente"}</span>{credit.status === "OPEN" && <div className="muted small" style={{ marginTop: 6 }}>{fmtVes(credit.outstanding_ves)} por cobrar{credit.due_date ? ` · ${credit.due_date}` : ""}</div>}</> : <span className="muted small">{o.status === "OPEN" ? "Toca para continuar atendiendo" : "Toca para ver detalle"}</span>}</div>
-              <div style={{ textAlign: "right" }}><strong>{fmtRef(o.total_ref)}</strong><div className="muted small">{fmtVes(o.total_ves)}</div></div>
-            </div>
-          </Link>;
+          return <article className="card stack" key={o.id}>
+            <Link href={`/orders/${o.id}`} style={{ color: "inherit", textDecoration: "none" }} className="stack">
+              <div className="row-between">
+                <div><div className="muted small">{fmtDate(o.closed_at ?? o.opened_at)}</div><div className="money-lg">{o.order_number}</div></div>
+                <span className={`pill ${o.status === "CLOSED" ? "ok" : "warn"}`}>{o.status === "OPEN" ? "ABIERTA" : o.status === "CLOSED" ? "CERRADA" : "CANCELADA"}</span>
+              </div>
+              <div>
+                <strong>{c?.name || c?.phone || "Cliente no asignado"}</strong>
+                <div className="muted small">{v ? [v.plate, v.make, v.model].filter(Boolean).join(" · ") : "Sin vehículo"}</div>
+              </div>
+              <div className="row-between">
+                <div>{credit ? <><span className={`pill ${credit.status === "PAID" ? "ok" : "warn"}`}>Crédito LC {credit.status === "PAID" ? "pagado" : "pendiente"}</span>{credit.status === "OPEN" && <div className="muted small" style={{ marginTop: 6 }}>{fmtVes(credit.outstanding_ves)} por cobrar{credit.due_date ? ` · ${credit.due_date}` : ""}</div>}</> : <span className="muted small">{o.status === "OPEN" ? "Toca para continuar atendiendo" : "Toca para ver detalle"}</span>}</div>
+                <div style={{ textAlign: "right" }}><strong>{fmtRef(o.total_ref)}</strong><div className="muted small">{fmtVes(o.total_ves)}</div></div>
+              </div>
+            </Link>
+            {o.status === "OPEN" && <button className="btn btn-ghost btn-block" style={{ borderColor: "rgba(255,80,80,.45)", color: "#ff8b8b" }} disabled={deletingId === o.id} onClick={() => deleteOrder(o)}>{deletingId === o.id ? "Eliminando…" : "Eliminar duplicada"}</button>}
+          </article>;
         })}
         {!filtered.length && <div className="card muted">No hay órdenes que coincidan con este filtro.</div>}
       </section>
