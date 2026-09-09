@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -98,8 +99,8 @@ export default function CustomersPage() {
             <div className="row-between"><div><strong>{c.name || "Cliente sin nombre"}</strong><div className="muted small">{c.phone || c.document_id || "Sin contacto"}</div></div><span className="pill">{owned.length} veh.</span></div>
             <div className="stack">
               {owned.map(v => <div className="vehicle-line" key={v.id}>
-                <div><strong>{v.plate || "SIN PLACA"}</strong><div className="muted small">{[v.make, v.model, v.year].filter(Boolean).join(" · ") || "Vehículo sin detalle"}</div></div>
-                <div className="muted small">{v.current_odometer != null ? `${v.current_odometer.toLocaleString("es-VE")} km` : "Sin km"}</div>
+                <div><strong>{v.plate || "SIN PLACA"}</strong><div className="muted small">{[v.make, v.model, v.year].filter(Boolean).join(" · ") || "Vehículo sin detalle"}</div><div className="muted small">{v.current_odometer != null ? `${v.current_odometer.toLocaleString("es-VE")} km` : "Sin km"}</div></div>
+                <Link href={`/vehicles/${v.id}`} className="btn btn-ghost" onClick={e => e.stopPropagation()}>Ver ficha</Link>
               </div>)}
               {!owned.length && <div className="muted small">Todavía no tiene vehículos registrados.</div>}
             </div>
