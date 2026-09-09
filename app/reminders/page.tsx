@@ -1,7 +1,27 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+
+type Followup = {
+  id: string;
+  order_id: string;
+  order_number: string;
+  followup_type: string;
+  status: "PENDING" | "SENT" | "SNOOZED";
+  message: string;
+  sent_at: string | null;
+  snoozed_until: string | null;
+  closed_at: string | null;
+  health_status: "GREEN" | "YELLOW" | "RED";
+  customer_name: string | null;
+  customer_phone: string | null;
+  plate: string | null;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+};
 
 type Reminder = {
   service_record_id: string;
@@ -27,6 +47,7 @@ type Reminder = {
   urgency: "DUE" | "SOON" | "UPCOMING" | "SENT" | "SNOOZED";
 };
 
+type Tab = "POST_SERVICE" | "MAINTENANCE";
 type Filter = "ACTION" | "ALL" | "SENT";
 
 function cleanWhatsapp(value: string | null) {
@@ -48,40 +69,68 @@ function reminderMessage(r: Reminder) {
 
 function formatDate(value: string | null) {
   if (!value) return "Sin fecha";
-  return new Date(`${value}T12:00:00`).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" });
+  const d = value.length <= 10 ? new Date(`${value}T12:00:00`) : new Date(value);
+  return d.toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-export default function RemindersPage() {
-  const [rows, setRows] = useState<Reminder[]>([]);
+export default function CrmPage() {
+  const [tab, setTab] = useState<Tab>("POST_SERVICE");
   const [filter, setFilter] = useState<Filter>("ACTION");
+  const [followups, setFollowups] = useState<Followup[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
   async function load() {
     setError("");
-    const { data, error } = await supabase
-      .from("maintenance_reminders_current")
-      .select("*")
-      .order("next_service_date", { ascending: true, nullsFirst: false })
-      .limit(1000);
-    if (error) return setError(error.message);
-    setRows((data ?? []) as Reminder[]);
+    const [{ data: f, error: fe }, { data: r, error: re }] = await Promise.all([
+      supabase.from("customer_followups_current").select("*").eq("followup_type", "POST_SERVICE").order("closed_at", { ascending: false, nullsFirst: false }).limit(500),
+      supabase.from("maintenance_reminders_current").select("*").order("next_service_date", { ascending: true, nullsFirst: false }).limit(1000),
+    ]);
+    if (fe || re) return setError((fe || re)?.message ?? "No pude cargar el CRM.");
+    setFollowups((f ?? []) as Followup[]);
+    setReminders((r ?? []) as Reminder[]);
   }
 
   useEffect(() => { load(); }, []);
 
-  const visible = useMemo(() => rows.filter(r => {
+  const visibleFollowups = useMemo(() => followups.filter(f => {
+    if (filter === "SENT") return f.status === "SENT";
+    if (filter === "ACTION") return f.status === "PENDING" || (f.status === "SNOOZED" && (!f.snoozed_until || f.snoozed_until <= new Date().toISOString().slice(0,10)));
+    return true;
+  }), [followups, filter]);
+
+  const visibleReminders = useMemo(() => reminders.filter(r => {
     if (filter === "SENT") return r.urgency === "SENT";
     if (filter === "ACTION") return ["DUE", "SOON"].includes(r.urgency);
     return true;
-  }), [rows, filter]);
+  }), [reminders, filter]);
 
-  const due = rows.filter(r => r.urgency === "DUE").length;
-  const soon = rows.filter(r => r.urgency === "SOON").length;
-  const sent = rows.filter(r => r.urgency === "SENT").length;
+  const postPending = followups.filter(f => f.status === "PENDING").length;
+  const due = reminders.filter(r => r.urgency === "DUE").length;
+  const soon = reminders.filter(r => r.urgency === "SOON").length;
 
-  async function setStatus(r: Reminder, status: "PENDING" | "SENT" | "SNOOZED", snoozedUntil?: string) {
+  function openWhatsapp(phoneValue: string | null, message: string) {
+    const phone = cleanWhatsapp(phoneValue);
+    if (!phone) return setError("Este cliente no tiene un número de WhatsApp válido registrado.");
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+  }
+
+  async function setFollowupStatus(f: Followup, status: "PENDING" | "SENT" | "SNOOZED", snoozedUntil?: string) {
+    setBusyId(f.id); setError(""); setNotice("");
+    const { error } = await supabase.rpc("set_customer_followup_status", {
+      p_followup_id: f.id,
+      p_status: status,
+      p_snoozed_until: status === "SNOOZED" ? snoozedUntil : null,
+    });
+    setBusyId(null);
+    if (error) return setError(error.message);
+    setNotice(status === "SENT" ? "Mensaje post-servicio marcado como enviado." : status === "SNOOZED" ? "Seguimiento pospuesto." : "Seguimiento reabierto.");
+    await load();
+  }
+
+  async function setReminderStatus(r: Reminder, status: "PENDING" | "SENT" | "SNOOZED", snoozedUntil?: string) {
     setBusyId(r.service_record_id); setError(""); setNotice("");
     const { error } = await supabase.rpc("set_maintenance_reminder_status", {
       p_service_record_id: r.service_record_id,
@@ -94,21 +143,13 @@ export default function RemindersPage() {
     await load();
   }
 
-  function openWhatsapp(r: Reminder) {
-    const phone = cleanWhatsapp(r.customer_phone);
-    if (!phone) return setError("Este cliente no tiene un número de WhatsApp válido registrado.");
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(reminderMessage(r))}`, "_blank", "noopener,noreferrer");
-  }
-
-  function snoozeSevenDays(r: Reminder) {
-    const d = new Date();
-    d.setDate(d.getDate() + 7);
-    setStatus(r, "SNOOZED", d.toISOString().slice(0, 10));
+  function snoozeDate(days: number) {
+    const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10);
   }
 
   return <main className="container stack">
     <section className="brand-hero">
-      <div><div className="eyebrow">ATENCIÓN AL CLIENTE</div><h1>Recordatorios</h1><p>Los avisos de mantenimiento viven dentro de Lubricenter OS. Abre WhatsApp con el mensaje listo y conserva el estado del seguimiento.</p></div>
+      <div><div className="eyebrow">CRM · EXPERIENCIA DEL CLIENTE</div><h1>Seguimiento</h1><p>Primero agradecemos y resumimos el servicio. Después, cuando corresponda, recordamos el próximo mantenimiento.</p></div>
       <img src="/lubricenter-logo.png" alt="Lubricenter" />
     </section>
 
@@ -116,23 +157,45 @@ export default function RemindersPage() {
     {notice && <div className="success">{notice}</div>}
 
     <section className="grid grid-3">
-      <div className="card"><div className="muted small">VENCIDOS</div><div className="kpi">{due}</div><div className="muted">Enviar ahora</div></div>
+      <div className="card"><div className="muted small">POST-SERVICIO PENDIENTE</div><div className="kpi">{postPending}</div><div className="muted">Enviar al terminar la visita</div></div>
+      <div className="card"><div className="muted small">MANTENIMIENTOS VENCIDOS</div><div className="kpi">{due}</div><div className="muted">Contactar ahora</div></div>
       <div className="card"><div className="muted small">PRÓXIMOS 14 DÍAS</div><div className="kpi">{soon}</div><div className="muted">Seguimiento preventivo</div></div>
-      <div className="card"><div className="muted small">ENVIADOS</div><div className="kpi">{sent}</div><div className="muted">Último servicio de cada vehículo</div></div>
     </section>
 
     <section className="card stack">
+      <div className="segmented">
+        <button className={`btn ${tab === "POST_SERVICE" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("POST_SERVICE")}>Post-servicio · {postPending}</button>
+        <button className={`btn ${tab === "MAINTENANCE" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("MAINTENANCE")}>Mantenimiento · {due + soon}</button>
+      </div>
       <div className="segmented">
         <button className={`btn ${filter === "ACTION" ? "btn-primary" : "btn-ghost"}`} onClick={() => setFilter("ACTION")}>Por atender</button>
         <button className={`btn ${filter === "ALL" ? "btn-primary" : "btn-ghost"}`} onClick={() => setFilter("ALL")}>Todos</button>
         <button className={`btn ${filter === "SENT" ? "btn-primary" : "btn-ghost"}`} onClick={() => setFilter("SENT")}>Enviados</button>
       </div>
-      <div className="muted small">{visible.length} recordatorios visibles</div>
     </section>
 
-    <section className="stack">
-      {visible.map(r => {
-        const canWhatsapp = !!cleanWhatsapp(r.customer_phone);
+    {tab === "POST_SERVICE" ? <section className="stack">
+      {visibleFollowups.map(f => {
+        const phoneOk = !!cleanWhatsapp(f.customer_phone);
+        const vehicle = [f.plate, f.make, f.model, f.year].filter(Boolean).join(" · ") || "Sin vehículo";
+        return <article className="card stack" key={f.id}>
+          <div className="row-between">
+            <div><div className="row"><strong>{f.customer_name || "Cliente sin nombre"}</strong><span className={`pill ${f.status === "SENT" ? "ok" : "warn"}`}>{f.status === "SENT" ? "ENVIADO" : f.status === "SNOOZED" ? "POSPUESTO" : "PENDIENTE"}</span></div><div>{vehicle}</div><div className="muted small">{f.customer_phone || "Sin teléfono"} · {formatDate(f.closed_at)}</div></div>
+            <Link href={`/orders/${f.order_id}`} className="btn btn-ghost">{f.order_number}</Link>
+          </div>
+          <details className="card"><summary><strong>Ver mensaje preparado</strong></summary><div style={{ whiteSpace: "pre-wrap", marginTop: 12 }} className="small">{f.message}</div></details>
+          {f.status !== "SENT" ? <div className="grid grid-2">
+            <button className="btn btn-primary" disabled={!phoneOk || busyId === f.id} onClick={() => openWhatsapp(f.customer_phone, f.message)}>Abrir WhatsApp</button>
+            <button className="btn" disabled={busyId === f.id} onClick={() => setFollowupStatus(f, "SENT")}>{busyId === f.id ? "Guardando…" : "Marcar enviado"}</button>
+            <button className="btn btn-ghost" disabled={busyId === f.id} onClick={() => setFollowupStatus(f, "SNOOZED", snoozeDate(1))}>Posponer 1 día</button>
+          </div> : <button className="btn btn-ghost" disabled={busyId === f.id} onClick={() => setFollowupStatus(f, "PENDING")}>Reabrir seguimiento</button>}
+          {!phoneOk && <div className="error">Falta un WhatsApp válido. Corrige el teléfono del cliente antes de enviar.</div>}
+        </article>;
+      })}
+      {!visibleFollowups.length && <div className="card muted">No hay mensajes post-servicio pendientes en esta vista. Cada orden cerrada con cliente genera uno automáticamente.</div>}
+    </section> : <section className="stack">
+      {visibleReminders.map(r => {
+        const phoneOk = !!cleanWhatsapp(r.customer_phone);
         const vehicle = [r.make, r.model, r.year].filter(Boolean).join(" · ");
         return <article className="card stack" key={r.service_record_id}>
           <div className="row-between">
@@ -141,14 +204,14 @@ export default function RemindersPage() {
           </div>
           <div className="muted small">Último aceite: {[r.oil_brand, r.oil_viscosity, r.oil_filter_code ? `Filtro ${r.oil_filter_code}` : null].filter(Boolean).join(" · ") || "Sin detalle"}</div>
           {r.urgency !== "SENT" ? <div className="grid grid-2">
-            <button className="btn btn-primary" disabled={!canWhatsapp || busyId === r.service_record_id} onClick={() => openWhatsapp(r)}>Abrir WhatsApp</button>
-            <button className="btn" disabled={busyId === r.service_record_id} onClick={() => setStatus(r, "SENT")}>{busyId === r.service_record_id ? "Guardando…" : "Marcar enviado"}</button>
-            <button className="btn btn-ghost" disabled={busyId === r.service_record_id} onClick={() => snoozeSevenDays(r)}>Posponer 7 días</button>
-          </div> : <button className="btn btn-ghost" disabled={busyId === r.service_record_id} onClick={() => setStatus(r, "PENDING")}>Reabrir recordatorio</button>}
-          {!canWhatsapp && <div className="error">Falta un teléfono válido en el cliente. Corrígelo en Clientes para habilitar WhatsApp.</div>}
+            <button className="btn btn-primary" disabled={!phoneOk || busyId === r.service_record_id} onClick={() => openWhatsapp(r.customer_phone, reminderMessage(r))}>Abrir WhatsApp</button>
+            <button className="btn" disabled={busyId === r.service_record_id} onClick={() => setReminderStatus(r, "SENT")}>{busyId === r.service_record_id ? "Guardando…" : "Marcar enviado"}</button>
+            <button className="btn btn-ghost" disabled={busyId === r.service_record_id} onClick={() => setReminderStatus(r, "SNOOZED", snoozeDate(7))}>Posponer 7 días</button>
+          </div> : <button className="btn btn-ghost" disabled={busyId === r.service_record_id} onClick={() => setReminderStatus(r, "PENDING")}>Reabrir recordatorio</button>}
+          {!phoneOk && <div className="error">Falta un teléfono válido en el cliente. Corrígelo en Clientes para habilitar WhatsApp.</div>}
         </article>;
       })}
-      {!visible.length && <div className="card muted">No hay recordatorios en esta vista. Los próximos aparecerán automáticamente cuando cierres cambios de aceite con próxima fecha o kilometraje.</div>}
-    </section>
+      {!visibleReminders.length && <div className="card muted">No hay recordatorios de mantenimiento en esta vista.</div>}
+    </section>}
   </main>;
 }
