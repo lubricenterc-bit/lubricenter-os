@@ -8,6 +8,7 @@ import { PricingStatus } from "@/components/pricing-status";
 const nav = [
   ["/", "⌂", "Inicio"],
   ["/orders/new", "+", "Orden"],
+  ["/workshop", "⚒", "Taller"],
   ["/orders", "▤", "Órdenes"],
   ["/inventory", "▦", "Inventario"],
   ["/customers", "◉", "Clientes"],
