@@ -19,7 +19,7 @@ type Vehicle = {
 type Customer = { id: string; name: string | null; phone: string | null; document_id: string | null };
 type ServiceRecord = {
   id: string;
-  order_id: string;
+  order_id: string | null;
   service_type: string;
   description: string;
   odometer: number | null;
@@ -32,6 +32,11 @@ type ServiceRecord = {
   charged_ref_amount: number;
   charged_ves_amount: number;
   performed_at: string;
+  source_system: string | null;
+  source_invoice: string | null;
+  service_notes: string | null;
+  included_services: string[];
+  bonuses: string[];
 };
 type Order = { id: string; order_number: string; status: string; total_ref: number; total_ves: number; opened_at: string; closed_at: string | null };
 
@@ -58,7 +63,7 @@ export default function VehiclePage() {
 
     const [{ data: c, error: ce }, { data: s, error: se }, { data: o, error: oe }] = await Promise.all([
       vr.customer_id ? supabase.from("customers").select("id,name,phone,document_id").eq("id", vr.customer_id).maybeSingle() : Promise.resolve({ data: null, error: null } as any),
-      supabase.from("service_records").select("id,order_id,service_type,description,odometer,oil_brand,oil_viscosity,oil_quantity_liters,oil_filter_code,next_service_odometer,next_service_date,charged_ref_amount,charged_ves_amount,performed_at").eq("vehicle_id", vehicleId).order("performed_at", { ascending: false }).limit(200),
+      supabase.from("service_records").select("id,order_id,service_type,description,odometer,oil_brand,oil_viscosity,oil_quantity_liters,oil_filter_code,next_service_odometer,next_service_date,charged_ref_amount,charged_ves_amount,performed_at,source_system,source_invoice,service_notes,included_services,bonuses").eq("vehicle_id", vehicleId).order("performed_at", { ascending: false }).limit(200),
       supabase.from("orders").select("id,order_number,status,total_ref,total_ves,opened_at,closed_at").eq("vehicle_id", vehicleId).order("opened_at", { ascending: false }).limit(100),
     ]);
     if (ce || se || oe) return setError((ce || se || oe)?.message ?? "No pude cargar el historial.");
@@ -147,13 +152,25 @@ export default function VehiclePage() {
       <button className="btn btn-primary btn-block" disabled={busy} onClick={startOrder}>{busy ? "Creando orden…" : "+ Nueva orden para este vehículo"}</button>
 
       <section className="card stack">
-        <div className="row-between"><div><h2 className="section-title">Historial de servicio</h2><div className="muted small">{services.length} trabajos registrados desde Lubricenter OS</div></div></div>
-        {services.map(s => <div className="order-item" key={s.id}>
-          <div className="row-between"><div><strong>{serviceLabel(s.service_type)} · {s.description}</strong><div className="muted small">{fmtDate(s.performed_at)}{s.odometer != null ? ` · ${s.odometer.toLocaleString("es-VE")} km` : ""}</div></div><Link href={`/orders/${s.order_id}`} className="btn btn-ghost">Orden</Link></div>
-          {s.service_type === "OIL_CHANGE" && (s.oil_brand || s.oil_viscosity || s.oil_quantity_liters || s.oil_filter_code) && <div className="muted small">{[s.oil_brand,s.oil_viscosity,s.oil_quantity_liters ? `${s.oil_quantity_liters} L` : null,s.oil_filter_code ? `Filtro ${s.oil_filter_code}` : null].filter(Boolean).join(" · ")}</div>}
-          <div className="row-between"><span className="muted small">Cobrado</span><div style={{ textAlign: "right" }}><strong>{fmtRef(s.charged_ref_amount)}</strong><div className="muted small">{fmtVes(s.charged_ves_amount)}</div></div></div>
-        </div>)}
-        {!services.length && <div className="muted">Todavía no hay servicios cerrados para este vehículo.</div>}
+        <div className="row-between"><div><h2 className="section-title">Historial de servicio</h2><div className="muted small">{services.length} trabajos registrados entre el historial anterior y Lubricenter OS</div></div></div>
+        {services.map(s => {
+          const historical = !!s.source_system || !s.order_id;
+          return <div className="order-item" key={s.id}>
+            <div className="row-between">
+              <div>
+                <div className="row"><strong>{serviceLabel(s.service_type)} · {s.description}</strong>{historical && <span className="pill">HISTÓRICO</span>}</div>
+                <div className="muted small">{fmtDate(s.performed_at)}{s.odometer != null ? ` · ${s.odometer.toLocaleString("es-VE")} km` : ""}{s.source_invoice ? ` · Factura ${s.source_invoice}` : ""}</div>
+              </div>
+              {s.order_id ? <Link href={`/orders/${s.order_id}`} className="btn btn-ghost">Orden</Link> : <span className="muted small">Sin OS histórica</span>}
+            </div>
+            {s.service_type === "OIL_CHANGE" && (s.oil_brand || s.oil_viscosity || s.oil_quantity_liters || s.oil_filter_code) && <div className="muted small">{[s.oil_brand,s.oil_viscosity,s.oil_quantity_liters ? `${s.oil_quantity_liters} L` : null,s.oil_filter_code ? `Filtro ${s.oil_filter_code}` : null].filter(Boolean).join(" · ")}</div>}
+            {!!s.included_services?.length && <div className="muted small"><strong>Servicios incluidos:</strong> {s.included_services.join(" · ")}</div>}
+            {!!s.bonuses?.length && <div className="muted small"><strong>Bonificaciones:</strong> {s.bonuses.join(" · ")}</div>}
+            {s.service_notes && !s.description.includes(s.service_notes) && <div className="muted small"><strong>Observación:</strong> {s.service_notes}</div>}
+            {historical ? <div className="muted small">Importado del historial anterior · el monto cobrado no estaba disponible de forma confiable.</div> : <div className="row-between"><span className="muted small">Cobrado</span><div style={{ textAlign: "right" }}><strong>{fmtRef(s.charged_ref_amount)}</strong><div className="muted small">{fmtVes(s.charged_ves_amount)}</div></div></div>}
+          </div>;
+        })}
+        {!services.length && <div className="muted">Todavía no hay servicios registrados para este vehículo.</div>}
       </section>
 
       <section className="card stack">
