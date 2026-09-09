@@ -9,6 +9,7 @@ type Order = { id: string; order_number: string; status: string; customer_id: st
 type Vehicle = { id: string; plate: string | null; make: string | null; model: string | null; year: number | null; current_odometer: number | null };
 type Customer = { id: string; name: string | null; phone: string | null };
 type Rates = { bcv: number; operative: number };
+type PricingSync = { catalogSyncedAt: string | null; bcvEffectiveAt: string | null; operativeEffectiveAt: string | null };
 type InventoryItem = {
   id: string;
   sku: string;
@@ -23,6 +24,11 @@ type InventoryItem = {
   needs_review: boolean;
 };
 
+function syncLabel(value: string | null) {
+  if (!value) return "sin sincronizar";
+  return new Date(value).toLocaleString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
 export default function OilChangePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -31,6 +37,7 @@ export default function OilChangePage() {
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [rates, setRates] = useState<Rates>({ bcv: 0, operative: 0 });
+  const [sync, setSync] = useState<PricingSync>({ catalogSyncedAt: null, bcvEffectiveAt: null, operativeEffectiveAt: null });
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [description, setDescription] = useState("Cambio de aceite");
   const [serviceBaseRef, setServiceBaseRef] = useState(0);
@@ -53,18 +60,21 @@ export default function OilChangePage() {
 
   async function load() {
     setError("");
-    const [{ data: o, error: oe }, { data: r, error: re }, { data: inv, error: ie }] = await Promise.all([
+    const [{ data: o, error: oe }, { data: r, error: re }, { data: inv, error: ie }, { data: ps, error: pe }] = await Promise.all([
       supabase.from("orders").select("id,order_number,status,customer_id,vehicle_id").eq("id", orderId).single(),
       supabase.rpc("get_current_rates"),
       supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,needs_review").eq("location_code", "CABUDARE").gt("quantity_on_hand", 0).order("brand").order("sku").limit(1000),
+      supabase.rpc("get_pricing_sync_status"),
     ]);
-    if (oe || re || ie) return setError((oe || re || ie)?.message ?? "No pude cargar la orden.");
+    if (oe || re || ie || pe) return setError((oe || re || ie || pe)?.message ?? "No pude cargar la orden.");
     const ord = o as Order;
     if (ord.status !== "OPEN") return setError("Esta orden ya no está abierta.");
     if (!ord.vehicle_id) return setError("Asocia un vehículo antes de registrar el cambio de aceite.");
     setOrder(ord);
     const rateRow = Array.isArray(r) ? r[0] : r;
     setRates({ bcv: Number(rateRow?.bcv_rate ?? 0), operative: Number(rateRow?.operative_rate ?? 0) });
+    const syncRow = Array.isArray(ps) ? ps[0] : ps;
+    setSync({ catalogSyncedAt: syncRow?.catalog_synced_at ?? null, bcvEffectiveAt: syncRow?.bcv_effective_at ?? null, operativeEffectiveAt: syncRow?.operative_effective_at ?? null });
     setInventory((inv ?? []).map((x: any) => ({ ...x, quantity_on_hand: Number(x.quantity_on_hand ?? 0), current_price_ves: x.current_price_ves == null ? null : Number(x.current_price_ves), current_ref_bcv: x.current_ref_bcv == null ? null : Number(x.current_ref_bcv) })) as InventoryItem[]);
     const [{ data: v, error: ve }, { data: c, error: ce }] = await Promise.all([
       supabase.from("vehicles").select("id,plate,make,model,year,current_odometer").eq("id", ord.vehicle_id).single(),
@@ -95,6 +105,10 @@ export default function OilChangePage() {
   const productRef = oilUnitRef * Number(oilUnits || 0) + (filter ? filterUnitRef * Number(filterUnits || 0) : 0);
   const totalPreviewRef = productRef + Number(serviceCustomerRef || 0);
   const nextOdometer = odometer && nextKm ? Number(odometer) + Number(nextKm) : null;
+  const catalogAge = sync.catalogSyncedAt ? (Date.now() - new Date(sync.catalogSyncedAt).getTime()) / 3600000 : Infinity;
+  const rateTimes = [sync.bcvEffectiveAt, sync.operativeEffectiveAt].filter(Boolean) as string[];
+  const rateAge = rateTimes.length ? Math.max(...rateTimes.map(v => (Date.now() - new Date(v).getTime()) / 3600000)) : Infinity;
+  const pricingFresh = catalogAge <= 24 && rateAge <= 3;
 
   function chooseOil(id: string) {
     setOilId(id);
@@ -112,6 +126,7 @@ export default function OilChangePage() {
     if (!order || !vehicle) return;
     if (!odometer) return setError("Ingresa el kilometraje actual.");
     if (!oil) return setError("Selecciona el aceite utilizado.");
+    if (!pricingFresh && (oil.current_ref_bcv != null || filter?.current_ref_bcv != null)) return setError("Los precios automáticos de Notion están desactualizados. Espera la sincronización antes de cobrar con precio de catálogo.");
     if (Number(oilUnits) <= 0 || Number(oilUnits) > oil.quantity_on_hand) return setError(`Existencia insuficiente de ${oil.sku}.`);
     if (oil.current_ref_bcv == null && Number(oilManualRef) <= 0) return setError("Este aceite no tiene precio vinculado. Ingresa el precio unitario REF.");
     if (filter && (Number(filterUnits) <= 0 || Number(filterUnits) > filter.quantity_on_hand)) return setError(`Existencia insuficiente de ${filter.sku}.`);
@@ -149,6 +164,10 @@ export default function OilChangePage() {
 
     {error && <div className="error">{error}</div>}
 
+    <section className={`card ${pricingFresh ? "success" : "error"}`}>
+      <div className="row-between"><div><strong>Precios desde Notion</strong><div className="small">Catálogo {syncLabel(sync.catalogSyncedAt)} · tasas {syncLabel(sync.operativeEffectiveAt)}</div></div><span className={`pill ${pricingFresh ? "ok" : "warn"}`}>{pricingFresh ? "VIGENTE" : "DESACTUALIZADO"}</span></div>
+    </section>
+
     <section className="card stack">
       <div className="row-between"><div><div className="muted small">VEHÍCULO</div><strong>{vehicle ? [vehicle.plate, vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" · ") : "Cargando…"}</strong></div><button className="btn btn-ghost" onClick={() => router.push(`/orders/${orderId}`)}>Volver a orden</button></div>
       <label><span className="label">Kilometraje actual *</span><input className="input" type="number" min="0" value={odometer} onChange={e => setOdometer(e.target.value)} placeholder="Ej. 84500" /></label>
@@ -162,7 +181,7 @@ export default function OilChangePage() {
         {visibleOils.map(i => <option key={i.id} value={i.id}>{i.brand} · {i.description} · stock {i.quantity_on_hand}</option>)}
       </select>
       {oil && <div className="success">
-        <div className="row-between"><div><strong>{oil.sku} · {oil.brand}</strong><div className="small">Disponible: {oil.quantity_on_hand}</div></div><div style={{ textAlign: "right" }}>{oil.current_ref_bcv != null ? <><strong>{fmtRef(oil.current_ref_bcv)}</strong><div className="small">{fmtVes(oil.current_price_ves ?? 0)} c/u</div></> : <strong>Precio manual</strong>}</div></div>
+        <div className="row-between"><div><strong>{oil.sku} · {oil.brand}</strong><div className="small">Disponible: {oil.quantity_on_hand}</div></div><div style={{ textAlign: "right" }}>{oil.current_ref_bcv != null ? <><strong>{fmtRef(oil.current_ref_bcv)}</strong><div className="small">{fmtVes(oil.current_price_ves ?? 0)} c/u · Notion</div></> : <strong>Precio manual</strong>}</div></div>
       </div>}
       <div className="grid grid-2">
         <label><span className="label">Unidades usadas *</span><input className="input" type="number" min="0.01" step="0.01" value={oilUnits} onChange={e => setOilUnits(e.target.value)} /></label>
@@ -179,7 +198,7 @@ export default function OilChangePage() {
         <option value="">Sin filtro / cliente trae filtro</option>
         {visibleFilters.map(i => <option key={i.id} value={i.id}>{i.sku} · {i.brand} · stock {i.quantity_on_hand}</option>)}
       </select>
-      {filter && <div className="success"><div className="row-between"><div><strong>{filter.sku} · {filter.brand}</strong><div className="small">{filter.description} · disponible {filter.quantity_on_hand}</div></div><div style={{ textAlign: "right" }}>{filter.current_ref_bcv != null ? <><strong>{fmtRef(filter.current_ref_bcv)}</strong><div className="small">{fmtVes(filter.current_price_ves ?? 0)} c/u</div></> : <strong>Precio manual</strong>}</div></div></div>}
+      {filter && <div className="success"><div className="row-between"><div><strong>{filter.sku} · {filter.brand}</strong><div className="small">{filter.description} · disponible {filter.quantity_on_hand}</div></div><div style={{ textAlign: "right" }}>{filter.current_ref_bcv != null ? <><strong>{fmtRef(filter.current_ref_bcv)}</strong><div className="small">{fmtVes(filter.current_price_ves ?? 0)} c/u · Notion</div></> : <strong>Precio manual</strong>}</div></div></div>}
       {filter && <div className="grid grid-2">
         <label><span className="label">Cantidad</span><input className="input" type="number" min="0.01" step="0.01" value={filterUnits} onChange={e => setFilterUnits(e.target.value)} /></label>
         {filter.current_ref_bcv == null && <label><span className="label">Precio unitario REF *</span><input className="input" type="number" min="0" step="0.01" value={filterManualRef} onChange={e => setFilterManualRef(e.target.value)} placeholder="Precio al cliente" /></label>}
