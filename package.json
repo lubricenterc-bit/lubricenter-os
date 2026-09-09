@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "node scripts/import-inventory-once.mjs && next start",
+    "start": "next start",
     "lint": "next lint",
     "test": "vitest run"
   },
