@@ -10,6 +10,7 @@ const nav = [
   ["/orders", "▤", "Órdenes"],
   ["/customers", "◉", "Clientes"],
   ["/receivables", "₿", "Cobros"],
+  ["/cash", "▣", "Caja"],
   ["/payroll", "$", "Nómina"],
   ["/settings", "⚙", "Config"],
 ] as const;
@@ -26,23 +27,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <img src="/lubricenter-logo.png" alt="Lubricenter" />
           <span className="brand-copy">Lubricenter <b>OS</b></span>
         </Link>
-        <button
-          className="btn btn-ghost"
-          onClick={async () => {
-            await supabase.auth.signOut();
-            router.replace("/login");
-          }}
-        >
-          Salir
-        </button>
+        <button className="btn btn-ghost" onClick={async () => { await supabase.auth.signOut(); router.replace("/login"); }}>Salir</button>
       </header>
       {children}
       <nav className="nav">
         {nav.map(([href, icon, label]) => {
-          const active = href === "/orders" ? pathname === "/orders" || pathname.startsWith("/orders/") && pathname !== "/orders/new" : pathname === href;
-          return <Link key={href} href={href} className={active ? "nav-active" : ""}>
-            <strong>{icon}</strong>{label}
-          </Link>;
+          const active = href === "/orders"
+            ? pathname === "/orders" || (pathname.startsWith("/orders/") && pathname !== "/orders/new")
+            : pathname === href;
+          return <Link key={href} href={href} className={active ? "nav-active" : ""}><strong>{icon}</strong>{label}</Link>;
         })}
       </nav>
     </div>
