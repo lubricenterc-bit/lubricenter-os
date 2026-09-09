@@ -1,5 +1,5 @@
-const CACHE = "lubricenter-os-v0.2-products";
-const SHELL = ["/", "/orders", "/inventory", "/payroll", "/settings", "/manifest.webmanifest"];
+const CACHE = "lubricenter-os-v0.4-unified-crm";
+const SHELL = ["/", "/orders", "/orders/new", "/inventory", "/customers", "/reminders", "/payroll", "/settings", "/manifest.webmanifest"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).catch(() => undefined));
   self.skipWaiting();
