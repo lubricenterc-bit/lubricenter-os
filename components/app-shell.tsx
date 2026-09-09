@@ -9,20 +9,25 @@ const nav = [
   ["/", "⌂", "Inicio"],
   ["/orders/new", "+", "Orden"],
   ["/workshop", "⚒", "Taller"],
-  ["/orders", "▤", "Órdenes"],
-  ["/inventory", "▦", "Inventario"],
-  ["/customers", "◉", "Clientes"],
   ["/reminders", "♡", "CRM"],
-  ["/receivables", "₿", "Cobros"],
-  ["/cash", "▣", "Caja"],
-  ["/payroll", "$", "Nómina"],
-  ["/settings", "⚙", "Config"],
+  ["/more", "•••", "Más"],
 ] as const;
+
+const morePaths = ["/customers", "/inventory", "/receivables", "/cash", "/payroll", "/settings", "/more"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   if (pathname === "/login") return <>{children}</>;
+
+  function isActive(href: string) {
+    if (href === "/") return pathname === "/";
+    if (href === "/orders/new") return pathname.startsWith("/orders");
+    if (href === "/workshop") return pathname.startsWith("/workshop");
+    if (href === "/reminders") return pathname.startsWith("/reminders");
+    if (href === "/more") return morePaths.some(p => pathname === p || pathname.startsWith(`${p}/`));
+    return false;
+  }
 
   return (
     <div className="shell">
@@ -35,12 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
       {children}
       <nav className="nav">
-        {nav.map(([href, icon, label]) => {
-          const active = href === "/orders"
-            ? pathname === "/orders" || (pathname.startsWith("/orders/") && pathname !== "/orders/new")
-            : pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
-          return <Link key={href} href={href} className={active ? "nav-active" : ""}><strong>{icon}</strong>{label}</Link>;
-        })}
+        {nav.map(([href, icon, label]) => <Link key={href} href={href} className={isActive(href) ? "nav-active" : ""}><strong>{icon}</strong>{label}</Link>)}
       </nav>
     </div>
   );
