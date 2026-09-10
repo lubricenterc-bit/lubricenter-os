@@ -54,14 +54,15 @@ type CartLine = {
 
 type Rates = { bcv: number; operative: number };
 type CompletedSale = { order_id: string; order_number: string; total_ves: number; total_ref: number };
+type PaymentMethod = "MOBILE_PAYMENT" | "TRANSFER_BDV" | "TRANSFER_BNC" | "CASH_VES" | "CASH_USD";
 
-const PAYMENT_METHODS = [
+const PAYMENT_METHODS: readonly [PaymentMethod, string][] = [
   ["MOBILE_PAYMENT", "Pago móvil"],
   ["TRANSFER_BDV", "Transferencia BDV"],
   ["TRANSFER_BNC", "Transferencia BNC"],
   ["CASH_VES", "Efectivo Bs"],
   ["CASH_USD", "Efectivo USD"],
-] as const;
+];
 
 function normalize(value: string | null | undefined) {
   return (value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -84,6 +85,7 @@ export default function QuickSalePage() {
   const [manualPrice, setManualPrice] = useState("");
   const [manualQty, setManualQty] = useState("1");
   const [reference, setReference] = useState("");
+  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>("MOBILE_PAYMENT");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -184,9 +186,7 @@ export default function QuickSalePage() {
     setCompleted(null);
     setCart(lines => {
       const existing = lines.find(x => x.key === r.key);
-      if (existing) {
-        return lines.map(x => x.key === r.key ? { ...x, quantity: x.quantity + 1 } : x);
-      }
+      if (existing) return lines.map(x => x.key === r.key ? { ...x, quantity: x.quantity + 1 } : x);
       return [...lines, {
         key: r.key,
         kind: r.kind,
@@ -220,7 +220,9 @@ export default function QuickSalePage() {
       unit_ref: unitRef,
       source_label: "Venta manual · no altera inventario",
     }]);
-    setManualDescription(""); setManualPrice(""); setManualQty("1");
+    setManualDescription("");
+    setManualPrice("");
+    setManualQty("1");
     setTimeout(() => searchRef.current?.focus(), 20);
   }
 
@@ -247,9 +249,11 @@ export default function QuickSalePage() {
     }));
   }
 
-  async function complete(method: string) {
+  async function complete(method: PaymentMethod) {
     if (!cartValid || busy) return;
-    setBusy(true); setError(""); setCompleted(null);
+    setBusy(true);
+    setError("");
+    setCompleted(null);
     const { data, error } = await supabase.rpc("complete_quick_sale", {
       p_items: payload(),
       p_payment_method: method,
@@ -264,13 +268,17 @@ export default function QuickSalePage() {
       total_ves: Number(row.total_ves ?? 0),
       total_ref: Number(row.total_ref ?? 0),
     });
-    setCart([]); setReference(""); setSearch("");
+    setCart([]);
+    setReference("");
+    setSearch("");
+    setSelectedPayment("MOBILE_PAYMENT");
     await load();
   }
 
   async function continueAsOrder() {
     if (!cartValid || busy) return;
-    setBusy(true); setError("");
+    setBusy(true);
+    setError("");
     const { data, error } = await supabase.rpc("build_quick_sale_order", { p_items: payload() });
     setBusy(false);
     if (error) return setError(error.message);
@@ -283,7 +291,7 @@ export default function QuickSalePage() {
       <div>
         <div className="eyebrow">MOSTRADOR · PRECIO → VENTA → COBRO</div>
         <h1>Venta rápida</h1>
-        <p>Busca precio sin crear una orden. La OS nace solo cuando cobras o decides continuar como orden completa.</p>
+        <p>Busca precio sin crear una orden. La OS nace solo cuando registras y cobras o decides continuar como orden completa.</p>
       </div>
       <img src="/lubricenter-logo.png" alt="Lubricenter" />
     </section>
@@ -292,7 +300,7 @@ export default function QuickSalePage() {
     {warning && <div className="card" style={{ borderColor: "rgba(255,93,21,.45)" }}><strong>Modo degradado disponible</strong><div className="muted small">{warning}. La venta manual sigue disponible si el catálogo o inventario no cargan.</div></div>}
 
     {completed && <section className="card stack" style={{ borderColor: "rgba(63,190,115,.55)" }}>
-      <div className="row-between"><div><div className="eyebrow">VENTA CERRADA</div><div className="money-lg">{completed.order_number}</div></div><span className="pill ok">COBRADA</span></div>
+      <div className="row-between"><div><div className="eyebrow">VENTA REGISTRADA Y CERRADA</div><div className="money-lg">{completed.order_number}</div></div><span className="pill ok">COBRADA</span></div>
       <div className="row-between"><strong>{fmtRef(completed.total_ref)}</strong><strong>{fmtVes(completed.total_ves)}</strong></div>
       <div className="grid grid-2"><Link className="btn" href={`/orders/${completed.order_id}/receipt`}>Ver recibo</Link><button className="btn btn-primary" onClick={() => { setCompleted(null); searchRef.current?.focus(); }}>Nueva venta</button></div>
     </section>}
@@ -335,14 +343,37 @@ export default function QuickSalePage() {
       {!cart.length && <div className="muted">Agrega productos para armar la cotización. Todavía no se crea ninguna OS.</div>}
     </section>
 
-    <section className="card stack" style={{ position: "sticky", bottom: 78, zIndex: 3 }}>
-      <div className="row-between"><div><div className="muted small">TOTAL A COBRAR</div><div className="money-lg">{fmtRef(totalRef)}</div></div><div style={{ textAlign: "right" }}><strong>{fmtVes(totalVes)}</strong><div className="muted small">USD físico aprox. {cashUsd.toFixed(2)}</div></div></div>
-      <input className="input" value={reference} onChange={e => setReference(e.target.value)} placeholder="Referencia de pago (opcional)" />
-      <div className="grid grid-2">
-        {PAYMENT_METHODS.map(([method, label]) => <button key={method} className={method === "MOBILE_PAYMENT" ? "btn btn-primary" : "btn"} disabled={!cartValid || busy} onClick={() => complete(method)}>{busy ? "Procesando…" : label}</button>)}
+    <section className="card stack" style={{ borderColor: cart.length ? "rgba(255,93,21,.42)" : undefined }}>
+      <div>
+        <div className="eyebrow">3. FINALIZAR VENTA</div>
+        <h2 style={{ margin: "4px 0 0" }}>Registrar y cobrar</h2>
+        <div className="muted small">Elige cómo pagó el cliente y confirma abajo. Al confirmar se crea la OS, se registra el pago, se descuenta inventario cuando corresponda y la venta queda cerrada.</div>
       </div>
+
+      <div className="row-between"><div><div className="muted small">TOTAL A COBRAR</div><div className="money-lg">{fmtRef(totalRef)}</div></div><div style={{ textAlign: "right" }}><strong>{fmtVes(totalVes)}</strong><div className="muted small">USD físico aprox. {cashUsd.toFixed(2)}</div></div></div>
+
+      <div>
+        <span className="label">Forma de pago</span>
+        <div className="grid grid-2">
+          {PAYMENT_METHODS.map(([method, label]) => <button
+            key={method}
+            type="button"
+            className={selectedPayment === method ? "btn btn-primary" : "btn"}
+            onClick={() => setSelectedPayment(method)}
+            disabled={busy}
+          >{selectedPayment === method ? `✓ ${label}` : label}</button>)}
+        </div>
+      </div>
+
+      <input className="input" value={reference} onChange={e => setReference(e.target.value)} placeholder="Referencia de pago (opcional)" />
+
+      <button className="btn btn-primary btn-block" style={{ minHeight: 56, fontSize: 17 }} disabled={!cartValid || busy} onClick={() => complete(selectedPayment)}>
+        {busy ? "Registrando venta…" : `Registrar y cerrar venta · ${fmtRef(totalRef)}`}
+      </button>
+
       <button className="btn btn-ghost btn-block" disabled={!cartValid || busy} onClick={continueAsOrder}>Pago mixto / Crédito LC / asociar cliente → continuar como orden</button>
-      {!cartValid && cart.length > 0 && <div className="muted small">Corrige cantidades o precios antes de cobrar.</div>}
+      {!cart.length && <div className="muted small">Agrega al menos un producto para habilitar el cierre.</div>}
+      {!cartValid && cart.length > 0 && <div className="muted small">Corrige cantidades o precios antes de registrar la venta.</div>}
     </section>
   </main>;
 }
