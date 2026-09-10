@@ -12,7 +12,6 @@ type InventoryItem = { id:string; sku:string; brand:string|null; description:str
 type CatalogItem = { id:string; name:string; category:string|null; filter_code:string|null; current_ref_bcv:number|null; current_price_ves:number|null };
 type Source = "INVENTORY"|"CATALOG"|"MANUAL";
 type FilterSource = "NONE"|Source;
-
 type Pick = { id:string; title:string; subtitle:string; ref:number; ves:number; stock?:number; brand?:string; code?:string };
 
 function normalize(v:string|null|undefined){return (v??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");}
@@ -118,7 +117,7 @@ export default function OilChangePage(){
     const {error}=await supabase.rpc("add_oil_change_package_flexible",{
       p_order_id:orderId,p_odometer:Number(odometer),p_description:"Cambio de aceite",p_service_base_ref:labor,p_service_customer_ref:labor,
       p_oil_source:oilSource,p_oil_inventory_item_id:oilSource==="INVENTORY"?oilPick?.id:null,p_oil_product_id:oilSource==="CATALOG"?oilPick?.id:null,p_oil_description:oilSource==="MANUAL"?oilManual.trim():null,p_oil_units:oilUnits,p_oil_unit_ref:oilUnit,p_oil_brand:oilSource==="MANUAL"?oilManual.trim():oilPick?.brand??oilPick?.title??null,p_oil_viscosity:oilViscosity.trim()||null,p_oil_quantity_liters:liters?Number(liters):null,
-      p_filter_source:filterSource,p_filter_inventory_item_id:filterSource==="INVENTORY"?filterPick?.id:null,p_filter_product_id:filterSource==="CATALOG"?filterPick?.id:null,p_filter_description:filterSource==="MANUAL"?filterManual.trim():null,p_filter_units:filterUnits,p_filter_unit_ref:filterSource==="NONE"?null:filterUnit,p_filter_code:filterSource==="NONE"?null:(filterPick?.code??filterManual.trim()||null),
+      p_filter_source:filterSource,p_filter_inventory_item_id:filterSource==="INVENTORY"?filterPick?.id:null,p_filter_product_id:filterSource==="CATALOG"?filterPick?.id:null,p_filter_description:filterSource==="MANUAL"?filterManual.trim():null,p_filter_units:filterUnits,p_filter_unit_ref:filterSource==="NONE"?null:filterUnit,p_filter_code:filterSource==="NONE"?null:(filterPick?.code ?? (filterManual.trim() || null)),
       p_next_km_interval:Number(nextKm||0),p_next_months:Number(nextMonths||0),
     });
     setBusy(false);if(error)return setError(error.message);
