@@ -21,20 +21,19 @@ export default function CustomersPage() {
   async function load() {
     setError("");
     const [{ data: c, error: ce }, { data: v, error: ve }] = await Promise.all([
-      supabase.from("customers").select("id,name,phone,document_id,created_at").order("updated_at", { ascending: false }).limit(500),
-      supabase.from("vehicles").select("id,customer_id,plate,make,model,year,engine,current_odometer").order("updated_at", { ascending: false }).limit(1000),
+      supabase.from("customers").select("id,name,phone,document_id,created_at").order("updated_at", { ascending: false }).limit(1000),
+      supabase.from("vehicles").select("id,customer_id,plate,make,model,year,engine,current_odometer").order("updated_at", { ascending: false }).limit(1600),
     ]);
     if (ce) setError(ce.message); else setCustomers((c ?? []) as Customer[]);
     if (ve) setError(ve.message); else setVehicles((v ?? []) as Vehicle[]);
   }
-
   useEffect(() => { load(); }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return customers;
+    if (!q) return customers.slice(0, 60);
     const vehicleCustomerIds = new Set(vehicles.filter(v => `${v.plate ?? ""} ${v.make ?? ""} ${v.model ?? ""}`.toLowerCase().includes(q)).map(v => v.customer_id).filter(Boolean));
-    return customers.filter(c => `${c.name ?? ""} ${c.phone ?? ""} ${c.document_id ?? ""}`.toLowerCase().includes(q) || vehicleCustomerIds.has(c.id));
+    return customers.filter(c => `${c.name ?? ""} ${c.phone ?? ""} ${c.document_id ?? ""}`.toLowerCase().includes(q) || vehicleCustomerIds.has(c.id)).slice(0, 80);
   }, [customers, vehicles, search]);
 
   async function createCustomer(form: FormData) {
@@ -48,14 +47,16 @@ export default function CustomersPage() {
     if (error) return setError(error.message);
     setSelectedCustomer(data as string);
     setShowCustomerForm(false);
-    setNotice("Cliente guardado.");
+    setShowVehicleForm(true);
+    setNotice("Cliente guardado. Puedes agregar su vehículo ahora mismo.");
     await load();
   }
 
   async function createVehicle(form: FormData) {
+    if (!selectedCustomer) return setError("Selecciona un cliente para el vehículo.");
     setBusy(true); setError(""); setNotice("");
     const { error } = await supabase.rpc("upsert_vehicle", {
-      p_customer_id: selectedCustomer || null,
+      p_customer_id: selectedCustomer,
       p_plate: String(form.get("plate") || "").trim() || null,
       p_make: String(form.get("make") || "").trim() || null,
       p_model: String(form.get("model") || "").trim() || null,
@@ -70,66 +71,51 @@ export default function CustomersPage() {
     await load();
   }
 
-  return (
-    <main className="container stack">
-      <section className="brand-hero">
-        <div>
-          <div className="eyebrow">CRM · LUBRICENTER</div>
-          <h1>Clientes y vehículos</h1>
-          <p>Una sola ficha para historial, kilometraje, crédito y próximos recordatorios.</p>
-        </div>
-        <img src="/lubricenter-logo.png" alt="Lubricenter" />
-      </section>
+  const selected = customers.find(c => c.id === selectedCustomer) ?? null;
 
-      {error && <div className="error">{error}</div>}
-      {notice && <div className="success">{notice}</div>}
+  return <main className="container stack">
+    <section className="brand-hero"><div><div className="eyebrow">CLIENTES · VEHÍCULOS</div><h1>Directorio</h1><p>Busca, crea y agrega vehículos sin recorrer una lista completa.</p></div><img src="/lubricenter-logo.png" alt="Lubricenter" /></section>
 
-      <section className="card stack">
-        <div className="row-between">
-          <div><h2 className="section-title">Base de clientes</h2><div className="muted small">{customers.length} clientes · {vehicles.length} vehículos</div></div>
-          <button className="btn btn-primary" onClick={() => setShowCustomerForm(true)}>+ Cliente</button>
-        </div>
-        <input className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre, teléfono, cédula, placa, marca o modelo…" />
-      </section>
+    {error && <div className="error">{error}</div>}
+    {notice && <div className="success">{notice}</div>}
 
-      <section className="grid grid-2">
-        {filtered.map(c => {
-          const owned = vehicles.filter(v => v.customer_id === c.id);
-          return <article className={`card customer-card ${selectedCustomer === c.id ? "customer-card-active" : ""}`} key={c.id} onClick={() => setSelectedCustomer(c.id)}>
-            <div className="row-between"><div><strong>{c.name || "Cliente sin nombre"}</strong><div className="muted small">{c.phone || c.document_id || "Sin contacto"}</div></div><span className="pill">{owned.length} veh.</span></div>
-            <div className="stack">
-              {owned.map(v => <div className="vehicle-line" key={v.id}>
-                <div><strong>{v.plate || "SIN PLACA"}</strong><div className="muted small">{[v.make, v.model, v.year].filter(Boolean).join(" · ") || "Vehículo sin detalle"}</div><div className="muted small">{v.current_odometer != null ? `${v.current_odometer.toLocaleString("es-VE")} km` : "Sin km"}</div></div>
-                <Link href={`/vehicles/${v.id}`} className="btn btn-ghost" onClick={e => e.stopPropagation()}>Ver ficha</Link>
-              </div>)}
-              {!owned.length && <div className="muted small">Todavía no tiene vehículos registrados.</div>}
-            </div>
-          </article>;
-        })}
-        {!filtered.length && <div className="card muted">No encontramos coincidencias.</div>}
-      </section>
+    <section className="card stack">
+      <div className="row-between"><div><h2 className="section-title">Base de clientes</h2><div className="muted small">{customers.length} clientes · {vehicles.length} vehículos</div></div><button className="btn btn-primary" onClick={() => setShowCustomerForm(true)}>+ Cliente</button></div>
+      <input className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Nombre, teléfono, cédula, placa, marca o modelo…" autoFocus />
+      {!search.trim() && <div className="muted small">Mostrando clientes recientes. Escribe para buscar en toda la base.</div>}
+    </section>
 
-      <button className="btn btn-block" disabled={!selectedCustomer} onClick={() => setShowVehicleForm(true)}>+ Agregar vehículo al cliente seleccionado</button>
+    <section className="grid grid-2">
+      {filtered.map(c => {
+        const owned = vehicles.filter(v => v.customer_id === c.id);
+        return <article className="card stack" key={c.id}>
+          <div className="row-between"><div><strong>{c.name || "Cliente sin nombre"}</strong><div className="muted small">{[c.phone,c.document_id].filter(Boolean).join(" · ") || "Sin contacto"}</div></div><button className="btn btn-primary" onClick={() => { setSelectedCustomer(c.id); setShowVehicleForm(true); }}>+ Vehículo</button></div>
+          {owned.slice(0,6).map(v => <div className="vehicle-line" key={v.id}><div><strong>{v.plate || "SIN PLACA"}</strong><div className="muted small">{[v.make,v.model,v.year].filter(Boolean).join(" · ") || "Vehículo"}{v.current_odometer != null ? ` · ${v.current_odometer.toLocaleString("es-VE")} km` : ""}</div></div><Link href={`/vehicles/${v.id}`} className="btn btn-ghost">Ver ficha</Link></div>)}
+          {!owned.length && <div className="muted small">Sin vehículos todavía. Usa “+ Vehículo” aquí mismo.</div>}
+          {owned.length > 6 && <div className="muted small">+ {owned.length-6} vehículos más</div>}
+        </article>;
+      })}
+      {!filtered.length && <div className="card stack"><strong>No encontré coincidencias.</strong><button className="btn btn-primary" onClick={() => setShowCustomerForm(true)}>Crear cliente</button></div>}
+    </section>
 
-      {showCustomerForm && <div className="overlay"><form className="sheet stack" action={createCustomer}>
-        <div className="row-between"><div><h2 style={{ margin: 0 }}>Nuevo cliente</h2><div className="muted small">Nombre, teléfono o documento son suficientes para empezar.</div></div><button type="button" className="btn btn-ghost" onClick={() => setShowCustomerForm(false)}>Cerrar</button></div>
-        <label><span className="label">Nombre</span><input name="name" className="input" autoFocus /></label>
-        <div className="grid grid-2"><label><span className="label">Teléfono</span><input name="phone" className="input" inputMode="tel" /></label><label><span className="label">Cédula / RIF</span><input name="document" className="input" /></label></div>
-        <button className="btn btn-primary btn-block" disabled={busy}>{busy ? "Guardando…" : "Guardar cliente"}</button>
-      </form></div>}
+    {showCustomerForm && <div className="overlay"><form className="sheet stack" action={createCustomer}>
+      <div className="row-between"><div><h2 style={{ margin: 0 }}>Nuevo cliente</h2><div className="muted small">Al guardarlo te llevo directo a agregar su vehículo.</div></div><button type="button" className="btn btn-ghost" onClick={() => setShowCustomerForm(false)}>Cerrar</button></div>
+      <label><span className="label">Nombre</span><input name="name" className="input" autoFocus /></label>
+      <div className="grid grid-2"><label><span className="label">Teléfono</span><input name="phone" className="input" inputMode="tel" /></label><label><span className="label">Cédula / RIF</span><input name="document" className="input" /></label></div>
+      <button className="btn btn-primary btn-block" disabled={busy}>{busy ? "Guardando…" : "Guardar cliente y agregar vehículo"}</button>
+    </form></div>}
 
-      {showVehicleForm && <div className="overlay"><form className="sheet stack" action={createVehicle}>
-        <div className="row-between"><div><h2 style={{ margin: 0 }}>Nuevo vehículo</h2><div className="muted small">Se vinculará al cliente seleccionado.</div></div><button type="button" className="btn btn-ghost" onClick={() => setShowVehicleForm(false)}>Cerrar</button></div>
-        <div className="grid grid-2">
-          <label><span className="label">Placa</span><input name="plate" className="input" style={{ textTransform: "uppercase" }} autoFocus /></label>
-          <label><span className="label">Marca</span><input name="make" className="input" /></label>
-          <label><span className="label">Modelo</span><input name="model" className="input" /></label>
-          <label><span className="label">Año</span><input name="year" type="number" className="input" /></label>
-          <label><span className="label">Motor</span><input name="engine" className="input" /></label>
-          <label><span className="label">Kilometraje</span><input name="odometer" type="number" min="0" className="input" /></label>
-        </div>
-        <button className="btn btn-primary btn-block" disabled={busy}>{busy ? "Guardando…" : "Guardar vehículo"}</button>
-      </form></div>}
-    </main>
-  );
+    {showVehicleForm && <div className="overlay"><form className="sheet stack" action={createVehicle}>
+      <div className="row-between"><div><h2 style={{ margin: 0 }}>Nuevo vehículo</h2><div className="muted small">Cliente: {selected?.name || selected?.phone || "seleccionado"}</div></div><button type="button" className="btn btn-ghost" onClick={() => setShowVehicleForm(false)}>Cerrar</button></div>
+      <div className="grid grid-2">
+        <label><span className="label">Placa</span><input name="plate" className="input" style={{ textTransform: "uppercase" }} autoFocus /></label>
+        <label><span className="label">Kilometraje</span><input name="odometer" type="number" min="0" className="input" /></label>
+        <label><span className="label">Marca</span><input name="make" className="input" /></label>
+        <label><span className="label">Modelo</span><input name="model" className="input" /></label>
+        <label><span className="label">Año</span><input name="year" type="number" className="input" /></label>
+        <label><span className="label">Motor</span><input name="engine" className="input" /></label>
+      </div>
+      <button className="btn btn-primary btn-block" disabled={busy}>{busy ? "Guardando…" : "Guardar vehículo"}</button>
+    </form></div>}
+  </main>;
 }
