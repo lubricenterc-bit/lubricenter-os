@@ -6,9 +6,12 @@
   justify-content: center;
 }
 .nav::-webkit-scrollbar { display: none; }
-.nav a { flex: 1 0 68px; max-width: 120px; }
+.nav a { flex: 1 0 64px; max-width: 116px; }
+.nav a.nav-order { font-weight: 800; }
+.nav a.nav-order strong { font-size: 20px; }
 @media (max-width: 700px) {
-  .nav { justify-content: flex-start; }
-  .nav a { flex-basis: 66px; font-size: 9px; padding-inline: 2px; }
-  .nav strong { font-size: 16px; }
+  .nav { justify-content: stretch; overflow-x: hidden; }
+  .nav a { flex: 1 1 0; min-width: 0; font-size: 8.5px; padding-inline: 1px; }
+  .nav strong { font-size: 15px; }
+  .nav a.nav-order strong { font-size: 19px; }
 }
