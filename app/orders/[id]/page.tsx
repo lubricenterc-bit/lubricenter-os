@@ -7,6 +7,7 @@ import { OrderFinalizePanel } from "@/components/order-finalize-panel";
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   return <main className="container stack">
+    <style>{`.order-core-only > .stack > section.stack:not(.card):last-of-type{display:none}`}</style>
     <section className="card brand-card stack">
       <div className="row-between">
         <div><div className="eyebrow">ACCIONES DE ESTA ORDEN</div><strong>Todo lo cobrado en esta visita queda en una sola OS</strong></div>
@@ -21,7 +22,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       <div className="muted small">Productos y trabajos se agregan justo debajo. El cobro final y CRM están separados para que la atención sea más clara.</div>
     </section>
 
-    <OrderWorkspace initialOrderId={id} />
+    <div className="order-core-only"><OrderWorkspace initialOrderId={id} /></div>
 
     <OrderFinalizePanel orderId={id} />
 
