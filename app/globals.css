@@ -82,6 +82,14 @@ button { cursor: pointer; }
 .directory-option span { color: var(--muted); font-size: 12px; }
 .directory-option:hover { border-color: #4b4b4b; }
 .directory-option.selected { border-color: var(--accent); background: rgba(255,93,21,.08); box-shadow: 0 0 0 2px rgba(255,93,21,.06); }
+
+/* Venta rápida: el bloque de cobro debe formar parte del flujo normal y nunca tapar los items. */
+main.container > section.card.stack:has(input[placeholder="Referencia de pago (opcional)"]) {
+  position: static !important;
+  bottom: auto !important;
+  z-index: auto !important;
+}
+
 @media (max-width: 700px) {
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .container { padding-inline: 13px; }
