@@ -3,19 +3,21 @@ import Link from "next/link";
 const groups = [
   {
     title: "Operación",
-    description: "Trabaja con órdenes y consulta lo que ya pasó.",
+    description: "Atención, órdenes e historial sin mezclarlo con administración.",
     links: [
+      ["/orders/new", "＋", "Nueva orden", "Atender cliente y vehículo"],
       ["/orders", "▤", "Órdenes", "Abiertas, cerradas y Crédito LC"],
       ["/customers", "◉", "Clientes y vehículos", "Directorio e historial"],
     ],
   },
   {
     title: "Administración",
-    description: "Inventario, dinero, nómina y configuración.",
+    description: "Inventario, dinero, financiamientos, nómina y configuración.",
     links: [
       ["/inventory", "▦", "Inventario", "Existencias, catálogo y conteos"],
       ["/cash", "▣", "Caja", "Pagos y movimientos del día"],
-      ["/receivables", "$", "Cobros", "Crédito LC y abonos"],
+      ["/receivables", "$", "Crédito LC", "Cuentas por cobrar y abonos"],
+      ["/cashea", "C", "Cashea", "Iniciales, cuotas y dinero por recibir"],
       ["/payroll", "%", "Nómina", "Cheo, Alexis y ajustes"],
       ["/settings", "⚙", "Configuración", "Notion, CRM y reglas"],
     ],
