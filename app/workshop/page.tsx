@@ -115,3 +115,4 @@ export default function WorkshopPage() {
     <section className="card muted small">Al cerrar una orden, el vehículo sale automáticamente de este tablero como ENTREGADO. El tablero se actualiza solo cada minuto y también después de cada cambio de estado.</section>
   </main>;
 }
+

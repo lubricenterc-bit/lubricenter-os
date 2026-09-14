@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmtRef } from "@/lib/format";
@@ -9,6 +10,9 @@ type Accrual = { id: string; employee_id: string; source_type: string; amount_re
 type Adjustment = { id: string; employee_id: string; adjustment_type: string; amount_ref: number; occurred_on: string; note: string | null };
 
 export default function PayrollPage() {
+  const [runs,setRuns] = useState<any[]>([]);
+  const [runsPage,setRunsPage] = useState(0);
+  const [latestRun,setLatestRun] = useState<string | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [accruals, setAccruals] = useState<Accrual[]>([]);
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
@@ -30,6 +34,7 @@ export default function PayrollPage() {
     if (!employeeId && e?.length) setEmployeeId(e[0].id);
   }
   useEffect(() => { load(); }, []);
+  useEffect(() => { supabase.from("payroll_runs").select("*,employees(name)").order("created_at",{ascending:false}).range(runsPage*20,runsPage*20+19).then(({data,error})=>{if(error)setError(error.message);else setRuns(data??[]);}); },[runsPage,latestRun]);
 
   const totals = useMemo(() => employees.map(emp => {
     const variable = accruals.filter(a => a.employee_id === emp.id).reduce((s, a) => s + Number(a.amount_ref), 0);
@@ -64,7 +69,7 @@ export default function PayrollPage() {
     setBusy(false);
     if (error) return setError(error.message);
     const row = Array.isArray(data) ? data[0] : data;
-    alert(`Liquidación creada: ${fmtRef(row?.total_ref ?? 0)}`);
+    setLatestRun(row?.payroll_run_id ?? row?.id ?? null);
     await load();
   }
 
@@ -72,6 +77,8 @@ export default function PayrollPage() {
     <div><h1 style={{ marginBottom: 4 }}>Nómina</h1><div className="muted">Devengos pendientes, bonos y deducciones. Liquidar no puede repetir lo ya pagado.</div></div>
     {error && <div className="error">{error}</div>}
 
+    {latestRun && <div className="success">Liquidación creada. <Link className="btn" href={`/payroll/${latestRun}/receipt`}>Imprimir recibo 58 mm</Link></div>}
+    <section className="card stack"><h2>Recibos de nómina liquidada</h2>{runs.map(r=><div className="row-between" key={r.id}><div><strong>{r.employees?.name || "Empleado"}</strong><div className="muted small">{r.period_start} al {r.period_end} · {fmtRef(r.total_ref)}</div></div><Link className="btn" href={`/payroll/${r.id}/receipt`}>Recibo 58 mm</Link></div>)}{!runs.length&&<p className="muted">Todavía no hay liquidaciones en esta página.</p>}<div className="row-between"><button className="btn" disabled={!runsPage} onClick={()=>setRunsPage(x=>x-1)}>Anterior</button><button className="btn" disabled={runs.length<20} onClick={()=>setRunsPage(x=>x+1)}>Siguiente</button></div></section>
     <section className="grid grid-2">
       {totals.map(({ emp, variable, adj, pending }) => <div className="card stack" key={emp.id}>
         <div className="row-between"><h2 style={{ margin: 0 }}>{emp.name}</h2><span className="pill">{emp.code}</span></div>
@@ -104,3 +111,4 @@ export default function PayrollPage() {
     </section>
   </main>;
 }
+

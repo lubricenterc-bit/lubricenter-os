@@ -45,8 +45,10 @@ export default function SettingsPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busyTemplate, setBusyTemplate] = useState(false);
+  const [checkingPrices, setCheckingPrices] = useState(false);
 
-  async function load() {
+  async function load(showConfirmation = false) {
+    if (showConfirmation) setCheckingPrices(true);
     setError("");
     const [{ data: sync, error: sy }, { data: settings, error: se }, { data: cr, error: ce }] = await Promise.all([
       supabase.rpc("get_pricing_sync_status"),
@@ -67,8 +69,17 @@ export default function SettingsPage() {
       if (s.key === "crm_post_service_template") setCrmTemplate(typeof s.value === "string" ? s.value : String(s.value ?? DEFAULT_POST_SERVICE_TEMPLATE).replace(/^"|"$/g, ""));
     }
     setRules(cr ?? []);
+    if (showConfirmation) {
+      setCheckingPrices(false);
+      if (!(sy || se || ce)) setMessage("Estado actualizado con los últimos precios recibidos de Notion.");
+    }
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const onPricingUpdate = () => load();
+    window.addEventListener("lubricenter:pricing-updated", onPricingUpdate);
+    return () => window.removeEventListener("lubricenter:pricing-updated", onPricingUpdate);
+  }, []);
 
   async function saveRounding() {
     setMessage(""); setError("");
@@ -120,7 +131,8 @@ export default function SettingsPage() {
         <div className="card"><div className="label">BCV oficial</div><div className="money-lg">{bcv.toLocaleString("es-VE", { maximumFractionDigits: 4 })}</div><div className="muted small">{formatDate(bcvAt)}</div></div>
         <div className="card"><div className="label">Operativa / P2P</div><div className="money-lg">{operative.toLocaleString("es-VE", { maximumFractionDigits: 4 })}</div><div className="muted small">{formatDate(operativeAt)}</div></div>
       </div>
-      <div className="muted small">Estas tasas no se editan aquí. Modifícalas en Notion; el OS sincroniza y conserva el histórico.</div>
+      <div className="muted small">Se comprueban automáticamente cada 15 minutos. Al detectar un cambio, las pantallas abiertas reciben los precios nuevos sin recargarlas. Las ventas ya cerradas conservan sus importes originales.</div>
+      <button className="btn" disabled={checkingPrices} onClick={() => load(true)}>{checkingPrices ? "Comprobando…" : "Actualizar estado ahora"}</button>
     </section>
 
     <section className="card stack">
@@ -147,3 +159,4 @@ export default function SettingsPage() {
     </section>
   </main>;
 }
+

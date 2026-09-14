@@ -6,3 +6,4 @@ export const fmtVes = (value: number | string | null | undefined) =>
 
 export const fmtDate = (value: string | Date) =>
   new Intl.DateTimeFormat("es-VE", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+

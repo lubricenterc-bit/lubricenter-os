@@ -1,5 +1,7 @@
 "use client";
+import { matchesSearch } from "@/lib/domain/search";
 
+import { businessInstant,caracasInput } from "@/lib/order-admin";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -41,6 +43,8 @@ export function QuickSaleScreen() {
   const [manualDescription, setManualDescription] = useState("");
   const [manualPrice, setManualPrice] = useState("");
   const [manualQty, setManualQty] = useState("1");
+  const [saleDate,setSaleDate] = useState("");
+  const [received,setReceived] = useState(false);
   const [checkoutMode, setCheckoutMode] = useState<"DIRECT" | "CASHEA">("DIRECT");
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>("MOBILE_PAYMENT");
   const [reference, setReference] = useState("");
@@ -67,17 +71,23 @@ export function QuickSaleScreen() {
     if (rateRes.error) warnings.push(`Tasas: ${rateRes.error.message}`); else { const row = Array.isArray(rateRes.data) ? rateRes.data[0] : rateRes.data; setRates({ bcv: Number(row?.bcv_rate ?? 0), operative: Number(row?.operative_rate ?? 0) }); }
     setWarning(warnings.join(" · ")); setLoading(false); setTimeout(() => searchRef.current?.focus(), 50);
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const refreshPricing = () => load();
+    window.addEventListener("lubricenter:pricing-updated", refreshPricing);
+    return () => window.removeEventListener("lubricenter:pricing-updated", refreshPricing);
+  }, []);
 
   const positiveCatalogIds = useMemo(() => new Set(inventory.map(i => i.product_id).filter(Boolean) as string[]), [inventory]);
   const results = useMemo<SearchResult[]>(() => {
     const q = normalize(search.trim());
-    const stockResults = inventory.filter(i => !q || normalize(`${i.sku} ${i.brand ?? ""} ${i.description} ${i.catalog_product_name ?? ""} ${i.category ?? ""}`).includes(q)).map(i => ({ key: `STOCK:${i.id}`, kind: "STOCK" as const, inventory_item_id: i.id, product_id: i.product_id ?? undefined, title: [i.brand, i.sku].filter(Boolean).join(" · ") || i.sku, subtitle: i.description, stock: i.quantity_on_hand, unit_ref: Number(i.current_ref_bcv ?? 0), unit_ves: Number(i.current_price_ves ?? 0) }));
-    const catalogResults = catalog.filter(p => !positiveCatalogIds.has(p.id)).filter(p => !q || normalize(`${p.name} ${p.category ?? ""} ${p.filter_code ?? ""}`).includes(q)).map(p => ({ key: `CATALOG:${p.id}`, kind: "CATALOG" as const, product_id: p.id, title: p.name, subtitle: [p.category, p.filter_code ? `Código ${p.filter_code}` : null].filter(Boolean).join(" · ") || "Catálogo", unit_ref: Number(p.current_ref_bcv ?? 0), unit_ves: Number(p.current_price_ves ?? 0) }));
-    return [...stockResults, ...catalogResults].slice(0, q ? 40 : 24);
+    const stockResults = inventory.filter(i => !q || matchesSearch(`${i.sku} ${i.brand ?? ""} ${i.description} ${i.catalog_product_name ?? ""} ${i.category ?? ""}`, q)).map(i => ({ key: `STOCK:${i.id}`, kind: "STOCK" as const, inventory_item_id: i.id, product_id: i.product_id ?? undefined, title: [i.brand, i.sku].filter(Boolean).join(" · ") || i.sku, subtitle: i.description, stock: i.quantity_on_hand, unit_ref: Number(i.current_ref_bcv ?? 0), unit_ves: Number(i.current_price_ves ?? 0) }));
+    const catalogResults = catalog.filter(p => !positiveCatalogIds.has(p.id)).filter(p => !q || matchesSearch(`${p.name} ${p.category ?? ""} ${p.filter_code ?? ""}`, q)).map(p => ({ key: `CATALOG:${p.id}`, kind: "CATALOG" as const, product_id: p.id, title: p.name, subtitle: [p.category, p.filter_code ? `Código ${p.filter_code}` : null].filter(Boolean).join(" · ") || "Catálogo", unit_ref: Number(p.current_ref_bcv ?? 0), unit_ves: Number(p.current_price_ves ?? 0) }));
+    return [...stockResults, ...catalogResults].slice(0, q ? 12 : 6);
   }, [inventory, catalog, positiveCatalogIds, search]);
 
   function addResult(r: SearchResult) {
+    if (r.kind === "STOCK" && (cart.find(x => x.key === r.key)?.quantity ?? 0) + 1 > (r.stock ?? 0)) return setError("Ya agregaste la existencia disponible de este producto. Revisa la cantidad en la venta.");
     setCompleted(null); setError("");
     setCart(lines => { const existing = lines.find(x => x.key === r.key); if (existing) return lines.map(x => x.key === r.key ? { ...x, quantity: x.quantity + 1 } : x); return [...lines, { key: r.key, kind: r.kind, inventory_item_id: r.inventory_item_id, product_id: r.product_id, description: r.kind === "STOCK" ? `${r.title} · ${r.subtitle}` : r.title, quantity: 1, unit_ref: r.unit_ref, source_label: r.kind === "STOCK" ? `Con stock · ${r.stock ?? 0} disp.` : "Catálogo · sin descontar stock", stock: r.stock }]; });
     setSearch(""); setTimeout(() => searchRef.current?.focus(), 20);
@@ -95,7 +105,7 @@ export function QuickSaleScreen() {
   const totalRef = useMemo(() => cart.reduce((sum, line) => sum + line.quantity * Math.max(0, Number(line.unit_ref || 0)), 0), [cart]);
   const totalVes = useMemo(() => cart.reduce((sum, line) => sum + roundToStep(Number(line.unit_ref || 0) * rates.bcv, 10) * line.quantity, 0), [cart, rates.bcv]);
   const cashUsd = rates.operative > 0 ? totalVes / rates.operative : 0;
-  const cartValid = cart.length > 0 && cart.every(x => x.quantity > 0 && Number(x.unit_ref) > 0 && (x.kind !== "STOCK" || x.stock == null || x.quantity <= x.stock));
+  const cartValid = cart.length > 0 && cart.every(x => Number.isFinite(x.quantity) && x.quantity > 0 && Number.isFinite(Number(x.unit_ref)) && Number(x.unit_ref) > 0 && (x.kind !== "STOCK" || x.stock == null || x.quantity <= x.stock));
   const casheaPct = Number(casheaInitialPercent);
   const casheaInitialRef = Number.isFinite(casheaPct) ? totalRef * casheaPct / 100 : 0;
   const casheaInitialVes = casheaInitialRef * rates.bcv;
@@ -105,12 +115,12 @@ export function QuickSaleScreen() {
   const casheaValid = cartValid && totalRef >= CASHEA_MIN_REF && casheaPct > 0 && casheaPct <= 100;
 
   function payload() { return cart.map(line => ({ kind: line.kind, inventory_item_id: line.inventory_item_id ?? null, product_id: line.product_id ?? null, description: line.description, quantity: line.quantity, unit_ref: Number(line.unit_ref) })); }
-  function resetAfterSale() { setCart([]); setReference(""); setCasheaPaymentReference(""); setCasheaReference(""); setSearch(""); setCheckoutMode("DIRECT"); setSelectedPayment("MOBILE_PAYMENT"); setCasheaInitialPercent("40"); setCasheaInitialMethod("MOBILE_PAYMENT"); }
+  function resetAfterSale() { setSaleDate("");setReceived(false); setCart([]); setReference(""); setCasheaPaymentReference(""); setCasheaReference(""); setSearch(""); setCheckoutMode("DIRECT"); setSelectedPayment("MOBILE_PAYMENT"); setCasheaInitialPercent("40"); setCasheaInitialMethod("MOBILE_PAYMENT"); }
 
   async function completeDirect() {
     if (!cartValid || busy) return;
     setBusy(true); setError(""); setCompleted(null);
-    const { data, error } = await supabase.rpc("complete_quick_sale", { p_items: payload(), p_payment_method: selectedPayment, p_payment_reference: reference.trim() || null });
+    const { data, error } = await supabase.rpc("quick_sale_dated", { p_items: payload(), p_mode: "DIRECT", p_business_at: businessInstant(saleDate), p_method: selectedPayment, p_reference: reference.trim() || null });
     setBusy(false); if (error) return setError(error.message);
     const row = Array.isArray(data) ? data[0] : data;
     setCompleted({ order_id: row.order_id, order_number: row.order_number, total_ves: Number(row.total_ves ?? 0), total_ref: Number(row.total_ref ?? 0) });
@@ -120,9 +130,9 @@ export function QuickSaleScreen() {
   async function completeCashea() {
     if (!casheaValid || busy) return;
     setBusy(true); setError(""); setCompleted(null);
-    const { data, error } = await supabase.rpc("complete_quick_sale_cashea", {
-      p_items: payload(), p_initial_percent: casheaPct, p_initial_payment_method: casheaInitialMethod,
-      p_payment_reference: casheaPaymentReference.trim() || null, p_cashea_reference: casheaReference.trim() || null,
+    const { data, error } = await supabase.rpc("quick_sale_dated", { p_mode: "CASHEA", p_business_at: businessInstant(saleDate),
+      p_items: payload(), p_initial_percent: casheaPct, p_method: casheaInitialMethod,
+      p_reference: casheaPaymentReference.trim() || null, p_cashea_reference: casheaReference.trim() || null,
     });
     setBusy(false); if (error) return setError(error.message);
     const row = Array.isArray(data) ? data[0] : data;
@@ -132,14 +142,14 @@ export function QuickSaleScreen() {
 
   async function continueAsOrder() {
     if (!cartValid || busy) return;
-    setBusy(true); setError(""); const { data, error } = await supabase.rpc("build_quick_sale_order", { p_items: payload() }); setBusy(false);
+    setBusy(true); setError(""); const { data, error } = await supabase.rpc("quick_sale_dated", { p_items: payload(), p_mode: "DRAFT", p_business_at: businessInstant(saleDate) }); setBusy(false);
     if (error) return setError(error.message); const row = Array.isArray(data) ? data[0] : data; router.push(`/orders/${row.order_id}`);
   }
 
   return <main className="container stack">
     <section className="brand-hero"><div><div className="eyebrow">MOSTRADOR · PRECIO → VENTA → COBRO</div><h1>Venta rápida</h1><p>Cotiza sin crear una orden. La OS nace solo cuando registras la venta o decides continuar como orden completa.</p></div><img src="/lubricenter-logo.png" alt="Lubricenter" /></section>
     <div className="row-between"><span className="muted small">Venta directa o Cashea tradicional desde el mismo carrito.</span><Link className="btn btn-ghost" href="/cashea">Seguimiento Cashea</Link></div>
-    {error && <div className="error">{error}</div>}
+    {error && <div className="error" role="alert">{error}</div>}
     {warning && <div className="card" style={{ borderColor: "rgba(255,93,21,.45)" }}><strong>Modo degradado disponible</strong><div className="muted small">{warning}. La venta manual sigue disponible si catálogo o inventario no cargan.</div></div>}
 
     {completed && <section className="card stack" style={{ borderColor: "rgba(63,190,115,.55)" }}>
@@ -171,10 +181,13 @@ export function QuickSaleScreen() {
       <div className="row-between"><div><div className="muted small">TOTAL A COBRAR</div><div className="money-lg">{fmtRef(totalRef)}</div></div><div style={{ textAlign: "right" }}><strong>{fmtVes(totalVes)}</strong><div className="muted small">USD físico aprox. {cashUsd.toFixed(2)}</div></div></div>
       <div className="segmented"><button type="button" className={`btn ${checkoutMode === "DIRECT" ? "btn-primary" : "btn-ghost"}`} onClick={() => setCheckoutMode("DIRECT")}>Cobro directo</button><button type="button" className={`btn ${checkoutMode === "CASHEA" ? "btn-primary" : "btn-ghost"}`} onClick={() => setCheckoutMode("CASHEA")}>Cashea tradicional</button></div>
 
+      <label><span className="label">Fecha de venta · Venezuela (vacío = ahora)</span><input className="input" type="datetime-local" value={saleDate} max={caracasInput()} onChange={e=>setSaleDate(e.target.value)} /></label>
+      {saleDate && <p className="muted small">Revisa los importes: cambiar la fecha no recupera automáticamente las tasas o precios de ese día.</p>}
+      <label className="row"><input type="checkbox" checked={received} onChange={e=>setReceived(e.target.checked)} /> Confirmo que recibí el pago {checkoutMode === "CASHEA" ? "de la inicial" : "de la venta"}.</label>
       {checkoutMode === "DIRECT" ? <>
         <div><span className="label">Forma de pago</span><div className="grid grid-2">{PAYMENT_METHODS.map(([method, label]) => <button key={method} type="button" className={selectedPayment === method ? "btn btn-primary" : "btn"} onClick={() => setSelectedPayment(method)} disabled={busy}>{selectedPayment === method ? `✓ ${label}` : label}</button>)}</div></div>
         <input className="input" value={reference} onChange={e => setReference(e.target.value)} placeholder="Referencia de pago (opcional)" />
-        <button className="btn btn-primary btn-block" style={{ minHeight: 56, fontSize: 17 }} disabled={!cartValid || busy} onClick={completeDirect}>{busy ? "Registrando venta…" : `Registrar y cerrar venta · ${fmtRef(totalRef)}`}</button>
+        <button className="btn btn-primary btn-block" style={{ minHeight: 56, fontSize: 17 }} disabled={!cartValid || busy || !received} onClick={completeDirect}>{busy ? "Registrando venta…" : `Registrar y cerrar venta · ${fmtRef(totalRef)}`}</button>
       </> : <div className="stack">
         <div className="success small"><strong>Cashea tradicional.</strong> Confirma primero la compra en Cashea y registra aquí exactamente la inicial que muestre la app. El precio de los productos no cambia por usar Cashea.</div>
         {totalRef > 0 && totalRef < CASHEA_MIN_REF && <div className="error">El mínimo configurado para Cashea es {fmtRef(CASHEA_MIN_REF)}.</div>}
@@ -185,12 +198,14 @@ export function QuickSaleScreen() {
         <div><span className="label">Cómo recibiste la inicial</span><div className="grid grid-2">{PAYMENT_METHODS.map(([method,label]) => <button type="button" key={method} className={casheaInitialMethod === method ? "btn btn-primary" : "btn"} onClick={() => setCasheaInitialMethod(method)}>{casheaInitialMethod === method ? `✓ ${label}` : label}</button>)}</div></div>
         <input className="input" value={casheaPaymentReference} onChange={e => setCasheaPaymentReference(e.target.value)} placeholder="Referencia del pago inicial (opcional)" />
         <input className="input" value={casheaReference} onChange={e => setCasheaReference(e.target.value)} placeholder="N° / referencia de transacción Cashea (recomendado)" />
-        <button className="btn btn-primary btn-block" style={{ minHeight: 56, fontSize: 17 }} disabled={!casheaValid || busy} onClick={completeCashea}>{busy ? "Registrando Cashea…" : `Registrar Cashea y cerrar · ${fmtRef(totalRef)}`}</button>
+        <button className="btn btn-primary btn-block" style={{ minHeight: 56, fontSize: 17 }} disabled={!casheaValid || busy || !received} onClick={completeCashea}>{busy ? "Registrando Cashea…" : `Registrar Cashea y cerrar · ${fmtRef(totalRef)}`}</button>
       </div>}
 
+      <p className="muted small">Para preparar un recibo sin cobrar, continúa como orden y usa su cotización. Imprimir no cierra la venta.</p>
       <button className="btn btn-ghost btn-block" disabled={!cartValid || busy} onClick={continueAsOrder}>Pago mixto / Crédito LC / asociar cliente → continuar como orden</button>
       {!cart.length && <div className="muted small">Agrega al menos un producto para habilitar el cierre.</div>}
       {!cartValid && cart.length > 0 && <div className="muted small">Corrige cantidades o precios antes de registrar la venta.</div>}
     </section>
   </main>;
 }
+

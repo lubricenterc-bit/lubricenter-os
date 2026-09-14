@@ -204,3 +204,4 @@ tests/                  pruebas de reglas y regresión
 ## Regla de operación durante el piloto
 
 **Lubricenter OS no sustituye todavía al sistema anterior.** Primero se prueba con órdenes falsas y luego con un piloto paralelo. El cambio a producción solo ocurre cuando caja y nómina cuadren contra el sistema actual.
+

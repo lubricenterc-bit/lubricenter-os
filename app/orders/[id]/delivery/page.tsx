@@ -46,3 +46,4 @@ export default function DeliveryPage() {
     </section>
   </main>;
 }
+

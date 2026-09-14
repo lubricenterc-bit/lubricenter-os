@@ -40,3 +40,4 @@ export function paymentValueInVes(
   if (currency === "VES") return amountOriginal;
   return amountOriginal * rates.operative;
 }
+

@@ -168,3 +168,4 @@ function CreditPaymentSheet({ receivable, customer, rates, onCancel, onDone }: {
     <button className="btn btn-primary btn-block" disabled={busy || amount <= 0 || valueVes > Number(receivable.outstanding_ves) + 1} onClick={save}>{busy ? "Registrando…" : "Registrar abono"}</button>
   </div></div>;
 }
+

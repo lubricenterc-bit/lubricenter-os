@@ -119,3 +119,4 @@ function InstallmentPaymentSheet({ installment, rates, onCancel, onDone }: { ins
     <button className="btn btn-primary btn-block" disabled={busy || amount <= 0 || valueRef > remainingRef + 0.05} onClick={save}>{busy ? "Registrando…" : "Confirmar dinero recibido"}</button>
   </div></div>;
 }
+

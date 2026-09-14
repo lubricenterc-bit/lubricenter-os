@@ -32,3 +32,4 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   if (!ready) return <div className="container"><div className="card">Cargando Lubricenter OS…</div></div>;
   return <>{children}</>;
 }
+

@@ -14,3 +14,4 @@ export const supabase = createClient(url, key, {
     detectSessionInUrl: true,
   },
 });
+

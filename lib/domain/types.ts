@@ -48,3 +48,4 @@ export interface ElectroautoAllocationResult {
   alexisRef: number;
   lubricenterRef: number;
 }
+

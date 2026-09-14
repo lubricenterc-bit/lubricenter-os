@@ -117,7 +117,12 @@ export default function InventoryPage() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const refreshPricing = () => load();
+    window.addEventListener("lubricenter:pricing-updated", refreshPricing);
+    return () => window.removeEventListener("lubricenter:pricing-updated", refreshPricing);
+  }, []);
 
   const inventoryCategories = useMemo(() => Array.from(new Set(rows.map(r => r.category).filter(Boolean) as string[])).sort(), [rows]);
   const catalogCategories = useMemo(() => Array.from(new Set(catalog.map(r => r.category).filter(Boolean) as string[])).sort(), [catalog]);
@@ -272,3 +277,4 @@ export default function InventoryPage() {
     </div></div>}
   </main>;
 }
+

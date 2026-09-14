@@ -1,5 +1,6 @@
 "use client";
 
+import { ReceiptPrintButton } from "@/components/receipt-print-button";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -32,6 +33,7 @@ export default function ReceiptPage() {
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [cashea, setCashea] = useState<{ initial_ref: number; financed_ref: number; initial_percent: number } | null>(null);
   const [receivable, setReceivable] = useState<Receivable | null>(null);
   const [services, setServices] = useState<ServiceRecord[]>([]);
   const [error, setError] = useState("");
@@ -39,17 +41,20 @@ export default function ReceiptPage() {
 
   async function load() {
     setError("");
-    const [{ data: o, error: oe }, { data: its, error: ie }, { data: pays, error: pe }, { data: rec, error: re }, { data: sr, error: se }] = await Promise.all([
+    const [{ data: o, error: oe }, { data: its, error: ie }, { data: pays, error: pe }, { data: rec, error: re }, { data: sr, error: se }, {data: cs, error: cse}] = await Promise.all([
       supabase.from("orders").select("id,order_number,status,customer_id,vehicle_id,total_ves,total_ref,opened_at,closed_at").eq("id", orderId).single(),
       supabase.from("order_items").select("id,item_type,business_area,description,quantity,charged_ref_amount,charged_ves_amount,cash_price_revealed,cash_usd_special_total").eq("order_id", orderId).order("created_at"),
       supabase.from("payments").select("id,method,currency,amount_original,value_ves,reference,paid_at").eq("order_id", orderId).order("paid_at"),
       supabase.from("receivables").select("id,principal_ves,principal_ref,outstanding_ves,status,due_date").eq("order_id", orderId).maybeSingle(),
       supabase.from("service_records").select("id,service_type,description,odometer,next_service_odometer,next_service_date,oil_brand,oil_viscosity,oil_quantity_liters,oil_filter_code").eq("order_id", orderId).order("performed_at"),
+      supabase.from("cashea_sales").select("initial_ref,financed_ref,initial_percent").eq("order_id",orderId).maybeSingle(),
     ]);
-    const anyError = oe || ie || pe || re || se;
+    const anyError = oe || ie || pe || re || se || cse;
     if (anyError) return setError(anyError.message);
     const ord = o as Order;
+    if (ord.status === "OPEN") { ord.total_ref = (its??[]).reduce((sum,x)=>sum+Number(x.charged_ref_amount),0); ord.total_ves = (its??[]).reduce((sum,x)=>sum+Number(x.charged_ves_amount),0); }
     setOrder(ord);
+    setCashea(cs);
     setItems((its ?? []) as Item[]);
     setPayments((pays ?? []) as Payment[]);
     setReceivable((rec ?? null) as Receivable | null);
@@ -72,7 +77,7 @@ export default function ReceiptPage() {
   const shareText = useMemo(() => {
     if (!order) return "";
     const lines = [
-      `LUBRICENTER · ${order.order_number}`,
+      `LUBRICENTER · ${order.order_number} · ${order.status === "CANCELLED" ? "ANULADA" : order.status === "OPEN" ? "COTIZACIÓN SIN CERRAR" : "RECIBO"}`,
       customer?.name ? `Cliente: ${customer.name}` : null,
       vehicle ? `Vehículo: ${[vehicle.plate,vehicle.make,vehicle.model,vehicle.year].filter(Boolean).join(" · ")}` : null,
       "",
@@ -80,13 +85,14 @@ export default function ReceiptPage() {
       "",
       `Total: ${fmtRef(order.total_ref)} / ${fmtVes(order.total_ves)}`,
       `Pagado: ${fmtVes(paidVes)}`,
+      cashea ? `Cashea: inicial ${cashea.initial_percent}% · ${fmtRef(cashea.initial_ref)}. Financiado: ${fmtRef(cashea.financed_ref)} en 3 cuotas.` : null,
       receivable?.status === "OPEN" ? `Crédito LC pendiente: ${fmtVes(receivable.outstanding_ves)}` : null,
       oilService?.next_service_odometer ? `Próximo cambio de aceite: ${oilService.next_service_odometer.toLocaleString("es-VE")} km${oilService.next_service_date ? ` o ${oilService.next_service_date}` : ""}` : null,
       "",
       "Cuidamos lo que te mueve.",
     ].filter((x): x is string => Boolean(x));
     return lines.join("\n");
-  }, [order, customer, vehicle, items, paidVes, receivable, oilService]);
+  }, [order, customer, vehicle, items, paidVes, receivable, oilService, cashea]);
 
   async function share() {
     if (!shareText) return;
@@ -110,7 +116,7 @@ export default function ReceiptPage() {
       <button className="btn btn-ghost" onClick={() => router.push(`/orders/${orderId}`)}>← Volver</button>
       <div className="row">
         <button className="btn" onClick={share}>{copied ? "Copiado ✓" : "Compartir"}</button>
-        <button className="btn btn-primary" onClick={() => window.print()}>Imprimir / PDF</button>
+        <ReceiptPrintButton />
       </div>
     </div>
 
@@ -122,7 +128,8 @@ export default function ReceiptPage() {
         <div><div className="receipt-brand">LUBRICENTER</div><div className="receipt-tagline">Cuidamos lo que te mueve.</div></div>
       </header>
 
-      <div className="receipt-title-row">
+      {order.status !== "CLOSED" && <div style={{border:"2px solid #000",padding:"2mm",fontWeight:900,textAlign:"center"}}>{order.status === "CANCELLED" ? "ANULADA · SIN VALIDEZ" : "COTIZACIÓN · VENTA ABIERTA"}</div>}
+          <div className="receipt-title-row">
         <div><div className="receipt-label">COMPROBANTE INTERNO</div><h1>{order.order_number}</h1></div>
         <div className="receipt-right"><strong>{order.status === "CLOSED" ? "CERRADA" : "ABIERTA"}</strong><div>{fmtDate(order.closed_at ?? order.opened_at)}</div></div>
       </div>
@@ -142,6 +149,7 @@ export default function ReceiptPage() {
         </div>)}
       </section>
 
+      {cashea && <section className="receipt-note"><strong>CASHEA TRADICIONAL</strong><div>Inicial {cashea.initial_percent}%: {fmtRef(cashea.initial_ref)}</div><div>Financiado: {fmtRef(cashea.financed_ref)} en 3 cuotas según Cashea.</div></section>}
       <section className="receipt-totals">
         <div><span>Total</span><strong>{fmtRef(order.total_ref)}</strong><strong>{fmtVes(order.total_ves)}</strong></div>
         <div><span>Pagado</span><span></span><strong>{fmtVes(paidVes)}</strong></div>
@@ -173,3 +181,4 @@ function paymentLabel(method: string) {
 function areaLabel(area: string) {
   return ({ STORE: "Producto", WORKSHOP: "Taller", ELECTROAUTO: "Electroauto", OIL_CHANGE: "Cambio de aceite" } as Record<string,string>)[area] ?? area;
 }
+

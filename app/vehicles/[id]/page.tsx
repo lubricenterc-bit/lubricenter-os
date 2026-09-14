@@ -185,3 +185,4 @@ export default function VehiclePage() {
 function serviceLabel(type: string) {
   return ({ OIL_CHANGE: "Cambio de aceite", WORKSHOP: "Taller", ELECTROAUTO: "Electroauto", OTHER: "Servicio" } as Record<string,string>)[type] ?? type;
 }
+

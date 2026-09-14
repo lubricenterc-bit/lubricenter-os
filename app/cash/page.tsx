@@ -175,3 +175,4 @@ function TransferSheet({ accounts, onCancel, onDone }: { accounts: Account[]; on
     <button className="btn btn-primary btn-block" disabled={busy || !fromId || !toId || amount <= 0} onClick={save}>{busy ? "Moviendo…" : "Registrar transferencia"}</button>
   </div></div>;
 }
+

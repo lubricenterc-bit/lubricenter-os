@@ -102,7 +102,7 @@ export default function HomePage() {
 
     <section className="grid grid-3">
       <Link className="btn btn-primary btn-block" style={{ padding: 18, fontSize: 17 }} href="/quick-sale">$ Venta rápida</Link>
-      <Link className="btn btn-block" style={{ padding: 18 }} href="/orders/new">＋ Nueva orden</Link>
+      <Link className="btn btn-primary btn-block" style={{ padding: 18 }} href="/orders/new">＋ Orden completa · taller / aceite</Link>
       <button className="btn btn-block" style={{ padding: 18 }} onClick={load}>{loading ? "Cargando…" : "↻ Actualizar"}</button>
     </section>
 
@@ -181,3 +181,4 @@ export default function HomePage() {
     </section>
   </main>;
 }
+

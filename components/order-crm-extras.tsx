@@ -88,3 +88,4 @@ export function OrderCrmExtras({ orderId }: Props) {
     {!locked ? <button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? "Guardando…" : "Guardar salida y CRM"}</button> : <div className="muted small">La orden ya está cerrada. Si necesitas corregir el texto antes de enviarlo, podrás editar el mensaje directamente desde CRM.</div>}
   </section>;
 }
+

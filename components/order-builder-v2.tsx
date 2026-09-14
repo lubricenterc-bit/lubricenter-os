@@ -472,3 +472,4 @@ function PaymentSheet({ ensureOrder, remainingVes, rates, onDone, onCancel }: {
     <button className="btn btn-primary btn-block" disabled={busy || amount <= 0} onClick={add}>{busy ? "Agregando…" : "Agregar pago"}</button>
   </div></div>;
 }
+
