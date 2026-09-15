@@ -73,7 +73,7 @@ export default function CustomerDetailPage() {
 
   async function createVehicle(form: FormData) {
     setBusy(true); setError(""); setNotice("");
-    const { error } = await supabase.rpc("upsert_vehicle", { p_customer_id: id, p_plate: textValue(form, "plate"), p_make: textValue(form, "make"), p_model: textValue(form, "model"), p_year: numberValue(form, "year"), p_engine: textValue(form, "engine"), p_current_odometer: numberValue(form, "odometer") });
+    const { error } = await supabase.rpc("create_customer_vehicle", { p_customer_id: id, p_plate: textValue(form, "plate"), p_make: textValue(form, "make"), p_model: textValue(form, "model"), p_year: numberValue(form, "year"), p_engine: textValue(form, "engine"), p_current_odometer: numberValue(form, "odometer") });
     setBusy(false); if (error) return setError(error.message);
     setShowNewVehicle(false); setNotice("Vehículo creado y asociado."); await load();
   }
