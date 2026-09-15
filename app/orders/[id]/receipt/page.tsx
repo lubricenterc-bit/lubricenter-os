@@ -71,28 +71,26 @@ export default function ReceiptPage() {
 
   useEffect(() => { if (orderId) load(); }, [orderId]);
 
-  const paidVes = useMemo(() => payments.reduce((a, p) => a + Number(p.value_ves || 0), 0), [payments]);
   const oilService = services.find(s => s.service_type === "OIL_CHANGE") ?? null;
 
   const shareText = useMemo(() => {
     if (!order) return "";
     const lines = [
-      `LUBRICENTER · ${order.order_number} · ${order.status === "CANCELLED" ? "ANULADA" : order.status === "OPEN" ? "COTIZACIÓN SIN CERRAR" : "RECIBO"}`,
+      `LUBRICENTER · ${order.order_number} · ${order.status === "CANCELLED" ? "ANULADA" : order.status === "OPEN" ? "COTIZACIÓN" : "RECIBO"}`,
       customer?.name ? `Cliente: ${customer.name}` : null,
       vehicle ? `Vehículo: ${[vehicle.plate,vehicle.make,vehicle.model,vehicle.year].filter(Boolean).join(" · ")}` : null,
       "",
-      ...items.map(i => `${Number(i.quantity)}x ${i.description} — ${fmtRef(i.charged_ref_amount)} / ${fmtVes(i.charged_ves_amount)}`),
+      ...items.map(i => `${Number(i.quantity)}x ${i.description} — ${fmtRef(i.charged_ref_amount)}`),
       "",
       `Total: ${fmtRef(order.total_ref)} / ${fmtVes(order.total_ves)}`,
-      `Pagado: ${fmtVes(paidVes)}`,
       cashea ? `Cashea: inicial ${cashea.initial_percent}% · ${fmtRef(cashea.initial_ref)}. Financiado: ${fmtRef(cashea.financed_ref)} en 3 cuotas.` : null,
       receivable?.status === "OPEN" ? `Crédito LC pendiente: ${fmtVes(receivable.outstanding_ves)}` : null,
-      oilService?.next_service_odometer ? `Próximo cambio de aceite: ${oilService.next_service_odometer.toLocaleString("es-VE")} km${oilService.next_service_date ? ` o ${oilService.next_service_date}` : ""}` : null,
+      oilService && (oilService.next_service_odometer || oilService.next_service_date) ? `Próximo servicio: ${oilService.next_service_odometer ? `${oilService.next_service_odometer.toLocaleString("es-VE")} km` : ""}${oilService.next_service_odometer && oilService.next_service_date ? " · " : ""}${oilService.next_service_date ?? ""}` : null,
       "",
       "Cuidamos lo que te mueve.",
     ].filter((x): x is string => Boolean(x));
     return lines.join("\n");
-  }, [order, customer, vehicle, items, paidVes, receivable, oilService, cashea]);
+  }, [order, customer, vehicle, items, receivable, oilService, cashea]);
 
   async function share() {
     if (!shareText) return;
@@ -129,46 +127,35 @@ export default function ReceiptPage() {
       </header>
 
       {order.status !== "CLOSED" && <div style={{border:"2px solid #000",padding:"2mm",fontWeight:900,textAlign:"center"}}>{order.status === "CANCELLED" ? "ANULADA · SIN VALIDEZ" : "COTIZACIÓN · VENTA ABIERTA"}</div>}
-          <div className="receipt-title-row">
-        <div><div className="receipt-label">COMPROBANTE INTERNO</div><h1>{order.order_number}</h1></div>
-        <div className="receipt-right"><strong>{order.status === "CLOSED" ? "CERRADA" : "ABIERTA"}</strong><div>{fmtDate(order.closed_at ?? order.opened_at)}</div></div>
+      <div className="receipt-title-row">
+        <div><div className="receipt-label">RECIBO</div><h1>{order.order_number}</h1></div>
+        <div className="receipt-right">{fmtDate(order.closed_at ?? order.opened_at)}</div>
       </div>
-      <div className="receipt-note">Documento operativo de Lubricenter. No sustituye factura fiscal cuando corresponda.</div>
 
-      <section className="receipt-party">
-        <div><div className="receipt-label">CLIENTE</div><strong>{customer?.name || customer?.phone || "No indicado"}</strong><div>{[customer?.phone,customer?.document_id].filter(Boolean).join(" · ")}</div></div>
-        <div><div className="receipt-label">VEHÍCULO</div><strong>{vehicle?.plate || "No indicado"}</strong><div>{vehicle ? [vehicle.make,vehicle.model,vehicle.year,vehicle.engine ? `Motor ${vehicle.engine}` : null].filter(Boolean).join(" · ") : ""}</div>{vehicle?.current_odometer != null && <div>{vehicle.current_odometer.toLocaleString("es-VE")} km</div>}</div>
-      </section>
+      {(customer || vehicle) && <section className="receipt-party">
+        {customer && <div><span className="receipt-label">CLIENTE </span><strong>{customer.name || customer.phone}</strong></div>}
+        {vehicle && <div><span className="receipt-label">VEHÍCULO </span><strong>{[vehicle.plate,vehicle.make,vehicle.model].filter(Boolean).join(" · ")}</strong></div>}
+      </section>}
 
       <section className="receipt-lines">
-        <div className="receipt-line receipt-line-head"><span>Detalle</span><span>REF</span><span>Bs</span></div>
+        <div className="receipt-line receipt-line-head"><span>Detalle</span><span>REF</span></div>
         {items.map(i => <div className="receipt-line" key={i.id}>
-          <div><strong>{i.description}</strong><div className="receipt-small">{i.quantity} × {areaLabel(i.business_area)}</div></div>
-          <div>{fmtRef(i.charged_ref_amount)}</div>
-          <div>{fmtVes(i.charged_ves_amount)}</div>
+          <div><strong>{Number(i.quantity)} × {i.description}</strong></div>
+          <strong>{fmtRef(i.charged_ref_amount)}</strong>
         </div>)}
       </section>
 
-      {cashea && <section className="receipt-note"><strong>CASHEA TRADICIONAL</strong><div>Inicial {cashea.initial_percent}%: {fmtRef(cashea.initial_ref)}</div><div>Financiado: {fmtRef(cashea.financed_ref)} en 3 cuotas según Cashea.</div></section>}
       <section className="receipt-totals">
         <div><span>Total</span><strong>{fmtRef(order.total_ref)}</strong><strong>{fmtVes(order.total_ves)}</strong></div>
-        <div><span>Pagado</span><span></span><strong>{fmtVes(paidVes)}</strong></div>
         {receivable?.status === "OPEN" && <div className="receipt-credit"><span>Crédito LC pendiente</span><span>{fmtRef(receivable.principal_ref)}</span><strong>{fmtVes(receivable.outstanding_ves)}</strong></div>}
       </section>
 
-      <section className="receipt-payments">
-        <div className="receipt-label">PAGOS</div>
-        {payments.map(p => <div className="receipt-payment" key={p.id}><span>{paymentLabel(p.method)}{p.reference ? ` · Ref. ${p.reference}` : ""}</span><strong>{p.currency === "USD" ? `$${Number(p.amount_original).toFixed(2)}` : fmtVes(p.amount_original)}</strong></div>)}
-        {!payments.length && <div>Sin pagos registrados.</div>}
-      </section>
-
-      {oilService && <section className="receipt-maintenance">
-        <div className="receipt-label">MANTENIMIENTO</div>
-        <strong>Cambio de aceite registrado</strong>
-        <div>{[oilService.oil_brand,oilService.oil_viscosity,oilService.oil_quantity_liters ? `${oilService.oil_quantity_liters} L` : null,oilService.oil_filter_code ? `Filtro ${oilService.oil_filter_code}` : null].filter(Boolean).join(" · ")}</div>
-        {oilService.odometer != null && <div>Km del servicio: {oilService.odometer.toLocaleString("es-VE")} km</div>}
-        {(oilService.next_service_odometer || oilService.next_service_date) && <div className="receipt-next">Próximo servicio: {oilService.next_service_odometer ? `${oilService.next_service_odometer.toLocaleString("es-VE")} km` : ""}{oilService.next_service_odometer && oilService.next_service_date ? " · " : ""}{oilService.next_service_date ?? ""}</div>}
+      {cashea && <section className="receipt-payments"><div className="receipt-payment"><span>Cashea · inicial {cashea.initial_percent}%</span><strong>{fmtRef(cashea.initial_ref)}</strong></div><div className="receipt-payment"><span>Saldo Cashea · 3 cuotas</span><strong>{fmtRef(cashea.financed_ref)}</strong></div></section>}
+      {!!payments.length && <section className="receipt-payments">
+        {payments.map(p => <div className="receipt-payment" key={p.id}><span>{paymentLabel(p.method)}</span><strong>{p.currency === "USD" ? `$${Number(p.amount_original).toFixed(2)}` : fmtVes(p.amount_original)}</strong></div>)}
       </section>}
+
+      {oilService && (oilService.next_service_odometer || oilService.next_service_date) && <section className="receipt-maintenance"><div className="receipt-next">Próximo servicio: {oilService.next_service_odometer ? `${oilService.next_service_odometer.toLocaleString("es-VE")} km` : ""}{oilService.next_service_odometer && oilService.next_service_date ? " · " : ""}{oilService.next_service_date ?? ""}</div></section>}
 
       <footer className="receipt-footer">Gracias por confiar en Lubricenter.</footer>
     </article>}
@@ -177,8 +164,5 @@ export default function ReceiptPage() {
 
 function paymentLabel(method: string) {
   return ({ MOBILE_PAYMENT: "Pago móvil", TRANSFER_BDV: "Transferencia BDV", TRANSFER_BNC: "Transferencia BNC", CASH_VES: "Efectivo Bs", CASH_USD: "Efectivo USD" } as Record<string,string>)[method] ?? method;
-}
-function areaLabel(area: string) {
-  return ({ STORE: "Producto", WORKSHOP: "Taller", ELECTROAUTO: "Electroauto", OIL_CHANGE: "Cambio de aceite" } as Record<string,string>)[area] ?? area;
 }
 

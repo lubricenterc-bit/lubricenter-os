@@ -13,6 +13,7 @@ type Rates = { bcv: number; operative: number };
 type PricingSync = { catalogSyncedAt: string | null; bcvEffectiveAt: string | null; operativeEffectiveAt: string | null };
 type InventoryItem = {
   id: string;
+  source: "INVENTORY" | "CATALOG";
   sku: string;
   brand: string | null;
   description: string;
@@ -83,15 +84,16 @@ export default function OilChangePage() {
   async function load() {
     setLoading(true);
     setError("");
-    const [orderRes, ratesRes, invRes, syncRes] = await Promise.all([
+    const [orderRes, ratesRes, invRes, catalogRes, syncRes] = await Promise.all([
       supabase.from("orders").select("id,order_number,status,customer_id,vehicle_id").eq("id", orderId).single(),
       supabase.rpc("get_current_rates"),
       supabase.rpc("get_oil_change_inventory", { p_location_code: "CABUDARE" }),
+      supabase.from("product_catalog_current").select("id,name,category,filter_code,current_price_ves,current_ref_bcv").eq("available", true).order("name").limit(1000),
       supabase.rpc("get_pricing_sync_status"),
     ]);
 
-    if (orderRes.error || ratesRes.error || invRes.error || syncRes.error) {
-      setError((orderRes.error || ratesRes.error || invRes.error || syncRes.error)?.message ?? "No pude cargar el cambio de aceite.");
+    if (orderRes.error || ratesRes.error || invRes.error || catalogRes.error || syncRes.error) {
+      setError((orderRes.error || ratesRes.error || invRes.error || catalogRes.error || syncRes.error)?.message ?? "No pude cargar el cambio de aceite.");
       setLoading(false);
       return;
     }
@@ -119,12 +121,28 @@ export default function OilChangePage() {
       operativeEffectiveAt: syncRow?.operative_effective_at ?? null,
     });
 
-    setInventory((invRes.data ?? []).map((x: any) => ({
+    const stockItems = (invRes.data ?? []).map((x: any) => ({
       ...x,
+      source: "INVENTORY" as const,
       quantity_on_hand: Number(x.quantity_on_hand ?? 0),
       current_price_ves: x.current_price_ves == null ? null : Number(x.current_price_ves),
       current_ref_bcv: x.current_ref_bcv == null ? null : Number(x.current_ref_bcv),
-    })) as InventoryItem[]);
+    }));
+    const catalogItems = (catalogRes.data ?? []).map((x: any) => ({
+      id: `catalog:${x.id}`,
+      source: "CATALOG" as const,
+      sku: x.filter_code || "CATÁLOGO",
+      brand: x.name,
+      description: x.name,
+      category: x.category,
+      quantity_on_hand: 0,
+      product_id: x.id,
+      catalog_product_name: x.name,
+      current_price_ves: x.current_price_ves == null ? null : Number(x.current_price_ves),
+      current_ref_bcv: x.current_ref_bcv == null ? null : Number(x.current_ref_bcv),
+      needs_review: false,
+    }));
+    setInventory([...stockItems, ...catalogItems] as InventoryItem[]);
 
     const [vehicleRes, customerRes] = await Promise.all([
       supabase.from("vehicles").select("id,plate,make,model,year,current_odometer").eq("id", ord.vehicle_id).single(),
@@ -146,8 +164,8 @@ export default function OilChangePage() {
 
   useEffect(() => { if (orderId) load(); }, [orderId]);
 
-  const oils = useMemo(() => inventory.filter(i => ["Aceite Motor", "Aceite Motos"].includes(i.category ?? "") && !i.needs_review), [inventory]);
-  const filters = useMemo(() => inventory.filter(i => i.category === "Filtro Aceite" && !i.needs_review), [inventory]);
+  const oils = useMemo(() => inventory.filter(i => (i.source === "INVENTORY" ? ["Aceite Motor", "Aceite Motos"].includes(i.category ?? "") : (i.category ?? "").toLocaleLowerCase("es").startsWith("aceite")) && !i.needs_review), [inventory]);
+  const filters = useMemo(() => inventory.filter(i => (i.category ?? "").toLocaleLowerCase("es").includes("filtro") && (i.category ?? "").toLocaleLowerCase("es").includes("aceite") && !i.needs_review), [inventory]);
 
   const visibleOils = useMemo(() => {
     const q = oilSearch.trim().toLowerCase();
@@ -189,27 +207,37 @@ export default function OilChangePage() {
     if (!oil) return setError("Selecciona el aceite utilizado.");
     if (!oil.brand?.trim()) return setError("Este aceite no tiene marca registrada. Completa la marca en inventario para guardar su historial.");
     if (Number(nextKm) <= 0 && Number(nextMonths) <= 0) return setError("Indica el próximo mantenimiento en kilómetros o meses.");
-    if (!Number.isFinite(Number(oilUnits)) || Number(oilUnits) <= 0 || Number(oilUnits) > oil.quantity_on_hand) return setError(`Existencia insuficiente de ${oil.sku}.`);
+    if (!Number.isFinite(Number(oilUnits)) || Number(oilUnits) <= 0) return setError("La cantidad de aceite debe ser mayor que cero.");
+    if (oil.source === "INVENTORY" && Number(oilUnits) > oil.quantity_on_hand) return setError(`Existencia insuficiente de ${oil.sku}. Elige la opción “Catálogo · sin descuento de stock” para continuar.`);
     if (!Number.isFinite(oilUnitRef) || oilUnitRef <= 0) return setError("Indica el precio REF a cobrar por el aceite.");
-    if (filter && (!Number.isFinite(Number(filterUnits)) || Number(filterUnits) <= 0 || Number(filterUnits) > filter.quantity_on_hand)) return setError(`Existencia insuficiente de ${filter.sku}.`);
+    if (filter && (!Number.isFinite(Number(filterUnits)) || Number(filterUnits) <= 0)) return setError("La cantidad de filtros debe ser mayor que cero.");
+    if (filter?.source === "INVENTORY" && Number(filterUnits) > filter.quantity_on_hand) return setError(`Existencia insuficiente de ${filter.sku}. Elige la opción “Catálogo · sin descuento de stock” para continuar.`);
     if (filter && (!Number.isFinite(filterUnitRef) || filterUnitRef <= 0)) return setError("Indica el precio REF a cobrar por el filtro.");
 
     setBusy(true);
     setError("");
-    const { error } = await supabase.rpc("add_oil_change_package", {
+    const { error } = await supabase.rpc("add_oil_change_package_flexible", {
       p_order_id: order.id,
       p_odometer: Number(odometer),
       p_description: description.trim() || "Cambio de aceite",
       p_service_base_ref: Number(serviceBaseRef || 0),
       p_service_customer_ref: Number(serviceCustomerRef || 0),
-      p_oil_inventory_item_id: oil.id,
+      p_oil_source: oil.source,
+      p_oil_inventory_item_id: oil.source === "INVENTORY" ? oil.id : null,
+      p_oil_product_id: oil.source === "CATALOG" ? oil.product_id : null,
+      p_oil_description: oil.description,
       p_oil_units: Number(oilUnits),
-      p_oil_manual_unit_ref: oilUnitRef,
+      p_oil_unit_ref: oilUnitRef,
+      p_oil_brand: oil.brand,
       p_oil_viscosity: viscosity.trim() || null,
       p_oil_quantity_liters: liters ? Number(liters) : null,
-      p_filter_inventory_item_id: filter?.id ?? null,
+      p_filter_source: filter?.source ?? "NONE",
+      p_filter_inventory_item_id: filter?.source === "INVENTORY" ? filter.id : null,
+      p_filter_product_id: filter?.source === "CATALOG" ? filter.product_id : null,
+      p_filter_description: filter?.description ?? null,
       p_filter_units: filter ? Number(filterUnits) : 1,
-      p_filter_manual_unit_ref: filter ? filterUnitRef : null,
+      p_filter_unit_ref: filter ? filterUnitRef : null,
+      p_filter_code: filter?.sku ?? null,
       p_next_km_interval: nextKm ? Number(nextKm) : 0,
       p_next_months: nextMonths ? Number(nextMonths) : 0,
     });
@@ -244,14 +272,14 @@ export default function OilChangePage() {
     </section>
 
     <section className="card stack">
-      <div className="row-between"><div><h2 className="section-title">1. Aceite</h2><div className="muted small">{loading ? "Cargando…" : `${oils.length} referencias con existencia`}</div></div><button className="btn btn-ghost" onClick={load} disabled={loading}>Recargar</button></div>
-      {!loading && oils.length === 0 && <div className="error">No se cargaron aceites del inventario. Pulsa “Recargar”. Si persiste, no cierres la venta y repórtalo.</div>}
+      <div className="row-between"><div><h2 className="section-title">1. Aceite</h2><div className="muted small">{loading ? "Cargando…" : `${oils.length} opciones · inventario y catálogo`}</div></div><button className="btn btn-ghost" onClick={load} disabled={loading}>Recargar</button></div>
+      {!loading && oils.length === 0 && <div className="error">No se cargaron aceites del inventario ni del catálogo. Pulsa “Recargar”.</div>}
       <input className="input" value={oilSearch} onChange={e => setOilSearch(e.target.value)} placeholder="Buscar aceite por marca, viscosidad, nombre o SKU…" />
-      <div className="stack directory-list">{visibleOils.slice(0, 8).map(i => <button className={`directory-option ${oilId === i.id ? "selected" : ""}`} key={i.id} onClick={() => chooseOil(i.id)}><strong>{i.brand} · {i.sku}</strong><span>{i.description} · stock {i.quantity_on_hand}</span></button>)}</div>
+      <div className="stack directory-list">{visibleOils.slice(0, 8).map(i => <button className={`directory-option ${oilId === i.id ? "selected" : ""}`} key={i.id} onClick={() => chooseOil(i.id)}><strong>{i.brand} · {i.sku}</strong><span>{i.description} · {i.source === "INVENTORY" ? `stock ${i.quantity_on_hand}` : "Catálogo · sin descuento de stock"}</span></button>)}</div>
       <div className="muted small">{visibleOils.length > 8 ? "Mostrando 8 coincidencias. Escribe marca o viscosidad para afinar." : !visibleOils.length ? "No hay coincidencias. Prueba con marca, SKU o viscosidad." : "Selecciona el aceite y confirma cantidad y precio abajo."}</div>
 
       {oil && <div className="success stack">
-        <div className="row-between"><div><strong>{oil.sku} · {oil.brand}</strong><div className="small">{oil.catalog_product_name || oil.description} · disponible {oil.quantity_on_hand}</div></div><div style={{ textAlign: "right" }}>{oil.current_ref_bcv != null ? <><strong>{fmtRef(oil.current_ref_bcv)}</strong><div className="small">{fmtVes(oil.current_price_ves ?? 0)} sugerido</div></> : <strong>Sin precio sugerido</strong>}</div></div>
+        <div className="row-between"><div><strong>{oil.sku} · {oil.brand}</strong><div className="small">{oil.catalog_product_name || oil.description} · {oil.source === "INVENTORY" ? `disponible ${oil.quantity_on_hand}` : "se venderá sin descontar inventario"}</div></div><div style={{ textAlign: "right" }}>{oil.current_ref_bcv != null ? <><strong>{fmtRef(oil.current_ref_bcv)}</strong><div className="small">{fmtVes(oil.current_price_ves ?? 0)} sugerido</div></> : <strong>Sin precio sugerido</strong>}</div></div>
       </div>}
 
       <div className="grid grid-2">
@@ -263,13 +291,13 @@ export default function OilChangePage() {
     </section>
 
     <section className="card stack">
-      <div><h2 className="section-title">2. Filtro de aceite</h2><div className="muted small">Opcional · {filters.length} referencias con existencia.</div></div>
+      <div><h2 className="section-title">2. Filtro de aceite</h2><div className="muted small">Opcional · {filters.length} opciones de inventario y catálogo.</div></div>
       <input className="input" value={filterSearch} onChange={e => setFilterSearch(e.target.value)} placeholder="Buscar código, marca o nombre del filtro…" />
       <button className="btn btn-ghost" onClick={() => chooseFilter("")}>Sin filtro / cliente trae filtro</button>
-      <div className="stack directory-list">{visibleFilters.slice(0, 8).map(i => <button className={`directory-option ${filterId === i.id ? "selected" : ""}`} key={i.id} onClick={() => chooseFilter(i.id)}><strong>{i.brand} · {i.sku}</strong><span>{i.description} · stock {i.quantity_on_hand}</span></button>)}</div>
+      <div className="stack directory-list">{visibleFilters.slice(0, 8).map(i => <button className={`directory-option ${filterId === i.id ? "selected" : ""}`} key={i.id} onClick={() => chooseFilter(i.id)}><strong>{i.brand} · {i.sku}</strong><span>{i.description} · {i.source === "INVENTORY" ? `stock ${i.quantity_on_hand}` : "Catálogo · sin descuento de stock"}</span></button>)}</div>
 
       {filter && <div className="success stack">
-        <div className="row-between"><div><strong>{filter.sku} · {filter.brand}</strong><div className="small">{filter.description} · disponible {filter.quantity_on_hand}</div></div><div style={{ textAlign: "right" }}>{filter.current_ref_bcv != null ? <><strong>{fmtRef(filter.current_ref_bcv)}</strong><div className="small">{fmtVes(filter.current_price_ves ?? 0)} sugerido</div></> : <strong>Sin precio sugerido</strong>}</div></div>
+        <div className="row-between"><div><strong>{filter.sku} · {filter.brand}</strong><div className="small">{filter.description} · {filter.source === "INVENTORY" ? `disponible ${filter.quantity_on_hand}` : "se venderá sin descontar inventario"}</div></div><div style={{ textAlign: "right" }}>{filter.current_ref_bcv != null ? <><strong>{fmtRef(filter.current_ref_bcv)}</strong><div className="small">{fmtVes(filter.current_price_ves ?? 0)} sugerido</div></> : <strong>Sin precio sugerido</strong>}</div></div>
       </div>}
 
       {filter && <div className="grid grid-2">

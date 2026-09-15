@@ -13,7 +13,7 @@
 .receipt-party { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; padding: 18px 0; font-size: 13px; }
 .receipt-party strong { display: block; font-size: 16px; margin: 3px 0; }
 .receipt-lines { margin-top: 22px; }
-.receipt-line { display: grid; grid-template-columns: 1fr 120px 150px; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; font-size: 13px; }
+.receipt-line { display: grid; grid-template-columns: 1fr 130px; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; font-size: 13px; }
 .receipt-line > :nth-child(2), .receipt-line > :nth-child(3) { text-align: right; }
 .receipt-line-head { font-size: 10px; font-weight: 900; letter-spacing: .08em; color: #777; }
 .receipt-small { font-size: 10px; color: #777; margin-top: 3px; }
@@ -38,7 +38,7 @@
   .receipt-actions .row { flex-wrap: wrap; justify-content: flex-end; }
 }
 @media print {
-  @page { margin: 0; size: 58mm 250mm; }
+  @page { margin: 0; }
   html, body { background: #fff !important; color-scheme: light; }
   .topbar, .nav, .no-print { display: none !important; }
   .shell { padding: 0 !important; }
@@ -47,39 +47,39 @@
 }
 
 /* 58 mm roll, with 2 mm of clearance on each side. */
-.receipt-paper { width: 58mm; max-width: 100%; margin: 0 auto; padding: 3mm 2mm; border-radius: 0; font: 11px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace; color: #000; overflow-wrap: anywhere; }
-.receipt-header { display: block; text-align: center; border-bottom: 1px dashed #000; padding-bottom: 2mm; }
+.receipt-paper { width: 58mm; max-width: 100%; margin: 0 auto; padding: 2mm; border-radius: 0; font: 10px/1.25 ui-monospace, SFMono-Regular, Consolas, monospace; color: #000; overflow-wrap: anywhere; }
+.receipt-header { display: block; text-align: center; border-bottom: 1px dashed #000; padding-bottom: 1mm; }
 .receipt-header img { display: none; }
 .receipt-brand { font-size: 16px; }
-.receipt-tagline { font-size: 9px; color: #000; }
-.receipt-title-row { display: block; padding: 2mm 0; }
-.receipt-title-row h1 { font-size: 17px; }
-.receipt-right { text-align: left; font-size: 10px; }
+.receipt-tagline { font-size: 8px; color: #000; }
+.receipt-title-row { display: flex; align-items: flex-end; padding: 1.5mm 0 1mm; }
+.receipt-title-row h1 { font-size: 15px; }
+.receipt-right { text-align: right; font-size: 9px; }
 .receipt-note, .receipt-small, .receipt-label { color: #000; font-size: 9px; padding-bottom: 1mm; }
-.receipt-party { display: block; padding: 2mm 0; font-size: 10px; }
-.receipt-party > div + div { margin-top: 2mm; }
-.receipt-party strong { font-size: 11px; }
-.receipt-lines { margin-top: 2mm; }
-.receipt-line { grid-template-columns: 1fr 1fr; gap: 1mm; padding: 2mm 0; font-size: 10px; break-inside: avoid; }
-.receipt-line > :first-child { grid-column: 1 / -1; }
-.receipt-line > :nth-child(2) { text-align: left; }
+.receipt-party { display: block; padding: 1mm 0; font-size: 9px; }
+.receipt-party > div + div { margin-top: .5mm; }
+.receipt-party strong { display: inline; font-size: 9px; }
+.receipt-lines { margin-top: 1mm; }
+.receipt-line { grid-template-columns: 1fr auto; gap: 1mm; padding: 1mm 0; font-size: 9px; break-inside: avoid; }
+.receipt-line > :first-child { grid-column: auto; }
+.receipt-line > :nth-child(2) { text-align: right; }
 .receipt-line-head { display: none; }
 .receipt-totals { width: 100%; margin: 2mm 0; }
-.receipt-totals > div { grid-template-columns: 1fr 1fr; gap: 1mm; padding: 1mm 0; }
-.receipt-totals > div > :first-child { grid-column: 1 / -1; }
-.receipt-totals > div > :nth-child(2) { text-align: left; }
+.receipt-totals > div { grid-template-columns: 1fr auto auto; gap: 1mm; padding: 1mm 0; }
+.receipt-totals > div > :first-child { grid-column: auto; }
+.receipt-totals > div > :nth-child(2) { text-align: right; }
 .receipt-totals > div:first-child { font-size: 12px; border-bottom: 1px solid #000; }
-.receipt-payments, .receipt-maintenance { margin-top: 2mm; padding-top: 2mm; font-size: 10px; }
+.receipt-payments, .receipt-maintenance { margin-top: 1mm; padding-top: 1mm; font-size: 9px; }
 .receipt-payment { gap: 2mm; break-inside: avoid; }
 .receipt-payment > :first-child, .payroll-receipt-line > :first-child { min-width: 0; }
 .receipt-payment > :last-child, .payroll-receipt-line > :last-child { flex-shrink: 0; white-space: nowrap; }
 .receipt-maintenance strong { font-size: 11px; }
-.receipt-next { border-left: 1px solid #000; background: none; padding: 1mm; }
+.receipt-next { border-left: 1px solid #000; background: none; padding: .5mm 1mm; }
 .receipt-credit { color: #000; }
-.receipt-footer { margin-top: 3mm; padding-top: 2mm; border-top: 1px dashed #000; font-size: 10px; }
+.receipt-footer { margin-top: 2mm; padding-top: 1mm; border-top: 1px dashed #000; font-size: 9px; }
 .payroll-receipt-line { display: flex; justify-content: space-between; gap: 2mm; padding: 1mm 0; break-inside: avoid; }
 @media print {
   html, body, .receipt-screen { width: 58mm !important; min-width: 0 !important; margin: 0 !important; }
-  .receipt-paper { width: 58mm; padding: 3mm 2mm; }
+  .receipt-paper { width: 58mm; padding: 2mm; }
 }
 

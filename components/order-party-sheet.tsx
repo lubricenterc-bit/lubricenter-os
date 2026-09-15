@@ -8,10 +8,11 @@ type Vehicle = { id: string; customer_id: string | null; plate: string | null; m
 const customerFields = "id,name,phone,document_id";
 const vehicleFields = "id,customer_id,plate,make,model,year,engine,current_odometer";
 
-export function OrderPartySheet({ currentCustomer, currentVehicle, ensureOrder, onDone, onCancel }: {
+export function OrderPartySheet({ currentCustomer, currentVehicle, ensureOrder, onDone, onWalkIn, onCancel }: {
   currentCustomer: Customer | null; currentVehicle: Vehicle | null;
   ensureOrder: () => Promise<string>;
   onDone: (customer: Customer | null, vehicle: Vehicle | null, id: string) => Promise<void>;
+  onWalkIn: (id: string) => Promise<void>;
   onCancel: () => void;
 }) {
   const [customer, setCustomer] = useState(currentCustomer);
@@ -115,6 +116,19 @@ export function OrderPartySheet({ currentCustomer, currentVehicle, ensureOrder, 
     finally { setBusy(false); }
   }
 
+  async function continueWithoutCustomer() {
+    if (busy) return;
+    setBusy(true); setError("");
+    try {
+      const id = await ensureOrder();
+      const result = await supabase.rpc("set_order_walk_in", { p_order_id: id, p_is_walk_in: true });
+      if (result.error) throw result.error;
+      await onWalkIn(id);
+    } catch (e: any) {
+      setError(e.message ?? "No se pudo activar el servicio rápido. Inténtalo de nuevo.");
+    } finally { setBusy(false); }
+  }
+
   return <div className="overlay"><div className="sheet stack" role="dialog" aria-modal="true" aria-labelledby="party-title">
     <div className="row-between"><h2 id="party-title">Cliente y vehículo</h2><button className="btn btn-ghost" disabled={busy} onClick={onCancel}>Volver</button></div>
     <fieldset disabled={busy} className="stack form-fields">
@@ -131,6 +145,10 @@ export function OrderPartySheet({ currentCustomer, currentVehicle, ensureOrder, 
     </fieldset>
     {error && <div className="error" role="alert">{error}</div>}
     <button className="btn btn-primary btn-block" disabled={busy} onClick={save}>{busy ? "Guardando…" : "Guardar y continuar en la orden"}</button>
+    {!customer && !vehicle && !newCustomer && !newVehicle && <div className="card stack">
+      <div><strong>¿Es un trabajo rápido de taller?</strong><div className="muted small">Continúa sin registrar cliente ni vehículo. No generará historial, recordatorios ni seguimiento CRM.</div></div>
+      <button className="btn btn-block" disabled={busy} onClick={continueWithoutCustomer}>{busy ? "Guardando…" : "Continuar sin cliente"}</button>
+    </div>}
   </div></div>;
 }
 

@@ -13,6 +13,7 @@ type BoardRow = {
   workflow_updated_at: string;
   opened_at: string;
   health_status: string;
+  is_walk_in: boolean;
   customer_name: string | null;
   customer_phone: string | null;
   plate: string | null;
@@ -82,7 +83,7 @@ export default function WorkshopPage() {
 
   return <main className="container stack">
     <section className="brand-hero">
-      <div><div className="eyebrow">OPERACIÓN DEL TALLER</div><h1>Vehículos en proceso</h1><p>Una sola vista para saber qué llegó, qué está en diagnóstico, qué se está trabajando, qué espera repuesto y qué ya está listo.</p></div>
+      <div className="stack"><div><div className="eyebrow">OPERACIÓN DEL TALLER</div><h1>Vehículos en proceso</h1><p>Una sola vista para saber qué llegó, qué está en diagnóstico, qué se está trabajando, qué espera repuesto y qué ya está listo.</p></div><Link className="btn btn-primary" href="/orders/new">+ Nueva orden o servicio rápido</Link></div>
       <img src="/lubricenter-logo.png" alt="Lubricenter" />
     </section>
 
@@ -99,9 +100,9 @@ export default function WorkshopPage() {
       {columns.map(col => <div className="card stack" key={col.key}>
         <div className="row-between"><strong>{col.title}</strong><span className="pill">{grouped[col.key].length}</span></div>
         {grouped[col.key].map(row => {
-          const vehicle = [row.plate, row.make, row.model, row.year].filter(Boolean).join(" · ") || "Vehículo";
+          const vehicle = row.is_walk_in ? "Servicio rápido · sin vehículo" : [row.plate, row.make, row.model, row.year].filter(Boolean).join(" · ") || "Vehículo por asociar";
           return <article className="card stack" key={row.id}>
-            <div className="row-between"><div><strong>{row.order_number}</strong><div>{vehicle}</div><div className="muted small">{row.customer_name || row.customer_phone || "Cliente sin nombre"}</div></div><span className="pill warn">{age(row.workflow_updated_at)}</span></div>
+            <div className="row-between"><div><strong>{row.order_number}</strong><div>{vehicle}</div><div className="muted small">{row.is_walk_in ? "Sin historial ni seguimiento CRM" : row.customer_name || row.customer_phone || "Cliente por asociar"}</div></div><span className="pill warn">{age(row.workflow_updated_at)}</span></div>
             <div className="muted small">{labelArea(row.service_areas) || "Sin trabajo agregado aún"} · {row.item_count} línea(s) · {fmtRef(row.current_total_ref)}</div>
             {row.current_odometer != null && <div className="muted small">Kilometraje: {row.current_odometer.toLocaleString("es-VE")} km</div>}
             <label><span className="label">Estado operativo</span><select className="select" value={row.workflow_status} disabled={busyId === row.id} onChange={e => move(row, e.target.value as WorkflowStatus)}>{columns.map(x => <option key={x.key} value={x.key}>{x.short}</option>)}</select></label>
