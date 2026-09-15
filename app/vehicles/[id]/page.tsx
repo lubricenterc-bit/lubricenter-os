@@ -135,7 +135,7 @@ export default function VehiclePage() {
           <div className="muted small">CLIENTE</div>
           <strong>{customer?.name || customer?.phone || "Sin cliente asociado"}</strong>
           <div className="muted small">{[customer?.phone, customer?.document_id].filter(Boolean).join(" · ")}</div>
-          {customer && <Link href="/customers" className="btn btn-ghost">Ver clientes</Link>}
+          {customer ? <Link href={`/customers/${customer.id}`} className="btn btn-ghost">Abrir ficha del cliente</Link> : <Link href="/customers" className="btn btn-ghost">Asociar desde CRM</Link>}
         </div>
         <div className="card stack">
           <div className="muted small">KILOMETRAJE ACTUAL</div>

@@ -6,7 +6,8 @@ const groups = [
     description: "Trabaja con órdenes y consulta lo que ya pasó.",
     links: [
       ["/orders", "▤", "Órdenes", "Abiertas, cerradas y Crédito LC"],
-      ["/customers", "◉", "Clientes y vehículos", "Directorio e historial"],
+      ["/customers", "◉", "CRM central", "Clientes, vehículos e historial"],
+      ["/reminders", "♡", "Seguimientos", "Post-servicio y mantenimiento"],
     ],
   },
   {

@@ -82,6 +82,14 @@ button { cursor: pointer; }
 .directory-option span { color: var(--muted); font-size: 12px; }
 .directory-option:hover { border-color: #4b4b4b; }
 .directory-option.selected { border-color: var(--accent); background: rgba(255,93,21,.08); box-shadow: 0 0 0 2px rgba(255,93,21,.06); }
+.crm-customer-row { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(420px,1fr); gap: 18px; align-items: center; transition: border-color .15s ease, transform .15s ease; }
+.crm-customer-row:hover { border-color: #4b4b4b; transform: translateY(-1px); }
+.crm-customer-main { min-width: 0; display: grid; gap: 6px; }
+.crm-vehicle-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crm-customer-stats { display: grid; grid-template-columns: .65fr 1fr .8fr auto; gap: 12px; align-items: center; }
+.crm-customer-stats > div { display: grid; gap: 3px; }
+.crm-action-bar { flex-wrap: wrap; }
+.crm-tabs { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
 
 /* Venta rápida: el bloque de cobro debe formar parte del flujo normal y nunca tapar los items. */
 main.container > section.card.stack:has(input[placeholder="Referencia de pago (opcional)"]) {
@@ -98,5 +106,9 @@ main.container > section.card.stack:has(input[placeholder="Referencia de pago (o
   .brand-hero img { width: 72px; height: 72px; }
   .nav a { font-size: 9px; }
   .row-between { align-items: flex-start; }
+  .crm-customer-row { grid-template-columns: 1fr; }
+  .crm-customer-stats { grid-template-columns: repeat(3, 1fr); }
+  .crm-customer-stats .btn { grid-column: 1 / -1; text-align: center; }
+  .crm-tabs { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
 
