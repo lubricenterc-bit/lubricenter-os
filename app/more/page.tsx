@@ -8,6 +8,7 @@ const groups = [
       ["/orders", "▤", "Órdenes", "Abiertas, cerradas y Crédito LC"],
       ["/customers", "◉", "CRM central", "Clientes, vehículos e historial"],
       ["/reminders", "♡", "Seguimientos", "Post-servicio y mantenimiento"],
+      ["/finance", "▣", "Finanzas", "Ventas, cobros, gastos y saldos"],
     ],
   },
   {
@@ -15,7 +16,7 @@ const groups = [
     description: "Inventario, dinero, nómina y configuración.",
     links: [
       ["/inventory", "▦", "Inventario", "Existencias, catálogo y conteos"],
-      ["/cash", "▣", "Caja", "Pagos y movimientos del día"],
+      ["/cash", "$", "Caja", "Cuentas, gastos y transferencias"],
       ["/receivables", "$", "Cobros", "Crédito LC y abonos"],
       ["/payroll", "%", "Nómina", "Cheo, Alexis y ajustes"],
       ["/settings", "⚙", "Configuración", "Notion, CRM y reglas"],
