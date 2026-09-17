@@ -101,6 +101,14 @@ button { cursor: pointer; }
 .finance-bar.sales { background: var(--accent); }
 .finance-bar.collected { background: var(--ok); }
 .finance-day-values { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px 14px; color: var(--muted); font-size: 12px; }
+.cash-close-account { display: grid; gap: 14px; }
+.cash-close-flow { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: #0d0d0d; }
+.receipt-58 { width: 54mm; margin: 0 auto; padding: 2mm; background: #fff; color: #000; font-family: ui-monospace, Consolas, monospace; font-size: 9px; line-height: 1.25; }
+.receipt-58 header { text-align: center; display: grid; justify-items: center; gap: 2px; }
+.receipt-58 header img { width: 16mm; height: 16mm; object-fit: contain; }
+.receipt-rule { border-top: 1px dashed #000; margin: 5px 0; }
+.receipt-line { display: flex; justify-content: space-between; gap: 5px; }
+.receipt-58 footer { text-align: center; margin: 8px 0; }
 
 /* Venta rápida: el bloque de cobro debe formar parte del flujo normal y nunca tapar los items. */
 main.container > section.card.stack:has(input[placeholder="Referencia de pago (opcional)"]) {
@@ -125,5 +133,13 @@ main.container > section.card.stack:has(input[placeholder="Referencia de pago (o
   .finance-warning { align-items: stretch; flex-direction: column; }
   .finance-day { grid-template-columns: 58px 1fr; }
   .finance-day-values { grid-column: 1 / -1; justify-content: flex-start; }
+  .cash-close-flow { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 
+@media print {
+  @page { size: 58mm auto; margin: 0; }
+  body { background: #fff !important; color: #000 !important; }
+  .topbar, .nav, .no-print { display: none !important; }
+  .shell { padding: 0 !important; min-height: 0 !important; }
+  .receipt-58 { width: 54mm !important; padding: 2mm !important; margin: 0 !important; }
+}

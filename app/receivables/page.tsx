@@ -133,11 +133,11 @@ export default function ReceivablesPage() {
 }
 
 function paymentLabel(method: string) {
-  return ({ MOBILE_PAYMENT: "Pago móvil", TRANSFER_BDV: "Transferencia BDV", TRANSFER_BNC: "Transferencia BNC", CASH_VES: "Efectivo Bs", CASH_USD: "Efectivo USD" } as Record<string,string>)[method] ?? method;
+  return ({ MOBILE_PAYMENT: "Pago móvil · Banco de Venezuela", TRANSFER_BDV: "Pago móvil · Banco de Venezuela", TRANSFER_BNC: "Pago móvil · BNC", CASH_VES: "Efectivo Bs", CASH_USD: "Efectivo USD" } as Record<string,string>)[method] ?? method;
 }
 
 function CreditPaymentSheet({ receivable, customer, rates, onCancel, onDone }: { receivable: Receivable; customer: Customer | null; rates: Rates; onCancel: () => void; onDone: () => void | Promise<void> }) {
-  const [method, setMethod] = useState("MOBILE_PAYMENT");
+  const [method, setMethod] = useState("TRANSFER_BDV");
   const currency = method === "CASH_USD" ? "USD" : "VES";
   const suggested = currency === "USD" ? (rates.operative > 0 ? Number(receivable.outstanding_ves) / rates.operative : 0) : Number(receivable.outstanding_ves);
   const [amount, setAmount] = useState(0);
@@ -160,7 +160,7 @@ function CreditPaymentSheet({ receivable, customer, rates, onCancel, onDone }: {
   return <div className="overlay"><div className="sheet stack">
     <div className="row-between"><h2 style={{ margin: 0 }}>Registrar abono</h2><button className="btn btn-ghost" onClick={onCancel}>Cerrar</button></div>
     <div className="card stack" style={{ borderColor: "rgba(255,93,21,.45)" }}><div className="muted small">CLIENTE</div><strong>{customer?.name || customer?.phone || "Cliente"}</strong><div className="row-between"><span>Saldo actual</span><strong>{fmtVes(receivable.outstanding_ves)}</strong></div></div>
-    <label><span className="label">Método</span><select className="select" value={method} onChange={e => setMethod(e.target.value)}><option value="MOBILE_PAYMENT">Pago móvil</option><option value="TRANSFER_BDV">Transferencia BDV</option><option value="TRANSFER_BNC">Transferencia BNC</option><option value="CASH_VES">Efectivo Bs</option><option value="CASH_USD">Efectivo USD físico</option></select></label>
+    <label><span className="label">Método</span><select className="select" value={method} onChange={e => setMethod(e.target.value)}><option value="TRANSFER_BDV">Pago móvil · Banco de Venezuela</option><option value="TRANSFER_BNC">Pago móvil · BNC</option><option value="CASH_VES">Efectivo Bs</option><option value="CASH_USD">Efectivo USD físico</option></select></label>
     <label><span className="label">Monto {currency}</span><input className="input" type="number" min="0" step="0.01" value={amount || ""} onChange={e => setAmount(Number(e.target.value))} /></label>
     {method !== "CASH_USD" && method !== "CASH_VES" && <label><span className="label">Referencia opcional</span><input className="input" value={reference} onChange={e => setReference(e.target.value)} /></label>}
     <div className="card"><div className="muted small">VALOR DEL ABONO</div><div className="money-lg">{fmtVes(valueVes)}</div><div className="muted small">Nuevo saldo aproximado: {fmtVes(Math.max(Number(receivable.outstanding_ves) - valueVes, 0))}</div></div>
@@ -168,4 +168,3 @@ function CreditPaymentSheet({ receivable, customer, rates, onCancel, onDone }: {
     <button className="btn btn-primary btn-block" disabled={busy || amount <= 0 || valueVes > Number(receivable.outstanding_ves) + 1} onClick={save}>{busy ? "Registrando…" : "Registrar abono"}</button>
   </div></div>;
 }
-

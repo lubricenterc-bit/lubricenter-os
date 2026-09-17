@@ -441,7 +441,7 @@ function PaymentSheet({ ensureOrder, remainingVes, rates, onDone, onCancel }: {
   onDone: (id: string) => void | Promise<void>;
   onCancel: () => void;
 }) {
-  const [method, setMethod] = useState("MOBILE_PAYMENT");
+  const [method, setMethod] = useState("TRANSFER_BDV");
   const currency = method === "CASH_USD" ? "USD" : "VES";
   const suggested = currency === "USD" ? (rates.operative ? remainingVes / rates.operative : 0) : remainingVes;
   const [amount, setAmount] = useState(0);
@@ -464,7 +464,7 @@ function PaymentSheet({ ensureOrder, remainingVes, rates, onDone, onCancel }: {
 
   return <div className="overlay"><div className="sheet stack">
     <div className="row-between"><h2 style={{ margin: 0 }}>Agregar pago</h2><button className="btn btn-ghost" onClick={onCancel}>Cerrar</button></div>
-    <label><span className="label">Método</span><select className="select" value={method} onChange={e => setMethod(e.target.value)}><option value="MOBILE_PAYMENT">Pago móvil</option><option value="TRANSFER_BDV">Transferencia BDV</option><option value="TRANSFER_BNC">Transferencia BNC</option><option value="CASH_VES">Efectivo Bs</option><option value="CASH_USD">Efectivo USD físico</option></select></label>
+    <label><span className="label">Método</span><select className="select" value={method} onChange={e => setMethod(e.target.value)}><option value="TRANSFER_BDV">Pago móvil · Banco de Venezuela</option><option value="TRANSFER_BNC">Pago móvil · BNC</option><option value="CASH_VES">Efectivo Bs</option><option value="CASH_USD">Efectivo USD físico</option></select></label>
     <label><span className="label">Monto {currency}</span><input className="input" type="number" min="0" step="0.01" value={amount || ""} onChange={e => setAmount(Number(e.target.value))} /></label>
     {method !== "CASH_USD" && method !== "CASH_VES" && <label><span className="label">Referencia opcional</span><input className="input" value={reference} onChange={e => setReference(e.target.value)} /></label>}
     <div className="card"><div className="muted small">VALOR OPERATIVO DEL PAGO</div><div className="money-lg">{fmtVes(currency === "USD" ? amount * rates.operative : amount)}</div><div className="muted small">USD físico se valora a tasa operativa. Bs conserva su monto original.</div></div>
@@ -472,4 +472,3 @@ function PaymentSheet({ ensureOrder, remainingVes, rates, onDone, onCancel }: {
     <button className="btn btn-primary btn-block" disabled={busy || amount <= 0} onClick={add}>{busy ? "Agregando…" : "Agregar pago"}</button>
   </div></div>;
 }
-

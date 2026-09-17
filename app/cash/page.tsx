@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtVes } from "@/lib/format";
+import Link from "next/link";
 
 type Account = {
   id: string;
@@ -70,6 +71,8 @@ export default function CashPage() {
     <section className="row" style={{ flexWrap: "wrap" }}>
       <button className="btn btn-primary" onClick={() => setModal("EXPENSE")}>+ Registrar gasto</button>
       <button className="btn" onClick={() => setModal("TRANSFER")}>↔ Transferencia interna</button>
+      <Link className="btn btn-ghost" href="/expenses">Egresos y proveedores</Link>
+      <Link className="btn btn-ghost" href="/cash-close">Cuadre diario</Link>
     </section>
 
     <section className="grid grid-2">
@@ -77,7 +80,6 @@ export default function CashPage() {
         <div className="row-between"><div><div className="muted small">{accountTypeLabel(a.account_type)}</div><strong>{a.name}</strong></div><span className="pill">{a.currency}</span></div>
         <div className="kpi">{a.currency === "USD" ? `$${Number(a.balance_native).toFixed(2)}` : fmtVes(a.balance_native)}</div>
         {a.currency === "USD" && <div className="muted small">Equivalente actual registrado: {fmtVes(a.balance_ves)}</div>}
-        {a.code === "MOBILE" && <div className="muted small">Pago móvil queda separado hasta que definamos a qué banco llega por defecto.</div>}
         {a.code === "CUJI" && <div className="muted small">Cuenta relacionada: mover dinero aquí no se registra como gasto operativo.</div>}
       </div>)}
       {!accounts.length && !loading && <div className="card muted">No hay cuentas configuradas.</div>}
@@ -105,6 +107,7 @@ function accountTypeLabel(type: string) {
 function movementLabel(m: Movement) {
   if (m.movement_type === "PAYMENT") return "Pago de cliente";
   if (m.movement_type === "EXPENSE") return m.category ? `Gasto · ${m.category}` : "Gasto";
+  if (m.movement_type === "SUPPLIER_PAYMENT") return "Pago a proveedor";
   if (m.movement_type === "TRANSFER") return m.direction === "IN" ? "Transferencia recibida" : "Transferencia enviada";
   return "Ajuste";
 }
@@ -175,4 +178,3 @@ function TransferSheet({ accounts, onCancel, onDone }: { accounts: Account[]; on
     <button className="btn btn-primary btn-block" disabled={busy || !fromId || !toId || amount <= 0} onClick={save}>{busy ? "Moviendo…" : "Registrar transferencia"}</button>
   </div></div>;
 }
-

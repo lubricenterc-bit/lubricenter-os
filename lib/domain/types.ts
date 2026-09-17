@@ -4,7 +4,6 @@ export type PricingMode = "STANDARD" | "CASH_USD_SPECIAL";
 export type PaymentMethod =
   | "CASH_USD"
   | "CASH_VES"
-  | "MOBILE_PAYMENT"
   | "TRANSFER_BDV"
   | "TRANSFER_BNC";
 
@@ -48,4 +47,3 @@ export interface ElectroautoAllocationResult {
   alexisRef: number;
   lubricenterRef: number;
 }
-

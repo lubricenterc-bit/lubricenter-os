@@ -15,7 +15,7 @@ const nav = [
   ["/more", "•••", "Más"],
 ] as const;
 
-const financePaths = ["/finance", "/receivables", "/cash", "/cashea"];
+const financePaths = ["/finance", "/receivables", "/cash", "/cashea", "/expenses", "/suppliers", "/purchases", "/cash-close"];
 const morePaths = ["/inventory", "/payroll", "/settings", "/more"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -50,4 +50,3 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-

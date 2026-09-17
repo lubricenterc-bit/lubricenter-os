@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
 
-type PaymentMethod = "MOBILE_PAYMENT" | "TRANSFER_BDV" | "TRANSFER_BNC" | "CASH_VES" | "CASH_USD";
+type PaymentMethod = "TRANSFER_BDV" | "TRANSFER_BNC" | "CASH_VES" | "CASH_USD";
 type Sale = {
   id: string; order_id: string; status: "ACTIVE" | "SETTLED" | "CANCELLED"; initial_percent: number; commission_percent: number;
   gross_ref: number; gross_ves_snapshot: number; initial_ref: number; initial_ves_snapshot: number; financed_ref: number;
@@ -17,7 +17,7 @@ type Order = { id: string; order_number: string; total_ref: number; total_ves: n
 type Rates = { bcv: number; operative: number };
 
 const METHODS: readonly [PaymentMethod,string][] = [
-  ["MOBILE_PAYMENT","Pago móvil"], ["TRANSFER_BDV","Transferencia BDV"], ["TRANSFER_BNC","Transferencia BNC"], ["CASH_VES","Efectivo Bs"], ["CASH_USD","Efectivo USD"],
+  ["TRANSFER_BDV","Pago móvil · Venezuela"], ["TRANSFER_BNC","Pago móvil · BNC"], ["CASH_VES","Efectivo Bs"], ["CASH_USD","Efectivo USD"],
 ];
 function paymentLabel(method: string) { return Object.fromEntries(METHODS)[method] ?? method; }
 
@@ -119,4 +119,3 @@ function InstallmentPaymentSheet({ installment, rates, onCancel, onDone }: { ins
     <button className="btn btn-primary btn-block" disabled={busy || amount <= 0 || valueRef > remainingRef + 0.05} onClick={save}>{busy ? "Registrando…" : "Confirmar dinero recibido"}</button>
   </div></div>;
 }
-

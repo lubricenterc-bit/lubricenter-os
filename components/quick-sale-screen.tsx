@@ -17,14 +17,14 @@ type CatalogProduct = { id: string; name: string; category: string | null; filte
 type SearchResult = { key: string; kind: "STOCK" | "CATALOG"; inventory_item_id?: string; product_id?: string; title: string; subtitle: string; stock?: number; unit_ref: number; unit_ves: number };
 type CartLine = { key: string; kind: "STOCK" | "CATALOG" | "MANUAL"; inventory_item_id?: string; product_id?: string; description: string; quantity: number; unit_ref: number; source_label: string; stock?: number };
 type Rates = { bcv: number; operative: number };
-type PaymentMethod = "MOBILE_PAYMENT" | "TRANSFER_BDV" | "TRANSFER_BNC" | "CASH_VES" | "CASH_USD";
+type PaymentMethod = "TRANSFER_BDV" | "TRANSFER_BNC" | "CASH_VES" | "CASH_USD";
 type CompletedSale = {
   order_id: string; order_number: string; total_ves: number; total_ref: number;
   cashea?: { initial_ref: number; financed_ref: number; commission_ref: number };
 };
 
 const PAYMENT_METHODS: readonly [PaymentMethod, string][] = [
-  ["MOBILE_PAYMENT", "Pago móvil"], ["TRANSFER_BDV", "Transferencia BDV"], ["TRANSFER_BNC", "Transferencia BNC"], ["CASH_VES", "Efectivo Bs"], ["CASH_USD", "Efectivo USD"],
+  ["TRANSFER_BDV", "Pago móvil · Venezuela"], ["TRANSFER_BNC", "Pago móvil · BNC"], ["CASH_VES", "Efectivo Bs"], ["CASH_USD", "Efectivo USD"],
 ];
 const CASHEA_MIN_REF = 25;
 const CASHEA_COMMISSION = 4;
@@ -46,10 +46,10 @@ export function QuickSaleScreen() {
   const [saleDate,setSaleDate] = useState("");
   const [received,setReceived] = useState(false);
   const [checkoutMode, setCheckoutMode] = useState<"DIRECT" | "CASHEA">("DIRECT");
-  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>("MOBILE_PAYMENT");
+  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>("TRANSFER_BDV");
   const [reference, setReference] = useState("");
   const [casheaInitialPercent, setCasheaInitialPercent] = useState("40");
-  const [casheaInitialMethod, setCasheaInitialMethod] = useState<PaymentMethod>("MOBILE_PAYMENT");
+  const [casheaInitialMethod, setCasheaInitialMethod] = useState<PaymentMethod>("TRANSFER_BDV");
   const [casheaPaymentReference, setCasheaPaymentReference] = useState("");
   const [casheaReference, setCasheaReference] = useState("");
   const [loading, setLoading] = useState(true);
@@ -115,7 +115,7 @@ export function QuickSaleScreen() {
   const casheaValid = cartValid && totalRef >= CASHEA_MIN_REF && casheaPct > 0 && casheaPct <= 100;
 
   function payload() { return cart.map(line => ({ kind: line.kind, inventory_item_id: line.inventory_item_id ?? null, product_id: line.product_id ?? null, description: line.description, quantity: line.quantity, unit_ref: Number(line.unit_ref) })); }
-  function resetAfterSale() { setSaleDate("");setReceived(false); setCart([]); setReference(""); setCasheaPaymentReference(""); setCasheaReference(""); setSearch(""); setCheckoutMode("DIRECT"); setSelectedPayment("MOBILE_PAYMENT"); setCasheaInitialPercent("40"); setCasheaInitialMethod("MOBILE_PAYMENT"); }
+  function resetAfterSale() { setSaleDate("");setReceived(false); setCart([]); setReference(""); setCasheaPaymentReference(""); setCasheaReference(""); setSearch(""); setCheckoutMode("DIRECT"); setSelectedPayment("TRANSFER_BDV"); setCasheaInitialPercent("40"); setCasheaInitialMethod("TRANSFER_BDV"); }
 
   async function completeDirect() {
     if (!cartValid || busy) return;
@@ -208,4 +208,3 @@ export function QuickSaleScreen() {
     </section>
   </main>;
 }
-

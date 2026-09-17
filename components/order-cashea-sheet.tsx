@@ -8,7 +8,7 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
   onDone: () => Promise<void>; onCancel: () => void;
 }) {
   const [percent, setPercent] = useState("40");
-  const [method, setMethod] = useState("MOBILE_PAYMENT");
+  const [method, setMethod] = useState("TRANSFER_BDV");
   const [reference, setReference] = useState("");
   const [casheaReference, setCasheaReference] = useState("");
   const [bcv, setBcv] = useState(0);
@@ -56,7 +56,7 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
         <div className="grid grid-3">{[40,50,60].map(n => <button key={n} className={`btn ${pct === n ? "btn-primary" : ""}`} onClick={() => { setPercent(String(n)); setConfirmed(false); setError(""); }}>{n}% inicial</button>)}</div>
         <label>Inicial personalizada (%)<input className="input" type="number" min="0.01" max="100" step="0.01" value={percent} onChange={e => { setPercent(e.target.value); setConfirmed(false); setError(""); }} /></label>
         <div className="card stack"><div className="row-between"><span>Inicial total</span><strong>{fmtRef(initialRef)} · {fmtVes(initialVes)}</strong></div><div className="row-between"><span>Pagos ya registrados</span><strong>{fmtVes(paidVes)}</strong></div><div className="row-between"><strong>Recibir ahora</strong><strong>{method === "CASH_USD" ? `$${(extraVes / bcv).toFixed(4)} USD` : fmtVes(extraVes)}</strong></div></div>
-        <label>Cómo recibiste la inicial<select className="select" value={method} onChange={e => { setMethod(e.target.value); setConfirmed(false); }}><option value="MOBILE_PAYMENT">Pago móvil</option><option value="TRANSFER_BDV">Transferencia BDV</option><option value="TRANSFER_BNC">Transferencia BNC</option><option value="CASH_VES">Efectivo Bs</option><option value="CASH_USD">Efectivo USD</option></select></label>
+        <label>Cómo recibiste la inicial<select className="select" value={method} onChange={e => { setMethod(e.target.value); setConfirmed(false); }}><option value="TRANSFER_BDV">Pago móvil · Banco de Venezuela</option><option value="TRANSFER_BNC">Pago móvil · BNC</option><option value="CASH_VES">Efectivo Bs</option><option value="CASH_USD">Efectivo USD</option></select></label>
         <div className="muted small">Cashea fija la inicial en REF/USD. Los bolívares se calculan a BCV: {bcv}. Los pagos anteriores se conservan y cuentan para la inicial.</div>
         <label>Referencia del pago (opcional)<input className="input" value={reference} onChange={e => setReference(e.target.value)} /></label>
         <label>Referencia de la venta Cashea (opcional)<input className="input" value={casheaReference} onChange={e => setCasheaReference(e.target.value)} /></label>
@@ -70,4 +70,3 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
     <button className="btn btn-primary btn-block" disabled={busy || !valid || !confirmed} onClick={save}>{busy ? "Registrando…" : "Registrar inicial y cerrar con Cashea"}</button>
   </div></div>;
 }
-

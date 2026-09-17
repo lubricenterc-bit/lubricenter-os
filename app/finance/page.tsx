@@ -50,7 +50,6 @@ export default function FinancePage() {
   }
 
   const salesTypes = useMemo(() => new Map((data?.sales_by_type ?? []).map(x => [x.sale_type, x])), [data]);
-  const clearing = data?.accounts.find(a => a.account_type === "CLEARING" && Number(a.balance_ves) !== 0);
   const ownAccounts = data?.accounts.filter(a => a.account_type !== "RELATED") ?? [];
   const maxDailyRef = Math.max(1, ...(data?.daily ?? []).map(d => Math.max(Number(d.sales_ref), Number(d.collected_ref))));
 
@@ -87,8 +86,10 @@ export default function FinancePage() {
         <Link href="/receivables" className="card stack"><div className="row-between"><h2 className="section-title">Crédito LC por cobrar</h2><span className={`pill ${data.lc_open.overdue ? "warn" : "ok"}`}>{data.lc_open.overdue} vencidas</span></div><div className="kpi">{fmtVes(data.lc_open.outstanding_ves)}</div><div className="muted small">{data.lc_open.accounts} cuentas abiertas</div></Link>
         <Link href="/cashea" className="card stack"><div className="row-between"><h2 className="section-title">Cashea por recibir</h2><span className={`pill ${data.cashea_open.overdue ? "warn" : "ok"}`}>{data.cashea_open.overdue} vencidas</span></div><div className="kpi">{fmtRef(data.cashea_open.outstanding_ref)}</div><div className="muted small">{data.cashea_open.installments} cuotas · {data.cashea_open.sales} ventas activas</div></Link>
       </section>
-
-      {clearing && <section className="card finance-warning"><div><strong>Hay {fmtVes(clearing.balance_ves)} en “{clearing.name}”</strong><div className="muted small">Los pagos móviles todavía no están asignados a un banco real. Puedes moverlos a BDV o BNC desde Caja; el próximo paso será configurar el banco predeterminado.</div></div><Link href="/cash" className="btn btn-primary">Clasificar dinero</Link></section>}
+      <section className="grid grid-2">
+        <Link href="/expenses" className="card brand-card"><div className="eyebrow">COMPRAS Y PROVEEDORES</div><h2 className="section-title">Central de egresos</h2><div className="muted small">Facturas, mercancía recibida, pagos y cuentas por pagar.</div></Link>
+        <Link href="/cash-close" className="card brand-card"><div className="eyebrow">CONTROL DIARIO</div><h2 className="section-title">Cuadre de caja</h2><div className="muted small">Compara saldos esperados y reales de cada cuenta.</div></Link>
+      </section>
 
       <section className="card stack"><div><h2 className="section-title">Saldos registrados</h2><div className="muted small">Son saldos construidos por pagos, gastos y transferencias ingresados en Lubricenter OS.</div></div><div className="grid grid-3">{data.accounts.map(a => <div className="finance-account" key={a.id}><div className="row-between"><strong>{a.name}</strong><span className="pill">{a.currency}</span></div><div className="money-lg">{a.currency === "USD" ? `$${Number(a.balance_native).toFixed(2)}` : fmtVes(a.balance_native)}</div><div className="muted small">{accountTypeLabel(a.account_type)}</div></div>)}</div></section>
 
@@ -101,11 +102,10 @@ export default function FinancePage() {
 }
 
 function SaleTypeCard({ title, row }: { title: string; row?: Split }) { return <div className="card"><div className="muted small">{title.toUpperCase()}</div><div className="money-lg">{fmtRef(row?.total_ref ?? 0)}</div><div className="muted small">{row?.orders ?? 0} ventas · {fmtVes(row?.total_ves ?? 0)}</div></div>; }
-function paymentLabel(method: string) { return ({ MOBILE_PAYMENT: "Pago móvil", TRANSFER_BDV: "Transferencia BDV", TRANSFER_BNC: "Transferencia BNC", CASH_VES: "Efectivo Bs", CASH_USD: "Efectivo USD", ZELLE: "Zelle", CASHEA: "Cashea" } as Record<string,string>)[method] ?? method; }
+function paymentLabel(method: string) { return ({ MOBILE_PAYMENT: "Pago móvil · Banco de Venezuela", TRANSFER_BDV: "Pago móvil · Banco de Venezuela", TRANSFER_BNC: "Pago móvil · BNC", CASH_VES: "Efectivo Bs", CASH_USD: "Efectivo USD", ZELLE: "Zelle", CASHEA: "Cashea" } as Record<string,string>)[method] ?? method; }
 function accountTypeLabel(type: string) { return ({ BANK: "Banco", CASH: "Efectivo", CLEARING: "Por clasificar", RELATED: "Cuenta relacionada" } as Record<string,string>)[type] ?? type; }
 function localDate() { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
 function monthStart(value: string) { return `${value.slice(0,7)}-01`; }
 function weekStart(value: string) { const d = new Date(`${value}T12:00:00-04:00`); const day = d.getDay() || 7; d.setDate(d.getDate() - day + 1); return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas", year: "numeric", month: "2-digit", day: "2-digit" }).format(d); }
 function addDays(value: string, amount: number) { const d = new Date(`${value}T12:00:00-04:00`); d.setDate(d.getDate()+amount); return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas", year: "numeric", month: "2-digit", day: "2-digit" }).format(d); }
 function formatShortDate(value: string) { return new Date(`${value}T12:00:00-04:00`).toLocaleDateString("es-VE", { day: "2-digit", month: "short" }); }
-

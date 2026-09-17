@@ -17,6 +17,8 @@ const groups = [
     links: [
       ["/inventory", "▦", "Inventario", "Existencias, catálogo y conteos"],
       ["/cash", "$", "Caja", "Cuentas, gastos y transferencias"],
+      ["/expenses", "↗", "Egresos y proveedores", "Compras, facturas y cuentas por pagar"],
+      ["/cash-close", "✓", "Cuadre diario", "Cierre de efectivo y bancos"],
       ["/receivables", "$", "Cobros", "Crédito LC y abonos"],
       ["/payroll", "%", "Nómina", "Cheo, Alexis y ajustes"],
       ["/settings", "⚙", "Configuración", "Notion, CRM y reglas"],
@@ -42,4 +44,3 @@ export default function MorePage() {
     </section>)}
   </main>;
 }
-
