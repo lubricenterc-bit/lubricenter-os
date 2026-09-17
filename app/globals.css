@@ -48,7 +48,7 @@ button { cursor: pointer; }
 .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; border: 1px solid var(--line); padding: 6px 9px; color: #ddd; font-size: 12px; }
 .pill.ok { color: var(--ok); border-color: rgba(116,214,128,.35); }
 .pill.warn { color: #ffd071; border-color: rgba(255,208,113,.35); }
-.nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(6, 1fr); border-top: 1px solid var(--line); background: rgba(10,10,10,.96); backdrop-filter: blur(12px); }
+.nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid var(--line); background: rgba(10,10,10,.96); backdrop-filter: blur(12px); }
 .nav a { padding: 10px 2px 12px; text-align: center; font-size: 10px; color: #999; }
 .nav strong { display: block; color: #ddd; font-size: 17px; margin-bottom: 2px; }
 .nav a.nav-active { color: #fff; background: linear-gradient(180deg, rgba(255,93,21,.13), transparent); }

@@ -12,9 +12,11 @@ const nav = [
   ["/workshop", "⚒", "Taller"],
   ["/customers", "◉", "CRM"],
   ["/finance", "▣", "Finanzas"],
+  ["/more", "•••", "Más"],
 ] as const;
 
 const financePaths = ["/finance", "/receivables", "/cash", "/cashea"];
+const morePaths = ["/inventory", "/payroll", "/settings", "/more"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -28,6 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (href === "/workshop") return pathname.startsWith("/workshop");
     if (href === "/customers") return pathname.startsWith("/customers") || pathname.startsWith("/vehicles") || pathname.startsWith("/reminders");
     if (href === "/finance") return financePaths.some(p => pathname === p || pathname.startsWith(`${p}/`));
+    if (href === "/more") return morePaths.some(p => pathname === p || pathname.startsWith(`${p}/`));
     return false;
   }
 
