@@ -91,7 +91,7 @@ export default function HomePage() {
   return <main className="container stack">
     {error && <div className="error">{error}</div>}
 
-    <section className="brand-hero">
+    <section className="brand-hero home-hero">
       <div>
         <div className="eyebrow">CENTRO DE CONTROL · {dateLabel(data.localDate).toUpperCase()}</div>
         <h1>¿Qué está pasando ahora?</h1>
@@ -108,7 +108,7 @@ export default function HomePage() {
 
     <section className="card stack" style={{ borderColor: "rgba(255,93,21,.4)" }}>
       <div className="row-between"><div><div className="eyebrow">MOSTRADOR</div><h2 className="section-title" style={{ marginBottom: 0 }}>Cotiza y cobra sin frenar la atención</h2></div><Link href="/quick-sale" className="btn btn-primary">Abrir venta</Link></div>
-      <div className="muted small">Busca precio sin crear una OS. Si hay stock lo descuenta al cerrar; si no hay stock confirmado puedes vender desde catálogo o manualmente. Para pagos mixtos, Crédito LC o un cliente específico, la misma venta continúa como orden completa.</div>
+      <div className="muted small">Busca precio sin crear una OS. Si hay stock lo descuenta al cerrar; si no hay stock confirmado puedes vender desde catálogo o manualmente. También puedes cobrar un abono y dejar el saldo en Crédito LC desde la misma venta rápida.</div>
     </section>
 
     <section className="card stack">

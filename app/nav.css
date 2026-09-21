@@ -6,6 +6,8 @@
   justify-content: center;
 }
 .nav::-webkit-scrollbar { display: none; }
+.nav-primary { display: flex; flex: 1 1 auto; min-width: max-content; }
+.nav-shortcuts { display: none; }
 .form-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .order-steps { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 13px; }
 .order-steps span { padding: 8px 12px; background: var(--panel-2); border-radius: 10px; }
@@ -16,14 +18,21 @@ summary { cursor: pointer; padding: 8px 0; font-weight: 700; }
 .sheet > .btn:last-child { position: sticky; bottom: 0; }
 .row-between > div { min-width: 0; overflow-wrap: anywhere; }
 @media (min-width: 1000px) {
-  .shell { padding-left: 154px; padding-bottom: 20px; }
-  .nav { top: 0; bottom: 0; right: auto; width: 154px; flex-direction: column; justify-content: flex-start; padding-top: 20px; border-right: 1px solid var(--line); }
+  .shell { padding-left: 210px; padding-bottom: 20px; }
+  .nav { top: 0; bottom: 0; right: auto; width: 210px; flex-direction: column; justify-content: flex-start; padding: 18px 10px; border-right: 1px solid var(--line); background: rgba(15,15,15,.98); }
+  .nav-primary { width: 100%; min-width: 0; display: grid; gap: 4px; flex: 0 0 auto; }
   .nav a { flex: 0 0 auto; max-width: none; font-size: 14px; padding: 18px 12px; text-align: left; }
   .nav strong { display: inline-block; margin-right: 12px; }
+  .nav a span { font-weight: 800; }
+  .nav-shortcuts { display: grid; gap: 6px; width: 100%; margin-top: 22px; padding: 13px 8px; border-top: 1px solid var(--line); }
+  .nav-shortcuts > span { color: #c7c7c7; font-size: 10px; font-weight: 900; letter-spacing: .1em; }
+  .nav-shortcuts a { padding: 10px 8px; border-radius: 10px; color: #e8e8e8; font-size: 13px; }
+  .nav-shortcuts a:hover { background: #292929; }
+  .nav-shortcuts b { color: var(--accent); display: inline-block; width: 22px; }
   .overlay { place-items: center; }
   .sheet { border-radius: 22px; }
 }
-@media (max-width: 999px) { .nav a { flex: 1 1 0; min-width: 0; } }
+@media (max-width: 999px) { .nav-primary { min-width: max-content; } .nav a { flex: 1 1 0; min-width: 72px; } }
 @media (max-width: 700px) {
   .topbar { flex-wrap: wrap; position: static; }
   .topbar-actions { width: 100%; flex-wrap: wrap; }
