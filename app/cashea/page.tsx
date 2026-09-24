@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { referenceError } from "@/lib/finance/money";
 import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
 
@@ -104,6 +105,7 @@ function InstallmentPaymentSheet({ installment, rates, onCancel, onDone }: { ins
   useEffect(() => { setAmount(Number((currency === "USD" ? remainingRef : remainingRef*rates.bcv).toFixed(currency === "USD" ? 2 : 0))); }, [method, installment.id, rates.bcv]);
   const valueRef = currency === "USD" ? amount : (rates.bcv > 0 ? amount/rates.bcv : 0);
   async function save() {
+    const re=referenceError(method,reference);if(re)return setError(re);
     if (amount <= 0 || valueRef > remainingRef + 0.05) return;
     setBusy(true); setError("");
     const { error } = await supabase.rpc("record_cashea_installment_payment", { p_installment_id:installment.id, p_method:method, p_amount_original:amount, p_reference:reference.trim() || null });
@@ -113,7 +115,7 @@ function InstallmentPaymentSheet({ installment, rates, onCancel, onDone }: { ins
     <div className="row-between"><div><h2 style={{ margin:0 }}>Registrar cuota Cashea</h2><div className="muted small">Cuota {installment.installment_no} · saldo {fmtRef(remainingRef)}</div></div><button className="btn btn-ghost" onClick={onCancel}>Cerrar</button></div>
     <div><span className="label">Dónde llegó el dinero</span><div className="grid grid-2">{METHODS.map(([m,label]) => <button type="button" key={m} className={method === m ? "btn btn-primary" : "btn"} onClick={() => setMethod(m)}>{method === m ? `✓ ${label}` : label}</button>)}</div></div>
     <label><span className="label">Monto {currency}</span><input className="input" type="number" min="0" step="0.01" value={amount || ""} onChange={e => setAmount(Number(e.target.value))} /></label>
-    <input className="input" value={reference} onChange={e => setReference(e.target.value)} placeholder="Referencia bancaria / Cashea (opcional)" />
+    <input className="input" value={reference} onChange={e => setReference(e.target.value)} placeholder="Banco: últimos 4 de referencia · obligatorio" />
     <div className="card"><div className="muted small">EQUIVALE A</div><div className="money-lg">{fmtRef(valueRef)}</div><div className="muted small">Las cuotas Cashea se valorizan con BCV del día en que llegan.</div></div>
     {valueRef > remainingRef + 0.05 && <div className="error">El monto supera el saldo de esta cuota.</div>}{error && <div className="error">{error}</div>}
     <button className="btn btn-primary btn-block" disabled={busy || amount <= 0 || valueRef > remainingRef + 0.05} onClick={save}>{busy ? "Registrando…" : "Confirmar dinero recibido"}</button>

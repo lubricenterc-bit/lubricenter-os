@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { referenceError } from "@/lib/finance/money";
 import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
 
@@ -152,6 +153,7 @@ function CreditPaymentSheet({ receivable, customer, rates, onCancel, onDone }: {
   const valueVes = currency === "USD" ? amount * orderRate : amount;
 
   async function save() {
+    const re=referenceError(method,reference);if(re)return setError(re);
     if (amount <= 0) return;
     setBusy(true); setError("");
     const { error } = await supabase.rpc("record_credit_payment", { p_receivable_id: receivable.id, p_method: method, p_amount_original: amount, p_reference: reference || null });
@@ -165,7 +167,7 @@ function CreditPaymentSheet({ receivable, customer, rates, onCancel, onDone }: {
     <div className="card stack" style={{ borderColor: "rgba(255,93,21,.45)" }}><div className="muted small">CLIENTE</div><strong>{customer?.name || customer?.phone || "Cliente"}</strong><div className="row-between"><span>Saldo actual</span><strong>{fmtVes(receivable.outstanding_ves)}</strong></div></div>
     <label><span className="label">Método</span><select className="select" value={method} onChange={e => setMethod(e.target.value)}><option value="TRANSFER_BDV">Pago móvil · Banco de Venezuela</option><option value="TRANSFER_BNC">Pago móvil · BNC</option><option value="CASH_VES">Efectivo Bs</option><option value="CASH_USD">Efectivo USD físico</option><option value="ZELLE">Zelle USD</option><option value="BINANCE">Binance USD</option></select></label>
     <label><span className="label">Monto {currency}</span><input className="input" type="number" min="0" step="0.01" value={amount || ""} onChange={e => setAmount(Number(e.target.value))} /></label>
-    {method !== "CASH_USD" && method !== "CASH_VES" && <label><span className="label">Referencia opcional</span><input className="input" value={reference} onChange={e => setReference(e.target.value)} /></label>}
+    {method !== "CASH_USD" && method !== "CASH_VES" && <label><span className="label">Últimos 4 de referencia · obligatorio</span><input className="input" value={reference} onChange={e => setReference(e.target.value)} /></label>}
     <div className="card"><div className="muted small">VALOR DEL ABONO</div><div className="money-lg">{fmtVes(valueVes)}</div><div className="muted small">Nuevo saldo aproximado: {fmtVes(Math.max(Number(receivable.outstanding_ves) - valueVes, 0))}</div></div>
     {error && <div className="error">{error}</div>}
     <button className="btn btn-primary btn-block" disabled={busy || (currency === "USD" && !rateReady) || amount <= 0 || valueVes > Number(receivable.outstanding_ves) + 1} onClick={save}>{busy ? "Registrando…" : "Registrar abono"}</button>
