@@ -4,3 +4,4 @@ node_modules/
 *.tsbuildinfo
 qa-local/
 
+supabase/.temp/
