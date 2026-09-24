@@ -178,3 +178,14 @@ describe('Finance Core database invariants',()=>{
  },120000);
 });
 function awaitNever(){return '00000000-0000-0000-0000-000000000000';}
+
+it('also applies the repository migration order on a fresh database',async()=>{
+ const fresh=new PGlite();
+ try {
+  await fresh.exec(gunzipSync(readFileSync('tests/fixtures/production-structure.sql.gz')).toString());
+  await fresh.exec('set check_function_bodies=on');
+  for(const file of readdirSync('supabase/migrations').filter(f=>f.includes('v22')).sort()) await fresh.exec(readFileSync('supabase/migrations/'+file,'utf8'));
+  await fresh.exec(readFileSync('supabase/migrations/20260924145617_usd_pricing_payroll_review.sql','utf8'));
+  expect((await fresh.query("select to_regclass('public.external_import_batches') as batch,to_regclass('public.payroll_work_items') as payroll")).rows[0]).toMatchObject({batch:'external_import_batches',payroll:'payroll_work_items'});
+ } finally { await fresh.close(); }
+},120000);
