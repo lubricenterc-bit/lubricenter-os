@@ -36,6 +36,7 @@ beforeAll(async()=>{
  // Production received the USD/payroll hotfix before Finance Core is deployed.
  await db.exec(readFileSync('supabase/migrations/20260924145617_usd_pricing_payroll_review.sql','utf8'));
  for(const file of readdirSync('supabase/migrations').filter(f=>f.includes('v22')).sort())await db.exec(readFileSync('supabase/migrations/'+file,'utf8'));
+ await db.exec(readFileSync('supabase/migrations/20260925103000_finance_cashea_mixed_accounts_usd_quick_sale.sql','utf8'));
  await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now()),('${admin}','admin@example.test',now());
  insert into public.locations(code,name) values('TEST','Test location');
  insert into public.financial_accounts(id,code,name,currency,account_type) values('${bank}','BDV','Bank','VES','BANK'),('${usd}','CASH_USD','USD','USD','CASH'),('${ves}','CASH_VES','Bs','VES','CASH');
@@ -58,6 +59,16 @@ describe('Finance Core database invariants',()=>{
   const before=await scalar('select count(*)::int from account_movements');const b=await ingest([row()]);expect(await ingest([row()])).toBe(b);
   expect(await scalar('select count(*)::int from external_transactions')).toBe(1);expect(await scalar('select count(*)::int from account_movements')).toBe(before);
   expect(await scalar('select count(*)::int from payments')).toBe(0);expect(await scalar('select count(*)::int from orders')).toBe(0);
+ });
+ it('accepts mixed Cashea accounts and currencies while preserving each row as evidence',async()=>{
+  await ingest([
+   row(1,'8000',{external_order:'888888',amount_ref:'10',assigned_ref:'10',rate:'800',rate_date:'2026-09-10',provider_account:'Cuenta A',installments:[1]}),
+   row(2,'10',{currency:'USD',external_order:'888889',amount_ref:'10',assigned_ref:'10',rate:'800',rate_date:'2026-09-10',provider_account:'Cuenta B',installments:[1]})
+  ],'CASHEA_TRANSACTIONS');
+  expect(await scalar('select count(*)::int from external_transactions')).toBe(2);
+  expect(await scalar("select count(distinct provider_account)::int from external_transactions")).toBe(2);
+  expect(await scalar("select count(distinct currency)::int from external_transactions")).toBe(2);
+  expect(await scalar("select count(*)::int from external_transactions where ownership_status='UNRESOLVED'")).toBe(2);
  });
  it('does not expose financial import evidence through the legacy audit log to operators',async()=>{await ingest([row()]);expect(Number(await scalar("select count(*)::int from audit_events where event_type like 'finance.%'"))).toBeGreaterThan(0);await asUser(operator);expect(await scalar("select count(*)::int from audit_events where event_type like 'finance.%'")).toBe(0);await root();await rejects(()=>db.exec("delete from audit_events where event_type like 'finance.%'"),/inmutable/);});
  it('keeps a continuing exception open without filling the audit trail on refresh',async()=>{
@@ -186,6 +197,7 @@ it('also applies the repository migration order on a fresh database',async()=>{
   await fresh.exec('set check_function_bodies=on');
   for(const file of readdirSync('supabase/migrations').filter(f=>f.includes('v22')).sort()) await fresh.exec(readFileSync('supabase/migrations/'+file,'utf8'));
   await fresh.exec(readFileSync('supabase/migrations/20260924145617_usd_pricing_payroll_review.sql','utf8'));
+  await fresh.exec(readFileSync('supabase/migrations/20260925103000_finance_cashea_mixed_accounts_usd_quick_sale.sql','utf8'));
   expect((await fresh.query("select to_regclass('public.external_import_batches') as batch,to_regclass('public.payroll_work_items') as payroll")).rows[0]).toMatchObject({batch:'external_import_batches',payroll:'payroll_work_items'});
  } finally { await fresh.close(); }
 },120000);
