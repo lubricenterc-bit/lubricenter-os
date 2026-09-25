@@ -137,6 +137,17 @@ main.container > section.card.stack:has(input[placeholder="Referencia de pago (o
   .cash-close-flow { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 
+.finance-inbox pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 22rem; overflow: auto; font-size: .85rem; }
+.finance-inbox { min-width: 0; max-width: 100%; }
+.finance-inbox > *, .finance-inbox .grid > * { min-width: 0; }
+.finance-inbox .row { flex-wrap: wrap; }
+.finance-inbox .brand-hero { flex-wrap: wrap; }
+.finance-inbox label { display: grid; gap: .4rem; }
+.finance-inbox fieldset { border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
+.finance-inbox .row-between > div { min-width: 0; overflow-wrap: anywhere; }
+.finance-inbox button:focus-visible, .finance-inbox a:focus-visible { outline: 3px solid #ffab6b; outline-offset: 3px; }
+@media (max-width: 600px) { .finance-inbox .row-between { align-items: stretch; gap: 12px; flex-wrap: wrap; } }
+
 @media print {
   @page { size: 58mm auto; margin: 0; }
   body { background: #fff !important; color: #000 !important; }

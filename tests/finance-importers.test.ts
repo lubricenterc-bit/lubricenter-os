@@ -1,0 +1,21 @@
+import { describe, expect, it } from 'vitest';
+import { parseBdv, parseCashea } from '../lib/finance/importers';
+import { money, tolerance, referenceError } from '../lib/finance/money';
+const headers=['Fecha de Transaccion','Moneda','Método de pago','Cuenta','Monto pagado en VES','Monto Pagado en USD','Fecha Tasa de Cambio','Tasa de Cambio','# Referencia','# Cuota Pagada','# Orden','Monto asignado'];
+const payment=['2026-09-23T06:47:00','VES','Pago Movil','Shared',8022.89,9.4,'2026-09-23',853.4989361702128,'001104315795','3',200294866,9.4];
+const bdv='Fecha\nReferencia\nDescripción\nDébito / Crédito\nMonto\nSaldo\n23-09-2026 - 08:41\n001234\nPAGO MOVIL\nCREDITO\n42.675,00\n77.301,27\n23-09-2026 - 08:27\n005678\nCOMISION\nDEBITO\n-14,00\n34.626,27';
+describe('Financial importer boundaries',()=>{
+ it('parses BDV decimal comma, preserves leading zeroes and Caracas timezone',()=>{const p=parseBdv(bdv);expect(p.errors).toEqual([]);expect(p.balance_chain).toBe(true);expect(p.rows[0]).toMatchObject({reference:'001234',amount:'42675.00000000',occurred_at:'2026-09-23T08:41:00-04:00'});});
+ it('deduplicates an overlapping page without reference-only dedup',()=>{const p=parseBdv(bdv+'\n'+bdv);expect(p.rows).toHaveLength(2);expect(p.duplicates).toBe(2);});
+ it('catches omitted bank row by balances',()=>expect(parseBdv(bdv.replace('34.626,27','34.625,27')).balance_chain).toBe(false));
+ it('accepts tabular copy/paste and ascending bank order',()=>{const p=parseBdv(bdv.replaceAll('\n','\t'));expect(p.rows).toHaveLength(2);expect(p.balance_chain).toBe(true);});
+ it('rejects malformed and truncated rows instead of silently losing data',()=>{expect(parseBdv(bdv+'\n24-09-2026 - 09:00\n1234').errors.length).toBeGreaterThan(0);expect(parseBdv(bdv.replace('-14,00','14,00')).errors.length).toBeGreaterThan(0);});
+ it('rejects impossible dates and amounts',()=>{expect(parseBdv(bdv.replace('23-09-2026','31-02-2026')).errors.length).toBeGreaterThan(0);expect(()=>money('NaN')).toThrow();expect(()=>money('Infinity')).toThrow();});
+ it('imports exact Cashea schema without inferring channel from account name',()=>{const p=parseCashea([headers,payment],'CASHEA_TRANSACTIONS');expect(p.errors).toEqual([]);expect(p.rows[0].channel_label).toBeUndefined();expect(p.rows[0].amount_ref).toBe('9.40000000');});
+ it('preserves multiquota evidence without inventing allocations',()=>{const row=[...payment];row[9]='1,2';const p=parseCashea([headers,row],'CASHEA_TRANSACTIONS');expect(p.rows[0].installments).toEqual([1,2]);});
+ it('reports assigned amount discrepancy separately',()=>{const row=[...payment];row[11]=9.4001;const p=parseCashea([headers,row],'CASHEA_TRANSACTIONS');expect(p.warnings).toHaveLength(1);expect(p.errors).toHaveLength(0);});
+ it('requires real schemas and rejects unsafe numeric references',()=>{expect(parseCashea([['Monto'],[25]],'CASHEA_TRANSACTIONS').errors.length).toBeGreaterThan(0);const row=[...payment];row[8]=Number.MAX_SAFE_INTEGER+1;expect(parseCashea([headers,row],'CASHEA_TRANSACTIONS').errors.length).toBeGreaterThan(0);});
+ it('keeps partial scheduled, future and canceled snapshots as facts',()=>{const h=['# Orden','Venta total','Fecha compra','Estado orden','Pago en caja','Fecha cuota 1','Monto cuota 1','Pagado cuota 1','Estado cuota 1'];const p=parseCashea([h,['1234',30,'2026-09-22','CANCELLED',20,'2026-10-06',10,2,'SCHEDULED']],'CASHEA_ORDERS');expect(p.errors).toEqual([]);expect(p.orders[0].status).toBe('CANCELLED');expect(p.orders[0].installments[0].paid_ref).toBe('2.00000000');});
+ it('caps rounding by BOTH absolute and relative limits',()=>{expect(tolerance('42670')).toBe('5.00000000');expect(tolerance('100')).toBe('0.10000000');});
+ it('requires bank last four, accepts full refs, permits cash with no ref',()=>{expect(referenceError('TRANSFER_BDV','123')).toBeTruthy();expect(referenceError('TRANSFER_BNC','1234')).toBeNull();expect(referenceError('CASH_USD','')).toBeNull();});
+});

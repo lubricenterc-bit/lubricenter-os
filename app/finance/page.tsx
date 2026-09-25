@@ -55,6 +55,7 @@ export default function FinancePage() {
 
   return <main className="container stack">
     <section className="brand-hero"><div><div className="eyebrow">FINANZAS · CONTROL DEL NEGOCIO</div><h1>Central financiera</h1><p>Separa lo vendido, lo cobrado, lo pendiente y lo gastado para saber qué ocurrió realmente con el dinero.</p></div><img src="/lubricenter-logo.png" alt="Lubricenter" /></section>
+    <Link href="/finance/inbox" className="card brand-card"><h2 className="section-title">Revisión financiera</h2><p>Importa banco y Cashea; atiende solo las excepciones.</p></Link>
     {error && <div className="error">{error}</div>}
 
     <section className="card stack">

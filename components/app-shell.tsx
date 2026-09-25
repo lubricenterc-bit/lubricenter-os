@@ -52,6 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         <div className="nav-shortcuts" aria-label="Accesos de dinero">
           <span>CONTROL DIARIO</span>
+          <Link href="/finance/inbox"><b aria-hidden="true">!</b> Revisión financiera</Link>
           <Link href="/cash"><b aria-hidden="true">▤</b> Caja</Link>
           <Link href="/expenses"><b aria-hidden="true">↗</b> Egresos</Link>
           <Link href="/cash-close"><b aria-hidden="true">✓</b> Cuadre</Link>

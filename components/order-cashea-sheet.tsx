@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { referenceError } from "@/lib/finance/money";
 import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
 
@@ -39,6 +40,8 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
   const valid = !loading && !error && bcv > 0 && totalRef >= minimum && Number.isFinite(pct) && pct > 0 && pct <= 100 && paidVes <= initialVes + .01;
   async function save() {
     if (!valid || !confirmed || busy) return;
+    if (!/^\d{1,32}$/.test(casheaReference.trim())) return setError("Escribe el número de orden Cashea.");
+    const refError = extraVes > 0 ? referenceError(method, reference) : null; if (refError) return setError(refError);
     setBusy(true); setError("");
     try {
       const result = await supabase.rpc("close_order_cashea", { p_order_id: orderId, p_initial_percent: pct, p_initial_payment_method: method, p_payment_reference: reference.trim() || null, p_cashea_reference: casheaReference.trim() || null, p_expected_total_ves: totalVes, p_expected_total_ref: totalRef, p_expected_bcv: bcv });
@@ -58,8 +61,8 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
         <div className="card stack"><div className="row-between"><span>Inicial total</span><strong>{fmtRef(initialRef)} · {fmtVes(initialVes)}</strong></div><div className="row-between"><span>Pagos ya registrados</span><strong>{fmtVes(paidVes)}</strong></div><div className="row-between"><strong>Recibir ahora</strong><strong>{method === "CASH_USD" ? `$${(extraVes / bcv).toFixed(4)} USD` : fmtVes(extraVes)}</strong></div></div>
         <label>Cómo recibiste la inicial<select className="select" value={method} onChange={e => { setMethod(e.target.value); setConfirmed(false); }}><option value="TRANSFER_BDV">Pago móvil · Banco de Venezuela</option><option value="TRANSFER_BNC">Pago móvil · BNC</option><option value="CASH_VES">Efectivo Bs</option><option value="CASH_USD">Efectivo USD</option></select></label>
         <div className="muted small">Cashea fija la inicial en REF/USD. Los bolívares se calculan a BCV: {bcv}. Los pagos anteriores se conservan y cuentan para la inicial.</div>
-        <label>Referencia del pago (opcional)<input className="input" value={reference} onChange={e => setReference(e.target.value)} /></label>
-        <label>Referencia de la venta Cashea (opcional)<input className="input" value={casheaReference} onChange={e => setCasheaReference(e.target.value)} /></label>
+        <label>Referencia bancaria · últimos 4 si pagó por banco<input className="input" value={reference} onChange={e => setReference(e.target.value)} /></label>
+        <label>Número de orden Cashea · obligatorio<input className="input" value={casheaReference} onChange={e => setCasheaReference(e.target.value)} /></label>
         <div className="card stack"><div>Por recibir de Cashea: <strong>{fmtRef(financed)}</strong></div><div>3 cuotas de aproximadamente {fmtRef(financed / 3)} · a 14, 28 y 42 días.</div><div>Comisión {commission}%: {fmtRef(totalRef * commission / 100)}. No aumenta el cobro al cliente.</div></div>
         <label className="row"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />Confirmo la venta en Cashea y que recibí la inicial indicada.</label>
       </fieldset>
