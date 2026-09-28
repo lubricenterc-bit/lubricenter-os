@@ -35,6 +35,7 @@ describe("post-service message", () => {
     expect(message).toContain("*De cortesía*");
     expect(message).toContain("Relleno de líquido limpiaparabrisas");
     expect(message).toContain("85");
+    expect(message).not.toContain("\\n");
     expect(message).not.toContain("*Productos / repuestos:*");
     expect(message.match(/INCA/g)?.length).toBe(1);
     await db.query("update order_items set oil_brand='INCA 25W60 MINERAL',oil_base_type=null where order_id=$1 and item_type='SERVICE'", [order]);
@@ -54,6 +55,36 @@ describe("post-service message", () => {
     expect(message).not.toContain("Próxima revisión");
     expect(message).not.toContain("Para tener en cuenta");
     expect(message).not.toMatch(/\n{3,}/);
+    expect(message).not.toContain("\\n");
+  });
+
+  it("infers legacy oil type from the billed product and includes additional paid items", async () => {
+    const customer = await scalar<string>("insert into customers(name) values('Cliente aceite') returning id");
+    const order = await scalar<string>("insert into orders(customer_id) values($1) returning id", [customer]);
+    await db.query(`insert into order_items(order_id,item_type,business_area,description,quantity,charged_ves_amount,charged_ref_amount,bcv_rate_snapshot,operative_rate_snapshot,oil_brand,oil_viscosity,oil_filter_code)
+      values($1,'SERVICE','OIL_CHANGE','Cambio de aceite',1,0,0,800,800,'Shell','10W40','AL-3807')`, [order]);
+    for (const description of ['SHELL-SEMI-10W40 · Shell 10w40 Semi Sintetico', 'AL-3807 · Filtro de Aceite A1 AL-3807', 'MOTOR-FLUSH-A1 · Limpiador de Motor A1']) {
+      await db.query(`insert into order_items(order_id,item_type,business_area,description,quantity,charged_ves_amount,charged_ref_amount,bcv_rate_snapshot,operative_rate_snapshot)
+        values($1,'PRODUCT','OIL_CHANGE',$2,1,1000,1.25,800,800)`, [order, description]);
+    }
+    const message = await scalar<string>("select build_post_service_message($1)", [order]);
+    expect(message).toContain("*Shell* · *10W40* · *semisintético*");
+    expect(message).toContain("Limpiador de Motor A1");
+    expect(message).not.toContain("SHELL-SEMI-10W40");
+    expect(message).not.toContain("AL-3807 · Filtro");
+    expect(message).not.toContain("*Vehículo:* ");
+  });
+
+  it("describes a product-only sale without claiming that a service was performed", async () => {
+    const customer = await scalar<string>("insert into customers(name) values('Cliente venta') returning id");
+    const order = await scalar<string>("insert into orders(customer_id) values($1) returning id", [customer]);
+    await db.query(`insert into order_items(order_id,item_type,business_area,description,quantity,charged_ves_amount,charged_ref_amount,bcv_rate_snapshot,operative_rate_snapshot)
+      values($1,'PRODUCT','STORE','Aceite Valvoline 20W50',1,1000,1.25,800,800)`, [order]);
+    const message = await scalar<string>("select build_post_service_message($1)", [order]);
+    expect(message).toContain("*Productos entregados*");
+    expect(message).toContain("Aceite Valvoline 20W50");
+    expect(message).not.toContain("*Trabajos realizados*");
+    expect(message).not.toContain("*Vehículo:* ");
   });
 
   it("records the selected oil type atomically with a manual oil package", async () => {
@@ -73,3 +104,4 @@ describe("post-service message", () => {
     expect(await scalar<string>("select build_post_service_message($1)", [order])).toContain("*INCA* · *25W-60* · *mineral*");
   });
 });
+
