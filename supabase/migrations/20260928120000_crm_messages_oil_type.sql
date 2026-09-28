@@ -62,6 +62,8 @@ declare
   v_oil_label text;
   v_services text;
   v_products text;
+  v_paid_extras text;
+  v_oil_product_description text;
   v_included text;
   v_bonus_lines text;
   v_physical_bonuses text;
@@ -76,9 +78,10 @@ begin
   select coalesce(nullif(trim(name), ''), 'cliente') into v_name from public.customers where id = v_order.customer_id;
   select nullif(trim(concat_ws(' ', make, model)), ''), plate into v_vehicle, v_plate
   from public.vehicles where id = v_order.vehicle_id;
-  v_vehicle := coalesce(v_vehicle, 'vehículo');
-  if nullif(trim(coalesce(v_plate, '')), '') is not null then
+  if v_vehicle is not null and nullif(trim(coalesce(v_plate, '')), '') is not null then
     v_vehicle := v_vehicle || ' (' || trim(v_plate) || ')';
+  elsif v_vehicle is null then
+    v_vehicle := nullif(trim(coalesce(v_plate, '')), '');
   end if;
 
   select * into v_oil from public.order_items
@@ -101,19 +104,23 @@ begin
   ) p;
 
   if v_oil.id is not null then
+    select description into v_oil_product_description from public.order_items
+    where order_id = p_order_id and item_type = 'PRODUCT' and pricing_mode <> 'BONUS'
+      and description ~* '[0-9]{1,2}[[:space:]]*W[[:space:]]*[-/]?[[:space:]]*[0-9]{2}'
+    order by charged_ves_amount desc, created_at limit 1;
     v_oil_type := case v_oil.oil_base_type
       when 'MINERAL' then 'mineral'
       when 'SEMISYNTHETIC' then 'semisintético'
       when 'SYNTHETIC' then 'full sintético'
       else case
-        when coalesce(v_oil.oil_brand, '') ~* 'semi[[:space:]-]*sint' then 'semisintético'
-        when coalesce(v_oil.oil_brand, '') ~* 'sint[eé]tico|synthetic' then 'full sintético'
-        when coalesce(v_oil.oil_brand, '') ~* 'mineral' then 'mineral'
+        when concat_ws(' ', v_oil.oil_brand, v_oil_product_description) ~* 'semi[[:space:]-]*s[yi]nt' then 'semisintético'
+        when concat_ws(' ', v_oil.oil_brand, v_oil_product_description) ~* 'sint[eé]tico|synthetic' then 'full sintético'
+        when concat_ws(' ', v_oil.oil_brand, v_oil_product_description) ~* 'mineral' then 'mineral'
         else '' end end;
     v_oil_brand_display := trim(regexp_replace(regexp_replace(
       coalesce(v_oil.oil_brand, ''),
       '[0-9]{1,2}[[:space:]]*W[[:space:]]*[-/]?[[:space:]]*[0-9]{2}', ' ', 'gi'),
-      'semi[[:space:]-]*sint[eé]tico|full[[:space:]-]*sint[eé]tico|sint[eé]tico|synthetic|mineral', ' ', 'gi'));
+      'semi[[:space:]-]*s[yi]nt[eé]tico|full[[:space:]-]*sint[eé]tico|sint[eé]tico|synthetic|mineral|gal[oó]n|granel', ' ', 'gi'));
     v_oil_brand_display := trim(regexp_replace(v_oil_brand_display, '[[:space:]]+', ' ', 'g'));
     v_oil_label := nullif(trim(concat_ws(' · ',
       case when nullif(v_oil_brand_display, '') is not null then '*' || v_oil_brand_display || '*' end,
@@ -125,11 +132,19 @@ begin
     if nullif(trim(coalesce(v_oil.oil_filter_code, '')), '') is not null then
       v_main := v_main || nl || '• *Filtro de aceite:* ' || trim(v_oil.oil_filter_code);
     end if;
-    -- Other paid products in an oil package are the oil and filter themselves.
-    -- Their details are already above; extra work is listed separately below.
-    v_extra := coalesce(v_services, '');
+    select string_agg('• ' || description || case when quantity <> 1 then ' ×' || trim(to_char(quantity, 'FM999999990.##')) else '' end, nl order by charged_ves_amount desc, created_at)
+    into v_paid_extras from (
+      select description, quantity, charged_ves_amount, created_at from public.order_items
+      where order_id = p_order_id and item_type = 'PRODUCT' and pricing_mode <> 'BONUS'
+        and description !~* '[0-9]{1,2}[[:space:]]*W[[:space:]]*[-/]?[[:space:]]*[0-9]{2}'
+        and (nullif(trim(coalesce(v_oil.oil_filter_code, '')), '') is null
+          or description not ilike '%' || trim(v_oil.oil_filter_code) || '%')
+      order by charged_ves_amount desc, created_at limit 3
+    ) p;
+    v_extra := concat_ws(nl, v_services, v_paid_extras);
   else
-    v_main := '🛠️ *Trabajos realizados*' || nl || coalesce(v_services, v_products, '• Atendimos tu vehículo');
+    v_main := case when v_services is null and v_products is not null then '🧾 *Productos entregados*'
+      else '🛠️ *Trabajos realizados*' end || nl || coalesce(v_services, v_products, '• Atendimos tu vehículo');
     if v_services is not null then v_extra := coalesce(v_products, ''); end if;
   end if;
 
@@ -178,8 +193,8 @@ begin
   select value #>> '{}' into v_template from public.app_settings where key = 'crm_post_service_template';
   if nullif(v_template, '') is null then
     v_template := 'Hola *{{nombre}}* 👋' || nl || nl ||
-      'Gracias por confiar en nosotros para atender tu {{vehiculo_bloque}}. Te dejamos el detalle de lo que hicimos hoy:' || nl || nl ||
-      '{{resumen_bloque}}' || nl || nl || '{{adicionales_bloque}}' || nl || nl ||
+      'Gracias por confiar en *Lubricenter*. Te compartimos un resumen de tu visita:' || nl || nl ||
+      '{{vehiculo_bloque}}' || nl || nl || '{{resumen_bloque}}' || nl || nl || '{{adicionales_bloque}}' || nl || nl ||
       '{{bonificaciones_bloque}}' || nl || nl || '{{observaciones_bloque}}' || nl || nl ||
       '{{estado_bloque}}' || nl || nl || '{{proximo_servicio_bloque}}' || nl || nl ||
       '💬 Si tienes alguna duda sobre el servicio, escríbenos por aquí.' || nl || nl || '*Lubricenter*';
@@ -187,9 +202,9 @@ begin
 
   v_message := replace(v_template, '{{nombre}}', coalesce(v_name, 'cliente'));
   v_message := replace(v_message, '{{orden}}', coalesce(v_order.order_number, ''));
-  v_message := replace(v_message, '{{vehiculo}}', v_vehicle);
+  v_message := replace(v_message, '{{vehiculo}}', coalesce(v_vehicle, ''));
   v_message := replace(v_message, '{{placa}}', coalesce(v_plate, ''));
-  v_message := replace(v_message, '{{vehiculo_bloque}}', '*' || v_vehicle || '*');
+  v_message := replace(v_message, '{{vehiculo_bloque}}', case when v_vehicle is not null then '🚘 *Vehículo:* ' || v_vehicle else '' end);
   v_message := replace(v_message, '{{resumen_bloque}}', v_main);
   v_message := replace(v_message, '{{adicionales_bloque}}', coalesce(v_extra, ''));
   v_message := replace(v_message, '{{bonificaciones_bloque}}', coalesce(v_bonus, ''));
@@ -207,8 +222,8 @@ begin
   v_message := replace(v_message, '{{bonificaciones_lista}}', coalesce(v_bonus_lines, ''));
   v_message := replace(v_message, '{{observaciones}}', coalesce(v_order.crm_observations, ''));
   v_message := replace(v_message, '{{kilometraje}}', coalesce(v_oil.service_odometer::text, ''));
-  v_message := regexp_replace(v_message, E'\\n[ \\t]+\\n', E'\\n\\n', 'g');
-  v_message := regexp_replace(v_message, E'\\n{3,}', E'\\n\\n', 'g');
+  v_message := regexp_replace(v_message, nl || '[[:blank:]]+' || nl, nl || nl, 'g');
+  v_message := regexp_replace(v_message, '(' || nl || '){3,}', nl || nl, 'g');
   return trim(v_message);
 end;
 $$;
@@ -219,7 +234,9 @@ grant execute on function public.build_post_service_message(uuid) to authenticat
 update public.app_settings
 set value = to_jsonb($new$Hola *{{nombre}}* 👋
 
-Gracias por confiar en nosotros para atender tu {{vehiculo_bloque}}. Te dejamos el detalle de lo que hicimos hoy:
+Gracias por confiar en *Lubricenter*. Te compartimos un resumen de tu visita:
+
+{{vehiculo_bloque}}
 
 {{resumen_bloque}}
 
@@ -252,3 +269,4 @@ Gracias por tu visita a *Lubricenter*. Aquí está el resumen de tu servicio:
 {{proximo_servicio_bloque}}
 
 ¡Gracias por preferir *Lubricenter*!$old$;
+
