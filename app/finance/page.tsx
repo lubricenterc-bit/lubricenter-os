@@ -14,6 +14,8 @@ type FinanceData = {
   period: { from: string; to: string; days: number };
   sales: Summary; sales_by_type: Split[];
   collections: Summary; collections_by_method: Split[];
+  customer_balance_cash: { deposits_ves: number; refunds_ves: number; reversals_ves: number };
+  retained_cancelled_cash_ves: number;
   expenses: Summary; expenses_by_category: Split[];
   net_cash_ves: number;
   lc_open: { accounts: number; outstanding_ves: number; overdue: number };
@@ -67,9 +69,9 @@ export default function FinancePage() {
     {data && !loading && <>
       <section className="grid grid-4">
         <div className="card brand-card"><div className="muted small">VENDIDO</div><div className="kpi">{fmtRef(data.sales.total_ref)}</div><div className="muted small">{data.sales.orders ?? 0} ventas · {fmtVes(data.sales.total_ves)}</div></div>
-        <div className="card"><div className="muted small">DINERO COBRADO</div><div className="kpi">{fmtVes(data.collections.total_ves)}</div><div className="muted small">{fmtRef(data.collections.total_ref)} · {data.collections.payments ?? 0} pagos</div></div>
+        <div className="card"><div className="muted small">COBROS DE ÓRDENES</div><div className="kpi">{fmtVes(data.collections.total_ves)}</div><div className="muted small">{fmtRef(data.collections.total_ref)} · {data.collections.payments ?? 0} pagos reales</div></div>
         <div className="card"><div className="muted small">GASTOS</div><div className="kpi" style={{ color: "var(--danger)" }}>{fmtVes(data.expenses.total_ves)}</div><div className="muted small">{data.expenses.expenses ?? 0} movimientos</div></div>
-        <div className="card"><div className="muted small">FLUJO NETO</div><div className="kpi" style={{ color: data.net_cash_ves >= 0 ? "var(--ok)" : "var(--danger)" }}>{fmtVes(data.net_cash_ves)}</div><div className="muted small">Cobros menos gastos del período</div></div>
+        <div className="card"><div className="muted small">FLUJO NETO</div><div className="kpi" style={{ color: data.net_cash_ves >= 0 ? "var(--ok)" : "var(--danger)" }}>{fmtVes(data.net_cash_ves)}</div><div className="muted small">Cobros + saldo recibido − devoluciones y correcciones − gastos</div></div>
       </section>
 
       <section className="grid grid-3">
@@ -83,9 +85,10 @@ export default function FinancePage() {
         <div className="card stack"><div className="row-between"><div><h2 className="section-title">Gastos por categoría</h2><div className="muted small">Salidas operativas; las transferencias internas no cuentan.</div></div><button className="btn btn-primary" onClick={() => setShowExpense(true)}>+ Gasto</button></div>{data.expenses_by_category.map(x => <div className="row-between order-item" key={x.category}><div><strong>{x.category}</strong><div className="muted small">{x.expenses ?? 0} registros</div></div><strong>{fmtVes(x.total_ves)}</strong></div>)}{!data.expenses_by_category.length && <div className="muted">No hay gastos registrados en este período.</div>}<Link href="/cash" className="btn btn-ghost">Ver todos los movimientos</Link></div>
       </section>
 
-      <section className="grid grid-2">
+      <section className="grid grid-3">
         <Link href="/receivables" className="card stack"><div className="row-between"><h2 className="section-title">Crédito LC por cobrar</h2><span className={`pill ${data.lc_open.overdue ? "warn" : "ok"}`}>{data.lc_open.overdue} vencidas</span></div><div className="kpi">{fmtVes(data.lc_open.outstanding_ves)}</div><div className="muted small">{data.lc_open.accounts} cuentas abiertas</div></Link>
         <Link href="/cashea" className="card stack"><div className="row-between"><h2 className="section-title">Cashea por recibir</h2><span className={`pill ${data.cashea_open.overdue ? "warn" : "ok"}`}>{data.cashea_open.overdue} vencidas</span></div><div className="kpi">{fmtRef(data.cashea_open.outstanding_ref)}</div><div className="muted small">{data.cashea_open.installments} cuotas · {data.cashea_open.sales} ventas activas</div></Link>
+        <Link href="/customer-balances" className="card stack"><h2 className="section-title">Saldos a favor de clientes</h2><div className="muted small">Anticipos y sobrantes recibidos: {fmtVes(data.customer_balance_cash.deposits_ves)}</div><div className="muted small">Cobros conservados de ventas anuladas: {fmtVes(data.retained_cancelled_cash_ves)}</div><div className="muted small">Devoluciones: {fmtVes(data.customer_balance_cash.refunds_ves)} · Cobros corregidos: {fmtVes(data.customer_balance_cash.reversals_ves)}</div><div className="muted small">Ver deuda actual por cliente y moneda →</div></Link>
       </section>
       <section className="grid grid-2">
         <Link href="/expenses" className="card brand-card"><div className="eyebrow">COMPRAS Y PROVEEDORES</div><h2 className="section-title">Central de egresos</h2><div className="muted small">Facturas, mercancía recibida, pagos y cuentas por pagar.</div></Link>
