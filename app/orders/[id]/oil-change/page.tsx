@@ -1,6 +1,6 @@
 "use client";
 import { matchesSearch } from "@/lib/domain/search";
-import { isOilCandidate, isOilFilter, saleSource } from "@/lib/domain/oil-change";
+import { inferOilBaseType, isOilCandidate, isOilFilter, saleSource, suggestOilBrand, type OilBaseType } from "@/lib/domain/oil-change";
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -71,6 +71,8 @@ export default function OilChangePage() {
   const [oilUnits, setOilUnits] = useState("1");
   const [oilPriceRef, setOilPriceRef] = useState("");
   const [manualOilName, setManualOilName] = useState("");
+  const [oilBrand, setOilBrand] = useState("");
+  const [oilBaseType, setOilBaseType] = useState<OilBaseType | "">("");
   const [viscosity, setViscosity] = useState("");
   const [liters, setLiters] = useState("");
 
@@ -204,7 +206,12 @@ export default function OilChangePage() {
     setOilId(id);
     const selected = id === "manual:oil" ? manualItem(id, manualOilName || oilSearch, "Aceite manual") : inventory.find(i => i.id === id);
     setOilPriceRef(selected?.current_ref_bcv != null && pricingFresh ? selected.current_ref_bcv.toFixed(2) : "");
-    if (selected) setViscosity(extractViscosity(`${selected.description} ${selected.catalog_product_name ?? ""}`));
+    if (selected) {
+      const text = `${selected.brand ?? ""} ${selected.description} ${selected.catalog_product_name ?? ""}`;
+      setViscosity(extractViscosity(text));
+      setOilBaseType(inferOilBaseType(text));
+      setOilBrand(suggestOilBrand(selected));
+    }
   }
 
   function chooseFilter(id: string) {
@@ -221,6 +228,9 @@ export default function OilChangePage() {
     if (!Number.isInteger(Number(nextKm)) || !Number.isInteger(Number(nextMonths))) return setError("Los intervalos de kilómetros y meses deben ser enteros.");
     if (!oil) return setError("Selecciona el aceite utilizado.");
     if (oil.source === "MANUAL" && !manualOilName.trim()) return setError("Escribe el nombre exacto del aceite utilizado.");
+    if (!oilBrand.trim()) return setError("Indica la marca del aceite para el resumen del cliente.");
+    if (!viscosity.trim()) return setError("Indica la viscosidad del aceite para el resumen del cliente.");
+    if (!oilBaseType) return setError("Selecciona si el aceite es mineral, semisintético o full sintético.");
     if (Number(nextKm) <= 0 && Number(nextMonths) <= 0) return setError("Indica el próximo mantenimiento en kilómetros o meses.");
     if (!Number.isFinite(Number(oilUnits)) || Number(oilUnits) <= 0) return setError("La cantidad de aceite debe ser mayor que cero.");
     if (!Number.isFinite(oilUnitRef) || oilUnitRef <= 0) return setError("Indica el precio REF a cobrar por el aceite.");
@@ -230,7 +240,7 @@ export default function OilChangePage() {
 
     setBusy(true);
     setError("");
-    const { error } = await supabase.rpc("add_oil_change_package_flexible", {
+    const { error } = await supabase.rpc("add_oil_change_package_with_type", {
       p_order_id: order.id,
       p_odometer: Number(odometer),
       p_description: description.trim() || "Cambio de aceite",
@@ -242,8 +252,9 @@ export default function OilChangePage() {
       p_oil_description: oil.source === "INVENTORY" && oilSaleSource === "MANUAL" ? `${oil.sku} · ${oil.description}` : oil.description,
       p_oil_units: Number(oilUnits),
       p_oil_unit_ref: oilUnitRef,
-      p_oil_brand: oil.brand?.trim() || oil.description,
+      p_oil_brand: oilBrand.trim(),
       p_oil_viscosity: viscosity.trim() || null,
+      p_oil_base_type: oilBaseType,
       p_oil_quantity_liters: liters ? Number(liters) : null,
       p_filter_source: filterSaleSource,
       p_filter_inventory_item_id: filterSaleSource === "INVENTORY" ? filter?.id : null,
@@ -292,7 +303,7 @@ export default function OilChangePage() {
       <input className="input" value={oilSearch} onChange={e => setOilSearch(e.target.value)} placeholder="Buscar aceite por marca, viscosidad, nombre o SKU…" />
       <div className="stack directory-list">{visibleOils.slice(0, 8).map(i => <button className={`directory-option ${oilId === i.id ? "selected" : ""}`} key={i.id} onClick={() => chooseOil(i.id)}><strong>{i.brand} · {i.sku}</strong><span>{i.description} · {i.source === "INVENTORY" ? `stock registrado ${i.quantity_on_hand}` : "Catálogo · no descuenta stock"}</span></button>)}</div>
       <div className="muted small">{visibleOils.length > 8 ? "Mostrando 8 coincidencias. Escribe marca o viscosidad para afinar." : !visibleOils.length ? "No aparece. Puedes escribir el aceite usado abajo y continuar." : "Selecciona el aceite y confirma cantidad y precio abajo."}</div>
-      <button type="button" className="btn btn-ghost" onClick={() => { setManualOilName(oilSearch.trim()); setOilId("manual:oil"); setOilPriceRef(""); setViscosity(extractViscosity(oilSearch)); }}>+ Aceite nuevo o no sincronizado</button>
+      <button type="button" className="btn btn-ghost" onClick={() => { const name = oilSearch.trim(); setManualOilName(name); setOilId("manual:oil"); setOilPriceRef(""); setViscosity(extractViscosity(name)); setOilBaseType(inferOilBaseType(name)); setOilBrand(suggestOilBrand(manualItem("manual:oil", name, "Aceite manual"))); }}>+ Aceite nuevo o no sincronizado</button>
       {oilId === "manual:oil" && <label><span className="label">Nombre exacto del aceite usado *</span><input className="input" value={manualOilName} onChange={e => setManualOilName(e.target.value)} placeholder="Ej. FANFARO 15W40 semisintético" autoFocus /></label>}
       {oil && <div className="success stack">
         <div className="row-between"><div><strong>{oil.sku} · {oil.brand}</strong><div className="small">{oil.catalog_product_name || oil.description} · {oil.source === "INVENTORY" ? `disponible ${oil.quantity_on_hand}` : "se venderá sin descontar inventario"}</div></div><div style={{ textAlign: "right" }}>{oil.current_ref_bcv != null ? <><strong>{fmtRef(oil.current_ref_bcv)}</strong><div className="small">{fmtVes(oil.current_price_ves ?? 0)} sugerido</div></> : <strong>Sin precio sugerido</strong>}</div></div>
@@ -300,10 +311,12 @@ export default function OilChangePage() {
       {oil?.source === "INVENTORY" && oilSaleSource !== "INVENTORY" && <div className="card brand-card">La cantidad supera el stock registrado. Se añadirá el aceite real a esta orden sin descontar inventario ni crear existencia ficticia.</div>}
 
       <div className="grid grid-2">
+        <label><span className="label">Marca o línea del aceite *</span><input className="input" value={oilBrand} onChange={e => setOilBrand(e.target.value)} placeholder="Ej. INCA, Shell Helix" /></label>
+        <label><span className="label">Tipo de aceite *</span><select className="select" value={oilBaseType} onChange={e => setOilBaseType(e.target.value as OilBaseType | "")}><option value="">Seleccionar tipo</option><option value="MINERAL">Mineral</option><option value="SEMISYNTHETIC">Semisintético</option><option value="SYNTHETIC">Full sintético</option></select></label>
         <label><span className="label">Unidades usadas *</span><input className="input" type="number" min="0.01" step="0.01" value={oilUnits} onChange={e => setOilUnits(e.target.value)} /></label>
         <label><span className="label">Precio a cobrar REF *</span><input className="input" type="number" min="0.01" step="0.01" value={oilPriceRef} onChange={e => setOilPriceRef(e.target.value)} placeholder={pricingFresh ? "Precio sugerido de Notion" : "Ingresa precio manual"} /></label>
         <label><span className="label">Litros reales en el motor</span><input className="input" type="number" min="0" step="0.1" value={liters} onChange={e => setLiters(e.target.value)} placeholder="Ej. 4.5" /></label>
-        <label><span className="label">Viscosidad</span><input className="input" value={viscosity} onChange={e => setViscosity(e.target.value)} placeholder="Ej. 15W-40" /></label>
+        <label><span className="label">Viscosidad *</span><input className="input" value={viscosity} onChange={e => setViscosity(e.target.value)} placeholder="Ej. 15W-40" /></label>
       </div>
     </section>
 

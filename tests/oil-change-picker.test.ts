@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isOilCandidate, isOilFilter, saleSource, type OilPickerItem } from '../lib/domain/oil-change';
+import { inferOilBaseType, isOilCandidate, isOilFilter, saleSource, suggestOilBrand, type OilPickerItem } from '../lib/domain/oil-change';
 
 const item = (patch: Partial<OilPickerItem> = {}): OilPickerItem => ({
   source: 'INVENTORY', category: 'Aceite Motor', sku: '15W40', brand: 'Fanfaro',
@@ -19,5 +19,14 @@ describe('Oil change product selection', () => {
     expect(saleSource(item({ product_id: null }), 1, new Set())).toBe('MANUAL');
     expect(saleSource(item({ quantity_on_hand: 1 }), 2, new Set(['catalog-oil']))).toBe('CATALOG');
     expect(saleSource(item({ quantity_on_hand: 2 }), 2, new Set(['catalog-oil']))).toBe('INVENTORY');
+  });
+
+  it('suggests oil classification without repeating it in the brand', () => {
+    expect(inferOilBaseType('INCA 25W60 MINERAL')).toBe('MINERAL');
+    expect(inferOilBaseType('FANFARO 15W40 SEMI-SINTETICO')).toBe('SEMISYNTHETIC');
+    expect(inferOilBaseType('Valvoline 10W-40 Semi Synthetic')).toBe('SEMISYNTHETIC');
+    expect(inferOilBaseType('Shell 5W-30 FULL SINTÉTICO')).toBe('SYNTHETIC');
+    expect(inferOilBaseType('Aceite sin especificación')).toBe('');
+    expect(suggestOilBrand(item({ source: 'CATALOG', description: 'INCA 25W60 MINERAL' }))).toBe('INCA');
   });
 });

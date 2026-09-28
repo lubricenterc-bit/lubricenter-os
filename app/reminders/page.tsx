@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { reminderMessage } from "@/lib/domain/customer-messages";
 
 type Followup = {
   id: string;
@@ -57,14 +58,6 @@ function cleanWhatsapp(value: string | null) {
   if (digits.startsWith("0")) return `58${digits.slice(1)}`;
   if (digits.startsWith("4") && digits.length === 10) return `58${digits}`;
   return digits;
-}
-
-function reminderMessage(r: Reminder) {
-  const name = (r.customer_name || "").trim() || "amigo";
-  const vehicle = [r.make, r.model].filter(Boolean).join(" ") || "tu vehículo";
-  const plate = r.plate ? `\n🔢 *Placa:* ${r.plate}` : "";
-  const km = r.next_service_odometer ? `\n📈 *Kilometraje estimado:* Deberías estar cerca de los *${r.next_service_odometer.toLocaleString("es-VE")} km*.` : "";
-  return `Hola *${name}*! 👋\n\nTe escribimos de *Lubricenter* para recordarte que ya es hora de consentir tu vehículo. 🛠️\n\nSegún nuestros registros:\n🚗 *Vehículo:* ${vehicle}${plate}\n\n🗓️ *Motivo:* Ya corresponde revisar tu próximo servicio.${km}\n\n¡Es un buen momento para agendar tu próxima visita! Te esperamos con el mejor servicio.`;
 }
 
 function formatDate(value: string | null) {
