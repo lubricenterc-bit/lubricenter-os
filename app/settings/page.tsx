@@ -3,21 +3,25 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-const DEFAULT_POST_SERVICE_TEMPLATE = `Hola *{{nombre}}*! 👋
+const DEFAULT_POST_SERVICE_TEMPLATE = `Hola *{{nombre}}* 👋
 
-Gracias por tu visita a *Lubricenter*. Aquí está el resumen de tu servicio:
+Gracias por confiar en nosotros para atender tu {{vehiculo_bloque}}. Te dejamos el detalle de lo que hicimos hoy:
 
-{{vehiculo_bloque}}
-{{servicios_bloque}}
-{{productos_bloque}}
-{{cambio_aceite_bloque}}
-{{servicios_adicionales_bloque}}
+{{resumen_bloque}}
+
+{{adicionales_bloque}}
+
 {{bonificaciones_bloque}}
+
 {{observaciones_bloque}}
+
 {{estado_bloque}}
+
 {{proximo_servicio_bloque}}
 
-¡Gracias por preferir *Lubricenter*!`;
+💬 Si tienes alguna duda sobre el servicio, escríbenos por aquí.
+
+*Lubricenter*`;
 
 function formatDate(value: string | null) {
   if (!value) return "Sin sincronizar";
@@ -112,10 +116,8 @@ export default function SettingsPage() {
         <strong>Variables disponibles</strong>
         <div className="muted small" style={{ lineHeight: 1.8 }}>
           {"{{nombre}} · {{orden}} · {{vehiculo}} · {{placa}} · {{kilometraje}}"}<br />
-          {"{{vehiculo_bloque}} · {{servicios_bloque}} · {{productos_bloque}} · {{cambio_aceite_bloque}}"}<br />
-          {"{{servicios_adicionales_bloque}} · {{bonificaciones_bloque}} · {{observaciones_bloque}}"}<br />
-          {"{{estado_bloque}} · {{proximo_servicio_bloque}}"}<br />
-          {"{{servicios_lista}} · {{productos_lista}} · {{servicios_adicionales_lista}} · {{bonificaciones_lista}} · {{observaciones}}"}
+          {"{{vehiculo_bloque}} · {{resumen_bloque}} · {{adicionales_bloque}}"}<br />
+          {"{{bonificaciones_bloque}} · {{observaciones_bloque}} · {{estado_bloque}} · {{proximo_servicio_bloque}}"}
         </div>
       </div>
       <div className="grid grid-2">

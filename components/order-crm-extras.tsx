@@ -43,7 +43,12 @@ export function OrderCrmExtras({ orderId }: Props) {
     setObservations(row.crm_observations || "");
   }
 
-  useEffect(() => { load(); }, [orderId]);
+  useEffect(() => {
+    load();
+    const onUpdate = (event: Event) => { if ((event as CustomEvent<string>).detail === orderId) load(); };
+    window.addEventListener("lubricenter:order-extras-updated", onUpdate);
+    return () => window.removeEventListener("lubricenter:order-extras-updated", onUpdate);
+  }, [orderId]);
 
   async function save() {
     setBusy(true); setError(""); setNotice("");
@@ -59,6 +64,7 @@ export function OrderCrmExtras({ orderId }: Props) {
     setBusy(false);
     if (he || ce) return setError((he || ce)?.message || "No pude guardar la información CRM.");
     setNotice("Salida y CRM guardados. El mensaje post-servicio usará estos datos al cerrar la orden.");
+    window.dispatchEvent(new CustomEvent("lubricenter:order-extras-updated", { detail: orderId }));
     await load();
   }
 

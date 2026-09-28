@@ -9,6 +9,24 @@ export type OilPickerItem = {
   quantity_on_hand: number;
 };
 
+export type OilBaseType = "MINERAL" | "SEMISYNTHETIC" | "SYNTHETIC";
+
+export function inferOilBaseType(value: string): OilBaseType | "" {
+  const text = normalized(value);
+  if (/\bsemi[\s-]*(?:sintet|synthetic)/.test(text)) return "SEMISYNTHETIC";
+  if (/\b(?:full[\s-]*)?sintet|\bsynthetic\b/.test(text)) return "SYNTHETIC";
+  if (/\bmineral\b/.test(text)) return "MINERAL";
+  return "";
+}
+
+export function suggestOilBrand(item: Pick<OilPickerItem, "source" | "brand" | "description">): string {
+  const source = item.source === "INVENTORY" && item.brand?.trim() ? item.brand : item.description;
+  return source
+    .replace(/\b\d{1,2}\s*W\s*[-/]?\s*\d{2}\b/gi, " ")
+    .replace(/\b(?:semi[\s-]*(?:sint[eé]tico|synthetic)|full[\s-]*(?:sint[eé]tico|synthetic)|sint[eé]tico|synthetic|mineral)\b/gi, " ")
+    .replace(/\s+/g, " ").trim();
+}
+
 const normalized = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const itemText = (item: OilPickerItem) => normalized(`${item.category ?? ""} ${item.sku} ${item.brand ?? ""} ${item.description} ${item.catalog_product_name ?? ""}`);
 
