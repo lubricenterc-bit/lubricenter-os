@@ -7,6 +7,7 @@ const groups = [
     links: [
       ["/orders", "▤", "Órdenes", "Abiertas, cerradas y Crédito LC"],
       ["/customers", "◉", "CRM central", "Clientes, vehículos e historial"],
+      ["/customer-balances", "$", "Saldos a favor", "Anticipos, usos y devoluciones por cliente"],
       ["/reminders", "♡", "Seguimientos", "Post-servicio y mantenimiento"],
       ["/finance", "▣", "Finanzas", "Ventas, cobros, gastos y saldos"],
     ],

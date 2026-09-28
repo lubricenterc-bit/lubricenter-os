@@ -213,7 +213,7 @@ export function QuickSaleScreen() {
       </div>}
 
       <p className="muted small">Para preparar un recibo sin cobrar, continúa como orden y usa su cotización. Imprimir no cierra la venta.</p>
-      <button className="btn btn-ghost btn-block" disabled={!cartValid || busy} onClick={continueAsOrder}>Pago mixto / Crédito LC / asociar cliente → continuar como orden</button>
+      <button className="btn btn-ghost btn-block" disabled={!cartValid || busy} onClick={continueAsOrder}>Saldo a favor / pago mixto / Crédito LC → continuar como orden</button>
       {!cart.length && <div className="muted small">Agrega al menos un producto para habilitar el cierre.</div>}
       {!cartValid && cart.length > 0 && <div className="muted small">Corrige cantidades o precios antes de registrar la venta.</div>}
     </section>
