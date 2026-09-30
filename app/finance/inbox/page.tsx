@@ -13,6 +13,8 @@ type Data = { users: {id:string;email:string;role:string}[]; rules: {id:string;d
 type ReportSource = { source_id: string; source_name: string; provider: Provider; status: 'MISSING_REPORT' | 'NEEDS_VERIFICATION' | 'PARTIAL' | 'IN_PROGRESS' | 'BALANCE_CONFLICT' | 'SOURCE_CONFLICT' | 'COVERAGE_VERIFIED' | 'SNAPSHOT_AVAILABLE'; covered_through: string | null; missing_from: string | null; balance_conflict_from: string | null; source_conflict_from: string | null; source_conflicts: number; latest_snapshot_imported_at: string | null; review_batches: number };
 type ReportCoverage = { from: string; to: string; sources: ReportSource[] };
 type ImportSelection = { source_id: string; from: string; to: string; nonce: number };
+type CashTask = { task_key: string; business_date: string; kind: 'CLOSE' | 'REVIEW'; title: string; reason: string; action_url: string };
+type CashDue = { status: 'ACTIVE' | 'NEEDS_OPENING' | 'NEEDS_LOCATION'; total: number; tasks: CashTask[] };
 type Review = { transaction: { id: string; occurred_at: string; description: string; reference: string; external_order: string | null; amount: string; amount_ref: string | null; assigned_ref: string | null; currency: string; ownership_status: string; ownership_reason: string; direction: string; nature: Nature; raw: Record<string, unknown> }; targets: { id: string; kind: string; amount: string; remaining: string; currency: string; reference?: string; installment_no?: number; occurred_at?: string }[]; allocations: { id: string; external_amount: string; target_amount: string; difference: string; reason: string; reversed_at: string | null }[]; history: { id: string; event_type: string; created_at: string }[] };
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
 function monthRange(month: string) {
@@ -26,11 +28,15 @@ export default function FinanceInbox() {
   const [data, setData] = useState<Data | null>(null), [role, setRole] = useState(''), [offset, setOffset] = useState(0);
   const [month, setMonth] = useState(today().slice(0, 7)), [reportCoverage, setReportCoverage] = useState<ReportCoverage | null>(null), [importSelection, setImportSelection] = useState<ImportSelection | null>(null);
   const [batchOffset, setBatchOffset] = useState(0), [batchTotal, setBatchTotal] = useState(0);
+  const [cashOffset, setCashOffset] = useState(0), [cashDue, setCashDue] = useState<CashDue | null>(null);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [tab, setTab] = useState<'inbox' | 'import' | 'setup'>('inbox');
   const [selected, setSelected] = useState<Case | null>(null), [review, setReview] = useState<Review | null>(null), [batch, setBatch] = useState<Batch | null>(null);
   async function load() {
     const r = await supabase.rpc('finance_role'); if (r.error) throw new Error('Finance Core está pendiente de activar en esta base. No se modificaron los datos.');
     setRole(r.data);
+    const cash = await supabase.rpc('finance_cash_due', { p_offset: cashOffset });
+    if (cash.error) throw cash.error;
+    setCashDue(cash.data as CashDue);
     if (r.data === 'OPERATOR') { setReportCoverage(null); return; }
     const range = monthRange(month);
     const [res, coverage, batches] = await Promise.all([
@@ -44,7 +50,7 @@ export default function FinanceInbox() {
     setData({ ...res.data, batches: batches.data.batches });
     setReportCoverage(coverage.data as ReportCoverage); setBatchTotal(batches.data.total);
   }
-  useEffect(() => { load().catch(e => setError(e.message)); }, [offset, month, batchOffset]);
+  useEffect(() => { load().catch(e => setError(e.message)); }, [offset, month, batchOffset, cashOffset]);
   async function run(action: () => Promise<void>) {
     if (busy) return; setBusy(true); setError(''); setNotice('');
     try { await action(); await load(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
@@ -58,8 +64,9 @@ export default function FinanceInbox() {
   return <main className="container stack finance-inbox">
     <section className="brand-hero"><div><div className="eyebrow">FINANCE CORE</div><h1>Revisión financiera</h1><p>Resuelve excepciones. Las ventas y la atención pueden continuar.</p></div><Link href="/cash-close" className="btn">Contar efectivo</Link></section>
     {error && <div className="error" role="alert">{error}</div>}{notice && <div className="success" role="status">{notice}</div>}
+    {cashDue && <CashDueTasks data={cashDue} offset={cashOffset} onPage={setCashOffset} />}
     {role === 'OPERATOR' ? <section className="card stack"><h2>Tu tarea diaria</h2><p>Registra los cobros con su referencia y cuenta Caja USD y Caja Bs al finalizar. El administrador revisa bancos y Cashea.</p><Link href="/cash-close" className="btn btn-primary">Cuadre de caja</Link><Link href="/orders/new" className="btn">Nueva orden</Link></section> : data && <>
-      <nav className="row" aria-label="Herramientas financieras"><button className={`btn ${tab === 'inbox' ? 'btn-primary' : ''}`} onClick={() => setTab('inbox')}>Pendientes · {data.total}</button><button className={`btn ${tab === 'import' ? 'btn-primary' : ''}`} onClick={() => setTab('import')}>Importar reporte</button>{role === 'OWNER' && <button className="btn" onClick={() => setTab('setup')}>Configuración</button>}<button className="btn" disabled={busy} onClick={() => run(refresh)}>{busy ? 'Procesando…' : 'Conciliar ahora'}</button></nav>
+      <nav className="row" aria-label="Herramientas financieras"><button className={`btn ${tab === 'inbox' ? 'btn-primary' : ''}`} onClick={() => setTab('inbox')}>Pendientes · {data.total + (cashDue?.total ?? 0)}</button><button className={`btn ${tab === 'import' ? 'btn-primary' : ''}`} onClick={() => setTab('import')}>Importar reporte</button>{role === 'OWNER' && <button className="btn" onClick={() => setTab('setup')}>Configuración</button>}<button className="btn" disabled={busy} onClick={() => run(refresh)}>{busy ? 'Procesando…' : 'Conciliar ahora'}</button></nav>
       {(tab === 'inbox' || tab === 'import') && reportCoverage && <CoverageSummary
         coverage={reportCoverage}
         month={month}
@@ -84,6 +91,21 @@ export default function FinanceInbox() {
     </>}
     <Link href="/finance" className="btn btn-ghost">← Central financiera</Link>
   </main>;
+}
+
+function CashDueTasks({ data, offset, onPage }: { data: CashDue; offset: number; onPage: (value: number) => void }) {
+  if (data.status === 'NEEDS_LOCATION') return <section className="card">Configura la ubicación antes de llevar el cuadre diario.</section>;
+  if (data.status === 'NEEDS_OPENING') return <section className="card stack"><h2>Falta la apertura física de caja</h2><p>El dueño debe confirmar cuánto efectivo hay en Caja USD y Caja Bs para iniciar el control diario.</p><Link className="btn" href="/cash-close">Abrir cuadre de caja</Link></section>;
+  if (!data.total) return null;
+  return <section className="card stack" aria-label="Cuadres de caja pendientes">
+    <h2>Cuadres de caja por atender · {data.total}</h2>
+    <p className="muted small">Solo aparecen días con movimiento de efectivo o un conteo iniciado. Un conteo físico antiguo que no se hizo no debe inventarse.</p>
+    {data.tasks.map(task => <div className="row-between order-item" key={task.task_key}>
+      <div><strong>{task.title} · {task.business_date}</strong><div className="muted small">{task.reason}</div></div>
+      <Link className="btn" href={task.action_url}>Abrir día</Link>
+    </div>)}
+    {data.total>20 && <div className="row"><button className="btn" disabled={offset===0} onClick={() => onPage(Math.max(0,offset-20))}>Más recientes</button><span>{offset+1}–{Math.min(offset+20,data.total)} de {data.total}</span><button className="btn" disabled={offset+20>=data.total} onClick={() => onPage(offset+20)}>Más antiguos</button></div>}
+  </section>;
 }
 
 function coverageDescription(source: ReportSource, coverage: ReportCoverage) {
