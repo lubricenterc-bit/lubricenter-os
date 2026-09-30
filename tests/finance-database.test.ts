@@ -39,6 +39,7 @@ beforeAll(async()=>{
  await db.exec(readFileSync('supabase/migrations/20260925103000_finance_cashea_mixed_accounts_usd_quick_sale.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260930143615_finance_integrity_residuals.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260930151245_finance_report_navigation.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20260930153613_finance_conflict_visibility.sql','utf8'));
  await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now()),('${admin}','admin@example.test',now());
  insert into public.locations(code,name) values('TEST','Test location');
  insert into public.financial_accounts(id,code,name,currency,account_type) values('${bank}','BDV','Bank','VES','BANK'),('${usd}','CASH_USD','USD','USD','CASH'),('${ves}','CASH_VES','Bs','VES','CASH');
@@ -162,6 +163,21 @@ describe('Finance Core database invariants',()=>{
   expect(conflicted.sources.find(s=>s.provider==='BDV')?.status).toBe('BALANCE_CONFLICT');
   await scalar('select finance_reconcile()');
   expect(await scalar("select count(*)::int from reconciliation_cases where kind='MISSING_EXTERNAL' and status='OPEN'")).toBe(0);
+ });
+ it('never labels contradictory Cashea reports as verified coverage',async()=>{
+  const firstRow=row(1,'8000',{external_order:'888888',amount_ref:'10',assigned_ref:'10',rate:'800',rate_date:'2026-09-10',provider_account:'Shared',installments:[1]});
+  const first=await ingest([firstRow],'CASHEA_TRANSACTIONS');
+  await scalar('select finance_verify_batch($1,$2)',[first,JSON.stringify({
+   from:'2026-09-01',to:'2026-09-30',all_pages:true,
+   evidence:'Independent Cashea export control',expected_count:1,expected_total:'10'
+  })]);
+  const before=await scalar<{sources:{provider:string;status:string}[]}>('select finance_report_coverage($1,$2)',['2026-09-01','2026-09-29']);
+  expect(before.sources.find(s=>s.provider==='CASHEA_TRANSACTIONS')?.status).toBe('COVERAGE_VERIFIED');
+  await ingest([{...firstRow,external_order:'999999'}],'CASHEA_TRANSACTIONS');
+  const after=await scalar<{sources:{provider:string;status:string;source_conflicts:number}[]}>('select finance_report_coverage($1,$2)',['2026-09-01','2026-09-29']);
+  expect(after.sources.find(s=>s.provider==='CASHEA_TRANSACTIONS')?.status).toBe('SOURCE_CONFLICT');
+  expect(Number(after.sources.find(s=>s.provider==='CASHEA_TRANSACTIONS')?.source_conflicts)).toBe(1);
+  expect(await scalar('select count(*)::int from external_transactions')).toBe(1);
  });
  it('requires independent controls, recomputes balance chain, and rejects bad completeness',async()=>{
   const p=parseBdv('10-09-2026 - 12:01\n1001\nTEST\nCREDITO\n100,00\n150,00');const b=await scalar<string>('select finance_import($1,$2,$3,$4,$5)',[source,'test','2026-09-01','2026-09-30',JSON.stringify(p)]);
