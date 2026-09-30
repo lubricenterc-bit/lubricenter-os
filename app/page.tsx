@@ -144,7 +144,7 @@ export default function HomePage() {
     <section className="card stack">
       <div className="row-between">
         <div><div className="eyebrow">FINANZAS</div><h2 className="section-title" style={{ marginBottom: 0 }}>Dinero y obligaciones</h2></div>
-        <Link href="/cash" className="btn btn-ghost">Abrir Caja</Link>
+        <div className="row"><Link href="/finance/inbox" className="btn btn-primary">Ver pendientes</Link><Link href="/cash" className="btn btn-ghost">Abrir Caja</Link></div>
       </div>
       <div className="grid grid-2">
         <div className="card"><div className="muted small">VENTAS CERRADAS HOY</div><div className="kpi">{fmtRef(data.salesRefToday)}</div><div className="muted small">{fmtVes(data.salesVesToday)} · {data.closedOrdersToday} órdenes</div></div>
