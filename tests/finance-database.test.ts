@@ -40,6 +40,7 @@ beforeAll(async()=>{
  await db.exec(readFileSync('supabase/migrations/20260930143615_finance_integrity_residuals.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260930151245_finance_report_navigation.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260930153613_finance_conflict_visibility.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20260930154654_finance_allocation_guard.sql','utf8'));
  await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now()),('${admin}','admin@example.test',now());
  insert into public.locations(code,name) values('TEST','Test location');
  insert into public.financial_accounts(id,code,name,currency,account_type) values('${bank}','BDV','Bank','VES','BANK'),('${usd}','CASH_USD','USD','USD','CASH'),('${ves}','CASH_VES','Bs','VES','CASH');
@@ -96,6 +97,31 @@ describe('Finance Core database invariants',()=>{
  });
  it('treats idempotency key reuse with changed inputs as an error',async()=>{await ingest([row()]);const m=await movement();const request=randomUUID(),x=await tx();const a=await allocate(x,m,null,'60','60','EXACT',request);expect(await allocate(x,m,null,'60','60','EXACT',request)).toBe(a);await rejects(()=>allocate(x,m,null,'50','50','EXACT',request),/otros datos/);});
  it('reverses with audit and never silently deletes an allocation',async()=>{await ingest([row()]);const m=await movement(),x=await tx(),id=await allocate(x,m,null,'100');await scalar("select public.finance_resolve('REVERSE_ALLOCATION',$1,$2)",[id,JSON.stringify({reason:'Referencia equivocada'})]);await allocate(x,m,null,'100');expect(await scalar('select count(*)::int from reconciliation_allocations')).toBe(2);expect(await scalar("select count(*)::int from audit_events where entity_type='reconciliation_allocations'")).toBe(3);});
+ it('requires an audited reversal before changing an allocated bank movement or Cashea amount',async()=>{
+  await ingest([row()]);const m=await movement(),x=await tx(),allocation=await allocate(x,m,null,'100');
+  await root();
+  await rejects(()=>db.query('update account_movements set amount_original=90 where id=$1',[m]),/conciliaciones activas/);
+  await rejects(()=>db.query("update account_movements set reference='9999' where id=$1",[m]),/conciliaciones activas/);
+  await asUser();
+  await scalar("select finance_resolve('REVERSE_ALLOCATION',$1,$2)",[allocation,JSON.stringify({reason:'Se corrige el importe original'})]);
+  await root();await db.query('update account_movements set amount_original=90 where id=$1',[m]);await asUser();
+  expect(Number(await scalar('select amount_original from account_movements where id=$1',[m]))).toBe(90);
+
+  const {sale,installments}=await seedCashea('999777');
+  await ingest([row(2,'8000',{external_order:'999777',amount_ref:'10',assigned_ref:'10',rate:'800',rate_date:'2026-09-10',provider_account:'Shared',installments:[1]})],'CASHEA_TRANSACTIONS');
+  const installmentTx=await scalar<string>("select id from external_transactions where external_order='999777'");
+  const installmentAllocation=await allocate(installmentTx,null,installments[0],'10');
+  await root();await rejects(()=>db.query('update cashea_installments set amount_ref=9 where id=$1',[installments[0]]),/conciliaciones activas/);await asUser();
+  await scalar("select finance_resolve('REVERSE_ALLOCATION',$1,$2)",[installmentAllocation,JSON.stringify({reason:'Cuota corregida según soporte'})]);
+  await root();await db.query('update cashea_installments set amount_ref=9 where id=$1',[installments[0]]);await asUser();
+
+  await ingest([row(3,'16000',{external_order:'999777',amount_ref:'20',assigned_ref:'20',rate:'800',rate_date:'2026-09-10',provider_account:'Shared',installments:[0]})],'CASHEA_TRANSACTIONS');
+  const initialTx=await scalar<string>("select id from external_transactions where external_order='999777' and amount_ref=20");
+  const initialAllocation=await scalar<string>("select finance_allocate($1,$2,null,null,20,20,'EXACT','Inicial comprobada',$3)",[randomUUID(),initialTx,sale]);
+  await root();await rejects(()=>db.query('update cashea_sales set initial_ref=19 where id=$1',[sale]),/conciliaciones activas/);await asUser();
+  await scalar("select finance_resolve('REVERSE_ALLOCATION',$1,$2)",[initialAllocation,JSON.stringify({reason:'Inicial corregida según soporte'})]);
+  await root();await db.query('update cashea_sales set initial_ref=19 where id=$1',[sale]);await asUser();
+ });
  it('rejects NaN, infinity and currency/account mismatch',async()=>{await ingest([row()]);const m=await movement('100','1001',undefined,usd);await rejects(()=>allocate(awaitNever(),m,null,'NaN'));const x=await tx();await rejects(()=>allocate(x,m,null,'100'),/incompatible/);await rejects(()=>ingest([row(2,'Infinity')]),/inválido/);});
  it('matches unique reference/account/time candidates with bounded rounding',async()=>{await ingest([row(1,'42675')]);await movement('42670');await scalar('select public.finance_reconcile()');expect(await scalar('select difference::text from reconciliation_allocations')).toBe('5.00000000');expect(await scalar('select count(*)::int from account_movements')).toBe(1);});
  it('refuses ambiguous graphs in either direction',async()=>{await ingest([row(1,'100'),row(2,'100',{reference:'1001'})]);await movement();await scalar('select public.finance_reconcile()');expect(await scalar('select count(*)::int from reconciliation_allocations')).toBe(0);});
