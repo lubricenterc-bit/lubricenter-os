@@ -10,7 +10,7 @@ type Source = { id: string; name: string; provider: Provider; external_account: 
 type Case = { id: string; kind: string; subject_id: string; subject_type: string; title: string; explanation: string; evidence: Record<string, unknown> };
 type Batch = { id: string; source_id: string; source_name: string; status: string; requested_from: string; requested_to: string; row_count: number; balance_chain: boolean | null };
 type Data = { users: {id:string;email:string;role:string}[]; rules: {id:string;description_contains:string;nature:string}[]; role: string; total: number; cases: Case[]; sources: Source[]; batches: Batch[]; accounts: { id: string; code: string; name: string; currency: string }[] };
-type ReportSource = { source_id: string; source_name: string; provider: Provider; status: 'MISSING_REPORT' | 'NEEDS_VERIFICATION' | 'PARTIAL' | 'IN_PROGRESS' | 'BALANCE_CONFLICT' | 'COVERAGE_VERIFIED' | 'SNAPSHOT_AVAILABLE'; covered_through: string | null; missing_from: string | null; balance_conflict_from: string | null; latest_snapshot_imported_at: string | null; review_batches: number };
+type ReportSource = { source_id: string; source_name: string; provider: Provider; status: 'MISSING_REPORT' | 'NEEDS_VERIFICATION' | 'PARTIAL' | 'IN_PROGRESS' | 'BALANCE_CONFLICT' | 'SOURCE_CONFLICT' | 'COVERAGE_VERIFIED' | 'SNAPSHOT_AVAILABLE'; covered_through: string | null; missing_from: string | null; balance_conflict_from: string | null; source_conflict_from: string | null; source_conflicts: number; latest_snapshot_imported_at: string | null; review_batches: number };
 type ReportCoverage = { from: string; to: string; sources: ReportSource[] };
 type ImportSelection = { source_id: string; from: string; to: string; nonce: number };
 type Review = { transaction: { id: string; occurred_at: string; description: string; reference: string; external_order: string | null; amount: string; amount_ref: string | null; assigned_ref: string | null; currency: string; ownership_status: string; ownership_reason: string; direction: string; nature: Nature; raw: Record<string, unknown> }; targets: { id: string; kind: string; amount: string; remaining: string; currency: string; reference?: string; installment_no?: number; occurred_at?: string }[]; allocations: { id: string; external_amount: string; target_amount: string; difference: string; reason: string; reversed_at: string | null }[]; history: { id: string; event_type: string; created_at: string }[] };
@@ -90,6 +90,7 @@ function coverageDescription(source: ReportSource, coverage: ReportCoverage) {
   switch (source.status) {
     case 'COVERAGE_VERIFIED': return `Archivos completos del ${coverage.from} al ${coverage.to}`;
     case 'BALANCE_CONFLICT': return `Los saldos no enlazan desde ${source.balance_conflict_from}`;
+    case 'SOURCE_CONFLICT': return `${source.source_conflicts} contradicción(es) en archivos desde ${source.source_conflict_from}. Revisa Pendientes antes de dar el período por conciliado.`;
     case 'IN_PROGRESS': return `Hoy sigue en curso · comprobado hasta ${source.covered_through ?? 'ayer no verificado'}`;
     case 'PARTIAL': return `Comprobado hasta ${source.covered_through ?? 'ningún día'} · falta desde ${source.missing_from}`;
     case 'NEEDS_VERIFICATION': return `${source.review_batches} archivo(s) pendientes de verificar`;
@@ -111,7 +112,7 @@ function CoverageSummary({ coverage, month, onMonthChange, onImport }: {
     </div>
     {coverage.sources.map(source => <div className="row-between order-item" key={source.source_id}>
       <div><strong>{source.source_name}</strong><div className="muted small">{coverageDescription(source, coverage)}</div></div>
-      {source.status === 'COVERAGE_VERIFIED' ? <span className="pill ok">Cobertura verificada</span> : source.status === 'IN_PROGRESS' ? <span className="pill">Día en curso</span> : <button className="btn" onClick={() => onImport(source.source_id)}>{source.status === 'NEEDS_VERIFICATION' ? 'Verificar archivo' : 'Revisar reporte'}</button>}
+      {source.status === 'COVERAGE_VERIFIED' ? <span className="pill ok">Cobertura verificada</span> : source.status === 'IN_PROGRESS' ? <span className="pill">Día en curso</span> : source.status === 'SOURCE_CONFLICT' ? <span className="pill">Revisar contradicción</span> : <button className="btn" onClick={() => onImport(source.source_id)}>{source.status === 'NEEDS_VERIFICATION' ? 'Verificar archivo' : 'Revisar reporte'}</button>}
     </div>)}
     {!coverage.sources.length && <p>Configura la fuente del banco y los dos reportes Cashea para comenzar la revisión.</p>}
   </section>;
