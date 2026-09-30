@@ -9,6 +9,13 @@ const money = (v: number | null, c: string) => v === null ? 'Sin contar' : `${c 
 export default function FinanceCashClose() {
   const [day, setDay] = useState(today()), [data, setData] = useState<Data | null>(null), [counts, setCounts] = useState<Record<string, string>>({}), [notes, setNotes] = useState<Record<string, string>>({});
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [reason, setReason] = useState('');
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('day');
+    if (requested && /^\d{4}-\d{2}-\d{2}$/.test(requested) && requested <= today()
+      && !Number.isNaN(Date.parse(requested)) && new Date(requested).toISOString().slice(0, 10) === requested) {
+      setDay(requested);
+    }
+  }, []);
   async function load() { const r = await supabase.rpc('cash_close_dashboard', { p_business_date: day }); if (r.error) throw r.error; const d = r.data as Data; setData(d); setCounts(Object.fromEntries(d.accounts.map(a => [a.id, a.actual_native === null ? '' : String(a.actual_native)]))); setNotes(Object.fromEntries(d.accounts.map(a => [a.id, a.explanation ?? '']))); }
   useEffect(() => { load().catch(e => setError(e.message)); }, [day]);
   async function act(action: () => Promise<void>) { if (busy) return; setBusy(true); setError(''); setNotice(''); try { await action(); await load(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }

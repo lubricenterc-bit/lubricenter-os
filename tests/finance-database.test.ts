@@ -6,6 +6,7 @@ import { beforeAll, afterAll, beforeEach, afterEach, describe, it, expect } from
 import { parseBdv, parseCashea, type Preview, type ExternalRow } from '../lib/finance/importers';
 
 let db: PGlite;
+type CashTaskFixture = { task_key: string };
 const owner='10000000-0000-0000-0000-000000000001', operator='10000000-0000-0000-0000-000000000002', admin='10000000-0000-0000-0000-000000000003';
 const bank='20000000-0000-0000-0000-000000000001', usd='20000000-0000-0000-0000-000000000002', ves='20000000-0000-0000-0000-000000000003';
 const source='30000000-0000-0000-0000-000000000001', cashea='30000000-0000-0000-0000-000000000002';
@@ -42,6 +43,7 @@ beforeAll(async()=>{
  await db.exec(readFileSync('supabase/migrations/20260930153613_finance_conflict_visibility.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260930154654_finance_allocation_guard.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260930155832_finance_cash_anchor_review.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20260930160819_finance_cash_due_tasks.sql','utf8'));
  await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now()),('${admin}','admin@example.test',now());
  insert into public.locations(code,name) values('TEST','Test location');
  insert into public.financial_accounts(id,code,name,currency,account_type) values('${bank}','BDV','Bank','VES','BANK'),('${usd}','CASH_USD','USD','USD','CASH'),('${ves}','CASH_VES','Bs','VES','CASH');
@@ -247,6 +249,29 @@ describe('Finance Core database invariants',()=>{
   await asUser();
   const afterRecount=await db.query<{business_date:string;status:string}>("select business_date::text,status from cash_closings where finance_version=22 order by business_date");
   expect(afterRecount.rows.map(r=>r.status)).toEqual(['CLOSED','REVIEW','CLOSED']);
+ });
+ it('lists only active cash days without a closing, with stable paginated tasks',async()=>{
+  expect((await scalar<{status:string}>('select finance_cash_due()')).status).toBe('NEEDS_OPENING');
+  await scalar('select finance_cash_activate($1,0,$2)',[usd,'Initial physical USD count']);
+  await scalar('select finance_cash_activate($1,0,$2)',[ves,'Initial physical Bs count']);
+  await root();
+  await db.exec("update finance_cash_openings set effective_at=(timezone('America/Caracas',now())::date-23)::timestamp at time zone 'America/Caracas'");
+  await db.query(`insert into account_movements(account_id,direction,movement_type,currency,amount_original,value_ves,occurred_at)
+   select $1,'IN','ADJUSTMENT','USD',1,100,
+    (timezone('America/Caracas',now())::date-n)::timestamp at time zone 'America/Caracas'+interval '12 hours'
+   from generate_series(1,22) n`,[usd]);
+  await asUser();
+  const first=await scalar<{total:number;tasks:CashTaskFixture[]}>('select finance_cash_due()');
+  expect(first.total).toBe(22);expect(first.tasks).toHaveLength(20);
+  const second=await scalar<{total:number;tasks:CashTaskFixture[]}>('select finance_cash_due(20)');
+  expect(second.total).toBe(22);expect(second.tasks).toHaveLength(2);
+  expect(new Set([...first.tasks,...second.tasks].map(t=>t.task_key)).size).toBe(22);
+  const auditBefore=await scalar('select count(*)::int from audit_events');
+  expect((await scalar<{tasks:CashTaskFixture[]}>('select finance_cash_due()')).tasks[0].task_key).toBe(first.tasks[0].task_key);
+  expect(await scalar('select count(*)::int from audit_events')).toBe(auditBefore);
+  await asUser(operator);
+  expect((await scalar<{total:number}>('select finance_cash_due()')).total).toBe(22);
+  await rejects(()=>scalar('select finance_inbox()'),/administrador/);
  });
  it('nature distinguishes owner draws/assets from expense and prevents duplicate outflows',async()=>{
   const req=randomUUID();const args=[req,bank,'10','OWNER_DRAW',null,'Owner','Approved withdrawal','1234','2026-09-10'];
