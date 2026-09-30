@@ -89,7 +89,7 @@ describe("customer balance liability", () => {
     await one("select add_payment($1,'CASH_VES',1000,null)", [o]);
     await one("select close_order($1)", [o]);
     expect(await one("select status from orders where id=$1", [o])).toBe("CLOSED");
-    const dashboard = await one<{ collections: { total_ves: number }; customer_balance_cash: { deposits_ves: number }; net_cash_ves: number }>("select finance_dashboard('2026-09-28','2026-09-28')");
+    const dashboard = await one<{ collections: { total_ves: number }; customer_balance_cash: { deposits_ves: number }; net_cash_ves: number }>("select finance_dashboard((now() at time zone 'America/Caracas')::date,(now() at time zone 'America/Caracas')::date)");
     expect(Number(dashboard.collections.total_ves)).toBe(1000);
     expect(Number(dashboard.customer_balance_cash.deposits_ves)).toBe(1000);
     expect(Number(dashboard.net_cash_ves)).toBe(2000);

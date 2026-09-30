@@ -37,6 +37,7 @@ beforeAll(async()=>{
  await db.exec(readFileSync('supabase/migrations/20260924145617_usd_pricing_payroll_review.sql','utf8'));
  for(const file of readdirSync('supabase/migrations').filter(f=>f.includes('v22')).sort())await db.exec(readFileSync('supabase/migrations/'+file,'utf8'));
  await db.exec(readFileSync('supabase/migrations/20260925103000_finance_cashea_mixed_accounts_usd_quick_sale.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20260930143615_finance_integrity_residuals.sql','utf8'));
  await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now()),('${admin}','admin@example.test',now());
  insert into public.locations(code,name) values('TEST','Test location');
  insert into public.financial_accounts(id,code,name,currency,account_type) values('${bank}','BDV','Bank','VES','BANK'),('${usd}','CASH_USD','USD','USD','CASH'),('${ves}','CASH_VES','Bs','VES','CASH');
@@ -98,6 +99,57 @@ describe('Finance Core database invariants',()=>{
  it('refuses ambiguous graphs in either direction',async()=>{await ingest([row(1,'100'),row(2,'100',{reference:'1001'})]);await movement();await scalar('select public.finance_reconcile()');expect(await scalar('select count(*)::int from reconciliation_allocations')).toBe(0);});
  it('refuses amount-only matching or an excessive relative rounding difference',async()=>{await ingest([row(1,'101')]);await movement('100');await movement('101','9999');await scalar('select public.finance_reconcile()');expect(await scalar('select count(*)::int from reconciliation_allocations')).toBe(0);});
  it('does not create missing-payment noise for incomplete coverage',async()=>{await ingest([row()]);await movement('777','7777');await scalar('select public.finance_reconcile()');expect(await scalar("select count(*)::int from reconciliation_cases where kind='MISSING_EXTERNAL' and status='OPEN'")).toBe(0);await rejects(()=>scalar('select public.finance_verify_batch($1,$2)',[awaitNever(),JSON.stringify({all_pages:true})]));});
+ it('shows missing report coverage even when the exception inbox is empty',async()=>{
+  const report=await scalar<{sources:{provider:string;status:string}[]}>('select finance_report_coverage($1,$2)',['2026-09-01','2026-09-30']);
+  expect(report.sources.find(s=>s.provider==='BDV')?.status).toBe('MISSING_REPORT');
+  expect(report.sources.find(s=>s.provider==='CASHEA_TRANSACTIONS')?.status).toBe('MISSING_REPORT');
+  await asUser(operator);
+  await rejects(()=>scalar('select finance_report_coverage($1,$2)',['2026-09-01','2026-09-30']),/administrador/);
+ });
+ it('does not certify the current day before it has ended',async()=>{
+  const day=await scalar<string>("select timezone('America/Caracas',now())::date::text");
+  await root();await db.query("insert into external_import_batches(source_id,fingerprint,source_name,requested_from,requested_to,status,row_count,controls,payload) values($1,$2,'Synthetic current-day control',$3,$3,'COMPLETE',0,'{\"opening\":\"0\",\"closing\":\"0\"}','{}')",[source,randomUUID(),day]);await asUser();
+  const result=await scalar<{sources:{provider:string;status:string}[]}>('select finance_report_coverage($1,$2)',[day,day]);
+  expect(result.sources.find(s=>s.provider==='BDV')?.status).toBe('IN_PROGRESS');
+ });
+ it('keeps the unverified 40 of a 100 bank receipt after allocating 60',async()=>{
+  const batch=await ingest([row(1,'60',{balance:'60'})]);
+  const m=await movement('100','1001');const x=await tx();
+  await allocate(x,m,null,'60');
+  await scalar('select finance_verify_batch($1,$2)',[batch,JSON.stringify({from:'2026-09-01',to:'2026-09-30',all_pages:true,evidence:'Independent bank statement control',expected_count:1,expected_total:'60',opening:'0',closing:'60'})]);
+  await scalar('select finance_reconcile()');
+  const evidence=await scalar<{remaining:number;matched:number}>("select evidence from reconciliation_cases where kind='MISSING_EXTERNAL' and subject_id=$1 and status='OPEN'",[m]);
+  expect(Number(evidence.remaining)).toBe(40);expect(Number(evidence.matched)).toBe(60);
+  const id=await scalar<string>("select id from reconciliation_cases where kind='MISSING_EXTERNAL' and subject_id=$1",[m]);
+  await ingest([row(2,'40',{reference:'1001',balance:'100'})]);
+  const y=await scalar<string>("select id from external_transactions where reference='1001' and amount=40");
+  await allocate(y,m,null,'40');await scalar('select finance_reconcile()');
+  expect(await scalar<string>('select status from reconciliation_cases where id=$1',[id])).toBe('RESOLVED');
+  expect(await scalar('select count(*)::int from account_movements')).toBe(1);
+  await scalar('select finance_resolve($1,$2,$3)', ['REVERSE_ALLOCATION',await scalar<string>("select id from reconciliation_allocations where external_transaction_id=$1 and reversed_at is null",[y]),JSON.stringify({reason:'Bank receipt reference rechecked'})]);
+  await scalar('select finance_reconcile()');
+  expect(Number((await scalar<{remaining:number}>("select evidence from reconciliation_cases where id=$1 and status='OPEN'",[id])).remaining)).toBe(40);
+ });
+ it('joins adjacent verified bank extracts but does not trust a balance discontinuity',async()=>{
+  const first=await scalar<string>('select finance_import($1,$2,$3,$4,$5::jsonb)',[source,'First extract','2026-09-08','2026-09-10',JSON.stringify(preview([row(1,'60',{balance:'60'})]))]);
+  const movementId=await movement('100','1001');
+  await scalar('select finance_verify_batch($1,$2)',[first,JSON.stringify({from:'2026-09-08',to:'2026-09-10',all_pages:true,evidence:'Independent first statement control',expected_count:1,expected_total:'60',opening:'0',closing:'60'})]);
+  await scalar('select finance_reconcile()');
+  expect(await scalar("select count(*)::int from reconciliation_cases where kind='MISSING_EXTERNAL' and status='OPEN'")).toBe(0);
+  const second=await scalar<string>('select finance_import($1,$2,$3,$4,$5::jsonb)',[source,'Next extract','2026-09-11','2026-09-13',JSON.stringify(preview([row(2,'40',{occurred_at:'2026-09-11T12:02:00-04:00',balance:'100'})]))]);
+  await scalar('select finance_verify_batch($1,$2)',[second,JSON.stringify({from:'2026-09-11',to:'2026-09-13',all_pages:true,evidence:'Independent second statement control',expected_count:1,expected_total:'40',opening:'60',closing:'100'})]);
+  expect(await scalar<boolean>('select lubricenter_private.finance_bdv_window_covered($1,$2)',[bank,'2026-09-10T12:01:00-04:00'])).toBe(true);
+  const covered=await scalar<{sources:{provider:string;status:string}[]}>('select finance_report_coverage($1,$2)',['2026-09-08','2026-09-13']);
+  expect(covered.sources.find(s=>s.provider==='BDV')?.status).toBe('COVERAGE_VERIFIED');
+  await scalar('select finance_reconcile()');
+  expect(Number((await scalar<{remaining:number}>("select evidence from reconciliation_cases where kind='MISSING_EXTERNAL' and subject_id=$1 and status='OPEN'",[movementId])).remaining)).toBe(100);
+  await root();await db.query("update external_import_batches set controls=controls||'{\"opening\":\"59\"}'::jsonb where id=$1",[second]);await asUser();
+  expect(await scalar<boolean>('select lubricenter_private.finance_bdv_window_covered($1,$2)',[bank,'2026-09-10T12:01:00-04:00'])).toBe(false);
+  const conflicted=await scalar<{sources:{provider:string;status:string}[]}>('select finance_report_coverage($1,$2)',['2026-09-08','2026-09-13']);
+  expect(conflicted.sources.find(s=>s.provider==='BDV')?.status).toBe('BALANCE_CONFLICT');
+  await scalar('select finance_reconcile()');
+  expect(await scalar("select count(*)::int from reconciliation_cases where kind='MISSING_EXTERNAL' and status='OPEN'")).toBe(0);
+ });
  it('requires independent controls, recomputes balance chain, and rejects bad completeness',async()=>{
   const p=parseBdv('10-09-2026 - 12:01\n1001\nTEST\nCREDITO\n100,00\n150,00');const b=await scalar<string>('select finance_import($1,$2,$3,$4,$5)',[source,'test','2026-09-01','2026-09-30',JSON.stringify(p)]);
   const controls={from:'2026-09-01',to:'2026-09-30',all_pages:true,evidence:'Official independent control',expected_count:1,expected_total:'100',opening:'50',closing:'150'};
@@ -198,6 +250,7 @@ it('also applies the repository migration order on a fresh database',async()=>{
   for(const file of readdirSync('supabase/migrations').filter(f=>f.includes('v22')).sort()) await fresh.exec(readFileSync('supabase/migrations/'+file,'utf8'));
   await fresh.exec(readFileSync('supabase/migrations/20260924145617_usd_pricing_payroll_review.sql','utf8'));
   await fresh.exec(readFileSync('supabase/migrations/20260925103000_finance_cashea_mixed_accounts_usd_quick_sale.sql','utf8'));
+  await fresh.exec(readFileSync('supabase/migrations/20260930143615_finance_integrity_residuals.sql','utf8'));
   expect((await fresh.query("select to_regclass('public.external_import_batches') as batch,to_regclass('public.payroll_work_items') as payroll")).rows[0]).toMatchObject({batch:'external_import_batches',payroll:'payroll_work_items'});
  } finally { await fresh.close(); }
 },120000);
