@@ -41,6 +41,7 @@ beforeAll(async()=>{
  await db.exec(readFileSync('supabase/migrations/20260930151245_finance_report_navigation.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260930153613_finance_conflict_visibility.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260930154654_finance_allocation_guard.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20260930155832_finance_cash_anchor_review.sql','utf8'));
  await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now()),('${admin}','admin@example.test',now());
  insert into public.locations(code,name) values('TEST','Test location');
  insert into public.financial_accounts(id,code,name,currency,account_type) values('${bank}','BDV','Bank','VES','BANK'),('${usd}','CASH_USD','USD','USD','CASH'),('${ves}','CASH_VES','Bs','VES','CASH');
@@ -223,6 +224,29 @@ describe('Finance Core database invariants',()=>{
   await scalar('select save_cash_count($1,$2,98)',[day,usd]);await rejects(()=>scalar('select close_cash_day($1)',[day]),/Falta/);
   await scalar('select save_cash_count($1,$2,0)',[day,ves]);await scalar('select close_cash_day($1)',[day]);
   expect(await scalar('select count(*)::int from account_movements')).toBe(0);expect(await scalar("select count(*)::int from reconciliation_cases where kind='CASH_VARIANCE'")).toBe(1);
+ });
+ it('reviews only the first physical count after a backdated cash movement or corrected count',async()=>{
+  await scalar('select finance_cash_activate($1,0,$2)',[usd,'Initial physical USD count']);
+  await scalar('select finance_cash_activate($1,0,$2)',[ves,'Initial physical Bs count']);
+  const days=await scalar<string[]>("select array_agg((timezone('America/Caracas',now())::date-n)::text order by n desc) from generate_series(1,3) n");
+  await root();
+  await db.query("update finance_cash_openings set effective_at=($1::date-1)::timestamp at time zone 'America/Caracas'",[days[0]]);
+  await asUser();
+  for (const day of days) {
+   await scalar('select save_cash_count($1,$2,0)',[day,usd]);
+   await scalar('select save_cash_count($1,$2,0)',[day,ves]);
+   await scalar('select close_cash_day($1)',[day]);
+  }
+  await root();
+  await db.query("insert into account_movements(account_id,direction,movement_type,currency,amount_original,value_ves,occurred_at) values($1,'IN','ADJUSTMENT','USD',5,500,$2::date+interval '12 hours')",[usd,days[1]]);
+  await asUser();
+  const afterMovement=await db.query<{business_date:string;status:string}>("select business_date::text,status from cash_closings where finance_version=22 order by business_date");
+  expect(afterMovement.rows.map(r=>r.status)).toEqual(['CLOSED','REVIEW','CLOSED']);
+  await root();
+  await db.query("update cash_closing_accounts set actual_native=1 where cash_closing_id=(select id from cash_closings where business_date=$1::date) and account_id=$2",[days[0],usd]);
+  await asUser();
+  const afterRecount=await db.query<{business_date:string;status:string}>("select business_date::text,status from cash_closings where finance_version=22 order by business_date");
+  expect(afterRecount.rows.map(r=>r.status)).toEqual(['CLOSED','REVIEW','CLOSED']);
  });
  it('nature distinguishes owner draws/assets from expense and prevents duplicate outflows',async()=>{
   const req=randomUUID();const args=[req,bank,'10','OWNER_DRAW',null,'Owner','Approved withdrawal','1234','2026-09-10'];
