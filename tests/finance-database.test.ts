@@ -38,6 +38,7 @@ beforeAll(async()=>{
  for(const file of readdirSync('supabase/migrations').filter(f=>f.includes('v22')).sort())await db.exec(readFileSync('supabase/migrations/'+file,'utf8'));
  await db.exec(readFileSync('supabase/migrations/20260925103000_finance_cashea_mixed_accounts_usd_quick_sale.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260930143615_finance_integrity_residuals.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20260930151245_finance_report_navigation.sql','utf8'));
  await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now()),('${admin}','admin@example.test',now());
  insert into public.locations(code,name) values('TEST','Test location');
  insert into public.financial_accounts(id,code,name,currency,account_type) values('${bank}','BDV','Bank','VES','BANK'),('${usd}','CASH_USD','USD','USD','CASH'),('${ves}','CASH_VES','Bs','VES','CASH');
@@ -111,6 +112,18 @@ describe('Finance Core database invariants',()=>{
   await root();await db.query("insert into external_import_batches(source_id,fingerprint,source_name,requested_from,requested_to,status,row_count,controls,payload) values($1,$2,'Synthetic current-day control',$3,$3,'COMPLETE',0,'{\"opening\":\"0\",\"closing\":\"0\"}','{}')",[source,randomUUID(),day]);await asUser();
   const result=await scalar<{sources:{provider:string;status:string}[]}>('select finance_report_coverage($1,$2)',[day,day]);
   expect(result.sources.find(s=>s.provider==='BDV')?.status).toBe('IN_PROGRESS');
+ });
+ it('paginates all reports and opens an older report without exposing its raw payload',async()=>{
+  await root();
+  for(let n=1;n<=25;n++)await db.query("insert into external_import_batches(source_id,fingerprint,source_name,requested_from,requested_to,row_count,payload,created_at) values($1,$2,$3,'2026-09-01','2026-09-30',0,'{}',now()-$4::integer*interval '1 minute')",[source,randomUUID(),`Extract ${n}`,n]);
+  await asUser();
+  const first=await scalar<{total:number;batches:{id:string}[]}>('select finance_batches($1,$2,$3)',['2026-09-01','2026-09-30',0]);
+  const next=await scalar<{total:number;batches:{id:string}[]}>('select finance_batches($1,$2,$3)',['2026-09-01','2026-09-30',20]);
+  expect(first.total).toBe(25);expect(first.batches).toHaveLength(20);expect(next.batches).toHaveLength(5);
+  expect(new Set([...first.batches,...next.batches].map(x=>x.id)).size).toBe(25);
+  const detail=await scalar<Record<string,unknown>>('select finance_batch($1)',[next.batches[0].id]);
+  expect(detail.id).toBe(next.batches[0].id);expect(detail.payload).toBeUndefined();
+  await asUser(operator);await rejects(()=>scalar('select finance_batch($1)',[next.batches[0].id]),/administrador/);
  });
  it('keeps the unverified 40 of a 100 bank receipt after allocating 60',async()=>{
   const batch=await ingest([row(1,'60',{balance:'60'})]);
@@ -251,6 +264,7 @@ it('also applies the repository migration order on a fresh database',async()=>{
   await fresh.exec(readFileSync('supabase/migrations/20260924145617_usd_pricing_payroll_review.sql','utf8'));
   await fresh.exec(readFileSync('supabase/migrations/20260925103000_finance_cashea_mixed_accounts_usd_quick_sale.sql','utf8'));
   await fresh.exec(readFileSync('supabase/migrations/20260930143615_finance_integrity_residuals.sql','utf8'));
+  await fresh.exec(readFileSync('supabase/migrations/20260930151245_finance_report_navigation.sql','utf8'));
   expect((await fresh.query("select to_regclass('public.external_import_batches') as batch,to_regclass('public.payroll_work_items') as payroll")).rows[0]).toMatchObject({batch:'external_import_batches',payroll:'payroll_work_items'});
  } finally { await fresh.close(); }
 },120000);
