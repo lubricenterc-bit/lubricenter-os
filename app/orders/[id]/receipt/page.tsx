@@ -19,7 +19,7 @@ type Order = {
 };
 type Customer = { id: string; name: string | null; phone: string | null; document_id: string | null };
 type Vehicle = { id: string; plate: string | null; make: string | null; model: string | null; year: number | null; engine: string | null; current_odometer: number | null };
-type Item = { id: string; item_type: string; business_area: string; description: string; quantity: number; charged_ref_amount: number; charged_ves_amount: number; cash_price_revealed: boolean; cash_usd_special_total: number | null };
+type Item = { price_denomination:string;agreed_usd:number|null; id: string; item_type: string; business_area: string; description: string; quantity: number; charged_ref_amount: number; charged_ves_amount: number; cash_price_revealed: boolean; cash_usd_special_total: number | null };
 type Payment = { id: string; method: string; currency: string; amount_original: number; value_ves: number; reference: string | null; paid_at: string };
 type Receivable = { id: string; principal_ves: number; principal_ref: number; outstanding_ves: number; status: string; due_date: string | null };
 type ServiceRecord = { id: string; service_type: string; description: string; odometer: number | null; next_service_odometer: number | null; next_service_date: string | null; oil_brand: string | null; oil_viscosity: string | null; oil_quantity_liters: number | null; oil_filter_code: string | null };
@@ -32,6 +32,7 @@ export default function ReceiptPage() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [items, setItems] = useState<Item[]>([]);
+  const [tenders,setTenders]=useState<{id:string;currency:string;received:number;change_usd:number;returned_usd:number;rounding_ves:number}[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [cashea, setCashea] = useState<{ initial_ref: number; financed_ref: number; initial_percent: number } | null>(null);
   const [receivable, setReceivable] = useState<Receivable | null>(null);
@@ -41,20 +42,21 @@ export default function ReceiptPage() {
 
   async function load() {
     setError("");
-    const [{ data: o, error: oe }, { data: its, error: ie }, { data: pays, error: pe }, { data: rec, error: re }, { data: sr, error: se }, {data: cs, error: cse}] = await Promise.all([
+    const [{ data: o, error: oe }, { data: its, error: ie }, { data: pays, error: pe }, { data: rec, error: re }, { data: sr, error: se }, {data: cs, error: cse},{data: ts,error: te}] = await Promise.all([
       supabase.from("orders").select("id,order_number,status,customer_id,vehicle_id,total_ves,total_ref,opened_at,closed_at").eq("id", orderId).single(),
-      supabase.from("order_items").select("id,item_type,business_area,description,quantity,charged_ref_amount,charged_ves_amount,cash_price_revealed,cash_usd_special_total").eq("order_id", orderId).order("created_at"),
+      supabase.from("order_items").select("id,item_type,business_area,description,quantity,charged_ref_amount,charged_ves_amount,cash_price_revealed,cash_usd_special_total,price_denomination,agreed_usd").eq("order_id", orderId).order("created_at"),
       supabase.from("payments").select("id,method,currency,amount_original,value_ves,reference,paid_at").eq("order_id", orderId).order("paid_at"),
       supabase.from("receivables").select("id,principal_ves,principal_ref,outstanding_ves,status,due_date").eq("order_id", orderId).maybeSingle(),
       supabase.from("service_records").select("id,service_type,description,odometer,next_service_odometer,next_service_date,oil_brand,oil_viscosity,oil_quantity_liters,oil_filter_code").eq("order_id", orderId).order("performed_at"),
       supabase.from("cashea_sales").select("initial_ref,financed_ref,initial_percent").eq("order_id",orderId).maybeSingle(),
+      supabase.from("order_tenders").select("id,currency,received,change_usd,returned_usd,rounding_ves").eq("order_id",orderId).order("created_at"),
     ]);
-    const anyError = oe || ie || pe || re || se || cse;
+    const anyError = oe || ie || pe || re || se || cse || te;
     if (anyError) return setError(anyError.message);
     const ord = o as Order;
     if (ord.status === "OPEN") { ord.total_ref = (its??[]).reduce((sum,x)=>sum+Number(x.charged_ref_amount),0); ord.total_ves = (its??[]).reduce((sum,x)=>sum+Number(x.charged_ves_amount),0); }
     setOrder(ord);
-    setCashea(cs);
+    setCashea(cs);setTenders(ts??[]);
     setItems((its ?? []) as Item[]);
     setPayments((pays ?? []) as Payment[]);
     setReceivable((rec ?? null) as Receivable | null);
@@ -80,17 +82,19 @@ export default function ReceiptPage() {
       customer?.name ? `Cliente: ${customer.name}` : null,
       vehicle ? `Vehículo: ${[vehicle.plate,vehicle.make,vehicle.model,vehicle.year].filter(Boolean).join(" · ")}` : null,
       "",
-      ...items.map(i => `${Number(i.quantity)}x ${i.description} — ${fmtRef(i.charged_ref_amount)}`),
+      ...items.map(i => `${Number(i.quantity)}x ${i.description} — ${i.price_denomination==='USD'?`$${Number(i.agreed_usd).toFixed(2)}`:fmtRef(i.charged_ref_amount)}`),
       "",
-      `Total: ${fmtRef(order.total_ref)} / ${fmtVes(order.total_ves)}`,
+      `Total: ${items.length>0&&items.every(i=>i.price_denomination==='USD')?`$${items.reduce((sum,i)=>sum+Number(i.agreed_usd||0),0).toFixed(2)} USD`:`${fmtRef(order.total_ref)} / ${fmtVes(order.total_ves)}`}`,
       cashea ? `Cashea: inicial ${cashea.initial_percent}% · ${fmtRef(cashea.initial_ref)}. Financiado: ${fmtRef(cashea.financed_ref)} en 3 cuotas.` : null,
       receivable?.status === "OPEN" ? `Crédito LC pendiente: ${fmtVes(receivable.outstanding_ves)}` : null,
+      ...tenders.filter(t=>Number(t.change_usd)>Number(t.returned_usd)).map(t=>`Pendiente de devolver: $${(Number(t.change_usd)-Number(t.returned_usd)).toFixed(2)} USD`),
+      ...tenders.filter(t=>Number(t.rounding_ves)!==0).map(t=>`Ajuste de redondeo acordado: ${fmtVes(t.rounding_ves)}`),
       oilService && (oilService.next_service_odometer || oilService.next_service_date) ? `Próximo servicio: ${oilService.next_service_odometer ? `${oilService.next_service_odometer.toLocaleString("es-VE")} km` : ""}${oilService.next_service_odometer && oilService.next_service_date ? " · " : ""}${oilService.next_service_date ?? ""}` : null,
       "",
       "Cuidamos lo que te mueve.",
     ].filter((x): x is string => Boolean(x));
     return lines.join("\n");
-  }, [order, customer, vehicle, items, receivable, oilService, cashea]);
+  }, [order, customer, vehicle, items, receivable, oilService, cashea,tenders]);
 
   async function share() {
     if (!shareText) return;
@@ -138,15 +142,15 @@ export default function ReceiptPage() {
       </section>}
 
       <section className="receipt-lines">
-        <div className="receipt-line receipt-line-head"><span>Detalle</span><span>REF</span></div>
+        <div className="receipt-line receipt-line-head"><span>Detalle</span><span>{items.every(i=>i.price_denomination==='USD')?'USD':'REF'}</span></div>
         {items.map(i => <div className="receipt-line" key={i.id}>
           <div><strong>{Number(i.quantity)} × {i.description}</strong></div>
-          <strong>{fmtRef(i.charged_ref_amount)}</strong>
+          <strong>{i.price_denomination==='USD'?`$${Number(i.agreed_usd).toFixed(2)}`:fmtRef(i.charged_ref_amount)}</strong>
         </div>)}
       </section>
 
       <section className="receipt-totals">
-        <div><span>Total</span><strong>{fmtRef(order.total_ref)}</strong><strong>{fmtVes(order.total_ves)}</strong></div>
+        <div><span>Total</span><strong>{items.length>0&&items.every(i=>i.price_denomination==='USD')?`$${items.reduce((sum,i)=>sum+Number(i.agreed_usd||0),0).toFixed(2)}`:fmtRef(order.total_ref)}</strong>{!items.every(i=>i.price_denomination==='USD')&&<strong>{fmtVes(order.total_ves)}</strong>}</div>
         {receivable?.status === "OPEN" && <div className="receipt-credit"><span>Crédito LC pendiente</span><span>{fmtRef(receivable.principal_ref)}</span><strong>{fmtVes(receivable.outstanding_ves)}</strong></div>}
       </section>
 
@@ -155,6 +159,7 @@ export default function ReceiptPage() {
         {payments.map(p => <div className="receipt-payment" key={p.id}><span>{paymentLabel(p.method)}</span><strong>{p.currency === "USD" ? `$${Number(p.amount_original).toFixed(2)}` : fmtVes(p.amount_original)}</strong></div>)}
       </section>}
 
+      {tenders.filter(t=>Number(t.change_usd)>0||Number(t.rounding_ves)!==0).map(t=><section className="receipt-payments" key={t.id}><div className="receipt-payment"><span>Recibido</span><strong>{t.currency==='USD'?`$${Number(t.received).toFixed(2)}`:fmtVes(t.received)}</strong></div><div className="receipt-payment"><span>Vuelto entregado · equivalente USD</span><strong>${Number(t.returned_usd).toFixed(2)}</strong></div>{Number(t.change_usd)>Number(t.returned_usd)&&<div className="receipt-payment"><strong>Pendiente de devolver</strong><strong>${(Number(t.change_usd)-Number(t.returned_usd)).toFixed(2)} USD</strong></div>}{Number(t.rounding_ves)!==0&&<div className="receipt-payment"><span>Ajuste de redondeo acordado</span><strong>{fmtVes(t.rounding_ves)}</strong></div>}</section>)}
       {oilService && (oilService.next_service_odometer || oilService.next_service_date) && <section className="receipt-maintenance"><div className="receipt-next">Próximo servicio: {oilService.next_service_odometer ? `${oilService.next_service_odometer.toLocaleString("es-VE")} km` : ""}{oilService.next_service_odometer && oilService.next_service_date ? " · " : ""}{oilService.next_service_date ?? ""}</div></section>}
 
       <footer className="receipt-footer">Gracias por confiar en Lubricenter.</footer>

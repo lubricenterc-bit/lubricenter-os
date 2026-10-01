@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { FinanceNotifications } from '@/components/finance-notifications';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { parseBdv, parseCashea, type Preview, type Provider } from '@/lib/finance/importers';
@@ -51,6 +52,10 @@ export default function FinanceInbox() {
     setReportCoverage(coverage.data as ReportCoverage); setBatchTotal(batches.data.total);
   }
   useEffect(() => { load().catch(e => setError(e.message)); }, [offset, month, batchOffset, cashOffset]);
+  useEffect(()=>{
+    const timer=setInterval(()=>{if(document.visibilityState==='visible'&&!busy&&!selected&&!batch)load().catch(e=>setError(e.message));},60000);
+    return ()=>clearInterval(timer);
+  },[offset,month,batchOffset,cashOffset,busy,selected,batch]);
   async function run(action: () => Promise<void>) {
     if (busy) return; setBusy(true); setError(''); setNotice('');
     try { await action(); await load(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
@@ -65,6 +70,8 @@ export default function FinanceInbox() {
     <section className="brand-hero"><div><div className="eyebrow">FINANCE CORE</div><h1>Revisión financiera</h1><p>Resuelve excepciones. Las ventas y la atención pueden continuar.</p></div><Link href="/cash-close" className="btn">Contar efectivo</Link></section>
     {error && <div className="error" role="alert">{error}</div>}{notice && <div className="success" role="status">{notice}</div>}
     {cashDue && <CashDueTasks data={cashDue} offset={cashOffset} onPage={setCashOffset} />}
+    <section className="card row-between"><div><strong>Vuelto pendiente de devolver</strong><p>Se conserva en USD y descuenta caja al entregarlo.</p></div><Link className="btn" href="/change">Revisar vueltos</Link></section>
+    <FinanceNotifications />
     {role === 'OPERATOR' ? <section className="card stack"><h2>Tu tarea diaria</h2><p>Registra los cobros con su referencia y cuenta Caja USD y Caja Bs al finalizar. El administrador revisa bancos y Cashea.</p><Link href="/cash-close" className="btn btn-primary">Cuadre de caja</Link><Link href="/orders/new" className="btn">Nueva orden</Link></section> : data && <>
       <nav className="row" aria-label="Herramientas financieras"><button className={`btn ${tab === 'inbox' ? 'btn-primary' : ''}`} onClick={() => setTab('inbox')}>Pendientes · {data.total + (cashDue?.total ?? 0)}</button><button className={`btn ${tab === 'import' ? 'btn-primary' : ''}`} onClick={() => setTab('import')}>Importar reporte</button>{role === 'OWNER' && <button className="btn" onClick={() => setTab('setup')}>Configuración</button>}<button className="btn" disabled={busy} onClick={() => run(refresh)}>{busy ? 'Procesando…' : 'Conciliar ahora'}</button></nav>
       {(tab === 'inbox' || tab === 'import') && reportCoverage && <CoverageSummary
