@@ -65,6 +65,7 @@ async function assertLedgerBalance(customerId: string, pocket: "USD" | "VES_BCV"
 
 describe("customer balance liability", () => {
   it("indexes bolivar deposits at deposit BCV and applies them at redemption BCV without cash twice", async () => {
+    const businessDay = await one<string>("select timezone('America/Caracas',now())::date::text");
     const c = await customer();
     const depositRequest = randomUUID();
     const deposit = await one<string>("select record_customer_balance_deposit($1,'CASH_VES',1000,null,'Anticipo',$2)", [c, depositRequest]);
@@ -72,7 +73,7 @@ describe("customer balance liability", () => {
     expect(Number(await one("select balance_usd from customer_balance_accounts where customer_id=$1 and pocket='VES_BCV'", [c]))).toBe(10);
     expect(Number(await one("select amount_original from account_movements where category='CUSTOMER_BALANCE_DEPOSIT'"))).toBe(1000);
     await root();
-    await db.exec("insert into exchange_rates(rate_type,value,effective_at) values ('BCV',200,'2026-09-28')");
+    await db.query("insert into exchange_rates(rate_type,value,effective_at) values ('BCV',200,$1)", [businessDay]);
     await asUser();
     const o = await order(c, 2000);
     const useRequest = randomUUID();
@@ -89,7 +90,7 @@ describe("customer balance liability", () => {
     await one("select add_payment($1,'CASH_VES',1000,null)", [o]);
     await one("select close_order($1)", [o]);
     expect(await one("select status from orders where id=$1", [o])).toBe("CLOSED");
-    const dashboard = await one<{ collections: { total_ves: number }; customer_balance_cash: { deposits_ves: number }; net_cash_ves: number }>("select finance_dashboard((now() at time zone 'America/Caracas')::date,(now() at time zone 'America/Caracas')::date)");
+    const dashboard = await one<{ collections: { total_ves: number }; customer_balance_cash: { deposits_ves: number }; net_cash_ves: number }>("select finance_dashboard($1,$1)", [businessDay]);
     expect(Number(dashboard.collections.total_ves)).toBe(1000);
     expect(Number(dashboard.customer_balance_cash.deposits_ves)).toBe(1000);
     expect(Number(dashboard.net_cash_ves)).toBe(2000);
