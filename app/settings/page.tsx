@@ -39,7 +39,7 @@ export default function SettingsPage() {
   const [operativeAt, setOperativeAt] = useState<string | null>(null);
   const [catalogAt, setCatalogAt] = useState<string | null>(null);
   const [catalogProducts, setCatalogProducts] = useState(0);
-  const [step, setStep] = useState(10);
+  const [step, setStep] = useState(0.01);
   const [mode, setMode] = useState("nearest");
   const [rules, setRules] = useState<any[]>([]);
   const [crmTemplate, setCrmTemplate] = useState(DEFAULT_POST_SERVICE_TEMPLATE);
@@ -130,8 +130,8 @@ export default function SettingsPage() {
     <section className="card stack">
       <div className="row-between"><h2 className="section-title">Tasas maestras · Notion</h2><span className={`pill ${rateFresh ? "ok" : "warn"}`}>{rateFresh ? "SINCRONIZADAS" : "REVISAR"}</span></div>
       <div className="grid grid-2">
-        <div className="card"><div className="label">BCV oficial</div><div className="money-lg">{bcv.toLocaleString("es-VE", { maximumFractionDigits: 4 })}</div><div className="muted small">{formatDate(bcvAt)}</div></div>
-        <div className="card"><div className="label">Operativa / P2P</div><div className="money-lg">{operative.toLocaleString("es-VE", { maximumFractionDigits: 4 })}</div><div className="muted small">{formatDate(operativeAt)}</div></div>
+        <div className="card"><div className="label">BCV oficial</div><div className="money-lg">{bcv.toLocaleString("es-VE", { maximumFractionDigits: 6 })}</div><div className="muted small">{formatDate(bcvAt)}</div></div>
+        <div className="card"><div className="label">Operativa / P2P</div><div className="money-lg">{operative.toLocaleString("es-VE", { maximumFractionDigits: 6 })}</div><div className="muted small">{formatDate(operativeAt)}</div></div>
       </div>
       <div className="muted small">Se comprueban automáticamente cada 15 minutos. Al detectar un cambio, las pantallas abiertas reciben los precios nuevos sin recargarlas. Las ventas ya cerradas conservan sus importes originales.</div>
       <button className="btn" disabled={checkingPrices} onClick={() => load(true)}>{checkingPrices ? "Comprobando…" : "Actualizar estado ahora"}</button>
@@ -146,7 +146,7 @@ export default function SettingsPage() {
     <section className="card stack">
       <h2 className="section-title">Redondeo catálogo</h2>
       <div className="grid grid-2">
-        <label><span className="label">Paso Bs</span><input className="input" type="number" min="1" value={step} onChange={e => setStep(Number(e.target.value))} /></label>
+        <label><span className="label">Paso Bs</span><input className="input" type="number" min="0.01" step="0.01" value={step} onChange={e => setStep(Number(e.target.value))} /></label>
         <label><span className="label">Modo</span><select className="select" value={mode} onChange={e => setMode(e.target.value)}><option value="nearest">Más cercano</option><option value="down">Hacia abajo</option><option value="up">Hacia arriba</option></select></label>
       </div>
       <button className="btn" onClick={saveRounding}>Guardar redondeo</button>

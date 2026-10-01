@@ -6,6 +6,7 @@ import { businessInstant,caracasInput } from "@/lib/order-admin";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { D } from "@/lib/finance/money";
 import { referenceError } from "@/lib/finance/money";
 import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
@@ -111,7 +112,7 @@ export function QuickSaleScreen() {
   function updateLine(key: string, patch: Partial<CartLine>) { setCart(lines => lines.map(line => line.key === key ? { ...line, ...patch } : line)); }
 
   const totalRef = useMemo(() => cart.reduce((sum, line) => sum + line.quantity * Math.max(0, Number(line.unit_ref || 0)), 0), [cart]);
-  const totalVes = useMemo(() => cart.reduce((sum, line) => sum + roundToStep(Number(line.unit_ref || 0) * rates.bcv, 10) * line.quantity, 0), [cart, rates.bcv]);
+  const totalVes = useMemo(() => cart.reduce((sum, line) => sum + Number(new D(line.unit_ref || 0).mul(rates.bcv).toDecimalPlaces(2).mul(line.quantity).toDecimalPlaces(2)), 0), [cart, rates.bcv]);
   const cashUsd = rates.operative > 0 ? totalVes / rates.operative : 0;
   const cartValid = cart.length > 0 && cart.every(x => Number.isFinite(x.quantity) && x.quantity > 0 && Number.isFinite(Number(x.unit_ref)) && Number(x.unit_ref) > 0 && (x.kind !== "STOCK" || x.stock == null || x.quantity <= x.stock));
   const casheaPct = Number(casheaInitialPercent);
@@ -172,7 +173,7 @@ export function QuickSaleScreen() {
       <div className="grid grid-2"><Link className="btn" href={`/orders/${completed.order_id}/receipt`}>Ver recibo</Link>{completed.cashea ? <Link className="btn btn-primary" href="/cashea">Ver Cashea</Link> : <button className="btn btn-primary" onClick={() => { setCompleted(null); searchRef.current?.focus(); }}>Nueva venta</button>}</div>
     </section>}
 
-    {tenderOpen&&<QuickTenderCheckout items={payload()} method={selectedPayment} reference={reference} totalVes={totalVes} totalRef={totalRef} rate={rates.operative} businessAt={businessInstant(saleDate)} onCancel={()=>setTenderOpen(false)} onDone={async row=>{setCompleted({order_id:row.order_id,order_number:row.order_number,total_ves:Number(row.total_ves),total_ref:Number(row.total_ref)});setTenderOpen(false);resetAfterSale();await load();}}/>}
+    {tenderOpen&&<QuickTenderCheckout items={payload()} method={selectedPayment} reference={reference} totalVes={totalVes} totalRef={totalRef} rate={rates.operative} bcv={rates.bcv} businessAt={businessInstant(saleDate)} onCancel={()=>setTenderOpen(false)} onDone={async row=>{setCompleted({order_id:row.order_id,order_number:row.order_number,total_ves:Number(row.total_ves),total_ref:Number(row.total_ref)});setTenderOpen(false);resetAfterSale();await load();}}/>}
     <section className="card stack">
       <div className="row-between"><div><strong>1. Buscar / cotizar</strong><div className="muted small">SKU, marca, descripción, filtro o nombre. Enter agrega el primer resultado.</div></div><span className="pill">{inventory.length} stock · {catalog.length} catálogo</span></div>
       <input ref={searchRef} className="input" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && results[0]) { e.preventDefault(); addResult(results[0]); } }} placeholder="Ej: Valvoline, 3387, 20W50, refrigerante…" autoFocus />
