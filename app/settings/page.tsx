@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { FinanceNotifications } from '@/components/finance-notifications';
 
 const DEFAULT_POST_SERVICE_TEMPLATE = `Hola *{{nombre}}*! 👋
 
@@ -104,6 +105,7 @@ export default function SettingsPage() {
     <div><h1 style={{ marginBottom: 4 }}>Configuración</h1><div className="muted">Notion manda sobre catálogo y tasas. Lubricenter OS controla operación, CRM y trazabilidad.</div></div>
     {error && <div className="error">{error}</div>}{message && <div className="success">{message}</div>}
 
+    <FinanceNotifications />
     <section className="card stack">
       <div className="row-between"><h2 className="section-title">Mensaje post-servicio · CRM</h2><span className="pill ok">EDITABLE</span></div>
       <div className="muted small">Este es el formato predeterminado. Puedes cambiar texto, emojis, orden y eliminar secciones. Los datos entre llaves se rellenan automáticamente al cerrar cada orden.</div>
@@ -159,4 +161,3 @@ export default function SettingsPage() {
     </section>
   </main>;
 }
-

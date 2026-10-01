@@ -16,7 +16,7 @@ const nav = [
   ["/more", "•••", "Más"],
 ] as const;
 
-const financePaths = ["/finance", "/receivables", "/cash", "/cashea", "/expenses", "/suppliers", "/purchases", "/cash-close"];
+const financePaths = ["/finance", "/receivables", "/cash", "/cashea", "/expenses", "/suppliers", "/purchases", "/cash-close", "/change"];
 const morePaths = ["/inventory", "/payroll", "/settings", "/more"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -43,7 +43,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <img src="/lubricenter-lc-isotipo.png" alt="Lubricenter" />
           <span className="brand-copy">Lubricenter <b>OS</b></span>
         </Link>
-        <div className="row topbar-actions"><Link className="btn btn-primary" href="/orders/new">+ Nueva orden</Link><PricingStatus /><button className="btn btn-ghost" onClick={async () => { await supabase.auth.signOut(); router.replace("/login"); }}>Salir</button></div>
+        <div className="row topbar-actions"><Link className="btn btn-primary" href="/orders/new">+ Nueva orden</Link><PricingStatus /><button className="btn btn-ghost" onClick={async () => {
+          try { if('serviceWorker' in navigator){const reg=await navigator.serviceWorker.getRegistration('/');const sub=await reg?.pushManager.getSubscription();if(sub){await supabase.from('finance_push_subscriptions').delete().eq('endpoint',sub.endpoint);await sub.unsubscribe();}} } catch {}
+          await supabase.auth.signOut(); router.replace("/login");
+        }}>Salir</button></div>
       </header>
       {children}
       <nav className="nav" aria-label="Navegación principal">
@@ -56,6 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/cash"><b aria-hidden="true">▤</b> Caja</Link>
           <Link href="/expenses"><b aria-hidden="true">↗</b> Egresos</Link>
           <Link href="/cash-close"><b aria-hidden="true">✓</b> Cuadre</Link>
+          <Link href="/change"><b aria-hidden="true">↩</b> Vueltos</Link>
         </div>
       </nav>
     </div>

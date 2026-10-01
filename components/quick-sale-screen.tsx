@@ -1,4 +1,5 @@
 "use client";
+import { QuickTenderCheckout } from "@/components/quick-tender-checkout";
 import { matchesSearch } from "@/lib/domain/search";
 
 import { businessInstant,caracasInput } from "@/lib/order-admin";
@@ -40,6 +41,7 @@ function roundToStep(value: number, step = 10) { return Number.isFinite(value) &
 export function QuickSaleScreen() {
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const [tenderOpen,setTenderOpen] = useState(false);
   const [inventory, setInventory] = useState<InventoryProduct[]>([]);
   const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
   const [rates, setRates] = useState<Rates>({ bcv: 0, operative: 0 });
@@ -126,6 +128,7 @@ export function QuickSaleScreen() {
   async function completeDirect() {
     if (!cartValid || busy) return;
     const re = referenceError(selectedPayment, reference); if (re) return setError(re);
+    if(selectedPayment.startsWith("CASH")){setTenderOpen(true);return;}
     setBusy(true); setError(""); setCompleted(null);
     const { data, error } = await supabase.rpc("quick_sale_dated", { p_items: payload(), p_mode: "DIRECT", p_business_at: businessInstant(saleDate), p_method: selectedPayment, p_reference: reference.trim() || null });
     setBusy(false); if (error) return setError(error.message);
@@ -169,6 +172,7 @@ export function QuickSaleScreen() {
       <div className="grid grid-2"><Link className="btn" href={`/orders/${completed.order_id}/receipt`}>Ver recibo</Link>{completed.cashea ? <Link className="btn btn-primary" href="/cashea">Ver Cashea</Link> : <button className="btn btn-primary" onClick={() => { setCompleted(null); searchRef.current?.focus(); }}>Nueva venta</button>}</div>
     </section>}
 
+    {tenderOpen&&<QuickTenderCheckout items={payload()} method={selectedPayment} reference={reference} totalVes={totalVes} totalRef={totalRef} rate={rates.operative} businessAt={businessInstant(saleDate)} onCancel={()=>setTenderOpen(false)} onDone={async row=>{setCompleted({order_id:row.order_id,order_number:row.order_number,total_ves:Number(row.total_ves),total_ref:Number(row.total_ref)});setTenderOpen(false);resetAfterSale();await load();}}/>}
     <section className="card stack">
       <div className="row-between"><div><strong>1. Buscar / cotizar</strong><div className="muted small">SKU, marca, descripción, filtro o nombre. Enter agrega el primer resultado.</div></div><span className="pill">{inventory.length} stock · {catalog.length} catálogo</span></div>
       <input ref={searchRef} className="input" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && results[0]) { e.preventDefault(); addResult(results[0]); } }} placeholder="Ej: Valvoline, 3387, 20W50, refrigerante…" autoFocus />
@@ -198,6 +202,7 @@ export function QuickSaleScreen() {
         <div><span className="label">Forma de pago</span><div className="grid grid-2">{DIRECT_PAYMENT_METHODS.map(([method, label]) => <button key={method} type="button" className={selectedPayment === method ? "btn btn-primary" : "btn"} onClick={() => setSelectedPayment(method)} disabled={busy}>{selectedPayment === method ? `✓ ${label}` : label}</button>)}</div></div>
         <input className="input" value={reference} onChange={e => setReference(e.target.value)} placeholder={selectedPayment.startsWith("TRANSFER") ? "Últimos 4 de referencia · obligatorio" : "Referencia de pago (opcional)"} />
         <button className="btn btn-primary btn-block" style={{ minHeight: 56, fontSize: 17 }} disabled={!cartValid || busy || !received} onClick={completeDirect}>{busy ? "Registrando venta…" : `Registrar y cerrar venta · ${fmtRef(totalRef)}`}</button>
+        <button className="btn btn-block" disabled={!cartValid||busy} onClick={()=>setTenderOpen(true)}>Cobro con vuelto o precio pactado USD</button>
         <button className="btn btn-block" style={{border:"1px solid rgba(255,106,26,.72)",background:"rgba(255,106,26,.12)"}} disabled={!cartValid || busy} onClick={() => setPartialCreditOpen(true)}>Abono + saldo a Crédito LC</button>
       </> : <div className="stack">
         <div className="success small"><strong>Cashea tradicional.</strong> Confirma primero la compra en Cashea y registra aquí exactamente la inicial que muestre la app. El precio de los productos no cambia por usar Cashea.</div>

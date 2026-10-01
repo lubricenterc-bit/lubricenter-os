@@ -45,6 +45,7 @@ beforeAll(async()=>{
  await db.exec(readFileSync('supabase/migrations/20260930155832_finance_cash_anchor_review.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260930160819_finance_cash_due_tasks.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260930175314_cashea_merchant_balance.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20261001132405_cash_change_phone_alerts.sql','utf8'));
  await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now()),('${admin}','admin@example.test',now());
  insert into public.locations(code,name) values('TEST','Test location');
  insert into public.financial_accounts(id,code,name,currency,account_type) values('${bank}','BDV','Bank','VES','BANK'),('${usd}','CASH_USD','USD','USD','CASH'),('${ves}','CASH_VES','Bs','VES','CASH');
@@ -55,6 +56,111 @@ beforeAll(async()=>{
 afterAll(async()=>{await db?.close();});
 beforeEach(async()=>{await db.exec('begin');await asUser();});
 afterEach(async()=>{await db.exec('rollback');await root();});
+
+const tenderItems=JSON.stringify([{kind:'MANUAL',description:'Producto de prueba',quantity:1,unit_ref:40}]);
+async function quickTender(received=50,returned=10,returnCurrency='USD',exchange=900,method='CASH_USD',label:string|null=null,request=randomUUID()){
+ return scalar<{order_id:string}>('select quick_sale_with_tender($1,$2::jsonb,$3,$4,$5,$6,$7,$8,$9,null,40)',[request,tenderItems,method,received,returned,returnCurrency,exchange,method.startsWith('TRANSFER')?'1234':null,label]);
+}
+describe('Tender, change and automatic notices',()=>{
+ it.each(['USD','VES'])('separates $50 received, $40 price and $10 returned in %s',async currency=>{
+  const sale=await quickTender(50,10,currency,900);
+  expect(await scalar('select status from orders where id=$1',[sale.order_id])).toBe('CLOSED');
+  expect(Number(await scalar('select sum(agreed_usd) from order_items where order_id=$1',[sale.order_id]))).toBe(40);
+  expect(Number(await scalar('select sum(amount_original) from payments where order_id=$1',[sale.order_id]))).toBe(40);
+  expect(Number(await scalar("select sum(case when direction='IN' then amount_original else -amount_original end) from account_movements where currency='USD'"))).toBe(currency==='USD'?40:50);
+  expect(Number(await scalar("select coalesce(sum(case when direction='IN' then amount_original else -amount_original end),0) from account_movements where currency='VES'"))).toBe(currency==='USD'?0:-9000);
+  expect(Number(await scalar('select change_usd-returned_usd from order_tenders'))).toBe(0);
+  expect(Number(await scalar("select count(*) from account_movements where movement_type='EXPENSE'"))).toBe(0);
+ });
+ it('preserves a USD liability then returns it in parts without duplicates',async()=>{
+  await quickTender(50,0,'USD',900,'CASH_USD','Cliente pendiente');
+  const tender=await scalar<string>('select id from order_tenders');
+  expect(Number(await scalar('select change_usd-returned_usd from order_tenders'))).toBe(10);
+  const request=randomUUID();const args=[request,tender,4,'VES',1000,'Cliente recibió los Bs'];
+  await scalar('select return_order_change($1,$2,$3,$4,$5,$6)',args);await scalar('select return_order_change($1,$2,$3,$4,$5,$6)',args);
+  expect(Number(await scalar('select count(*) from order_change_returns'))).toBe(1);
+  expect(Number(await scalar('select change_usd-returned_usd from order_tenders'))).toBe(6);
+  await rejects(()=>scalar('select return_order_change($1,$2,7,$3,1000,$4)',[randomUUID(),tender,'USD','Devolución']),/superior/);
+  await scalar('select return_order_change($1,$2,6,$3,1000,$4)',[randomUUID(),tender,'USD','Entrega final']);
+  expect(Number(await scalar('select change_usd-returned_usd from order_tenders'))).toBe(0);
+ });
+ it('records Bs tender and USD change in the two actual physical boxes',async()=>{
+  await quickTender(46000,6,'USD',1000,'CASH_VES');
+  expect(Number(await scalar("select sum(amount_original) from account_movements where currency='VES' and direction='IN'"))).toBe(46000);
+  expect(Number(await scalar("select sum(amount_original) from account_movements where currency='USD' and direction='OUT'"))).toBe(6);
+ });
+ it('keeps a 40 USD price settled at the agreed Bs rate without inventing Bs receipts',async()=>{
+  await quickTender(32000,0,'USD',800,'CASH_VES');
+  expect(Number(await scalar('select sum(value_ves) from payments'))).toBe(34000);
+  expect(Number(await scalar('select sum(value_ves) from account_movements'))).toBe(32000);
+  expect(Number(await scalar('select sum(agreed_usd) from order_items'))).toBe(40);
+  expect(Number(await scalar('select change_usd-returned_usd from order_tenders'))).toBe(0);
+ });
+ it('retains the signed rounding difference separately from sale coverage',async()=>{
+  await quickTender(32001,0,'USD',800,'CASH_VES');
+  expect(Number(await scalar('select rounding_ves from order_tenders'))).toBe(1);
+  expect(Number(await scalar('select sum(amount_original) from payments'))).toBe(32000);
+ });
+ it('does not lose a pending walk-in refund or create a half-completed sale',async()=>{
+  await rejects(()=>quickTender(50,0),/Identifica/);
+  expect(Number(await scalar('select count(*) from orders'))).toBe(0);
+  await rejects(()=>quickTender(50,11),/supera/);
+  expect(Number(await scalar('select count(*) from payments'))).toBe(0);
+ });
+ it('retries a quick sale atomically and rejects reuse with changed amounts',async()=>{
+  const request=randomUUID();const a=await quickTender(50,10,'USD',900,'CASH_USD',null,request);const b=await quickTender(50,10,'USD',900,'CASH_USD',null,request);
+  expect(a.order_id).toBe(b.order_id);expect(Number(await scalar('select count(*) from orders'))).toBe(1);
+  await rejects(()=>quickTender(100,60,'USD',900,'CASH_USD',null,request),/reutilizada/);
+ });
+ it('keeps the two mixed payments distinct and the remaining coverage accurate',async()=>{
+  const order=await scalar<string>('select order_id from build_quick_sale_order($1::jsonb)',[tenderItems]);
+  await scalar('select collect_order_tender($1,$2,$3,20,0,$4,1000,null,null)',[randomUUID(),order,'CASH_USD','USD']);
+  expect(Number(await scalar('select sum(value_ves) from payments where order_id=$1',[order]))).toBe(17000);
+  await scalar('select collect_order_tender($1,$2,$3,20000,5,$4,1000,null,null)',[randomUUID(),order,'CASH_VES','USD']);
+  await scalar('select close_order($1)',[order]);
+  expect(Number(await scalar('select sum(value_ves) from payments where order_id=$1',[order]))).toBe(32000);
+  expect(Number(await scalar("select sum(case when direction='IN' then amount_original else -amount_original end) from account_movements where currency='USD'"))).toBe(15);
+ });
+ it('does not let legacy cancellation, deletion or editing erase a recorded return',async()=>{
+  const sale=await quickTender();const payment=await scalar<string>('select payment_id from order_tenders');
+  await root();await rejects(()=>db.query('delete from payments where id=$1',[payment]),/documentados/);
+  await rejects(()=>db.query("update orders set status='CANCELLED' where id=$1",[sale.order_id]),/auditada/);
+  await rejects(()=>db.exec('update account_movements set amount_original=1 where tender_id is not null'),/auditada/);
+ });
+ it('restricts the scheduler and enforces device ownership and daily delivery claims',async()=>{
+  await rejects(()=>scalar('select finance_push_digest($1)',[owner]),/permission denied/);
+  await rejects(()=>scalar('select finance_push_refresh()'),/permission denied/);
+  const subscription=await scalar<string>("insert into finance_push_subscriptions(endpoint,p256dh,auth) values('https://fcm.googleapis.com/test','test','test') returning id");
+  await asUser(operator);expect(Number(await scalar('select count(*) from finance_push_subscriptions'))).toBe(0);
+  await root();await db.exec('set role service_role');
+  expect((await scalar<{role:string}>('select finance_push_digest($1)',[operator])).role).toBe('OPERATOR');
+  expect(await scalar('select finance_push_claim($1,timezone($2,now())::date)',[subscription,'America/Caracas'])).toBe(true);
+  expect(await scalar('select finance_push_claim($1,timezone($2,now())::date)',[subscription,'America/Caracas'])).toBe(false);
+ });
+ it('simulates a month of sales across all payment methods without counting change as revenue',async()=>{
+  await root();await db.exec("insert into financial_accounts(code,name,currency,account_type) values('BNC','BNC','VES','BANK')");await asUser();
+  const methods=['CASH_USD','CASH_VES','TRANSFER_BDV','TRANSFER_BNC','ZELLE','BINANCE'];
+  let cashUsd=0,cashVes=0;
+  for(let day=1;day<=30;day++){
+   const method=methods[(day-1)%methods.length],currency=['CASH_USD','ZELLE','BINANCE'].includes(method)?'USD':'VES';
+   const received=currency==='USD'?50:45000;
+   await scalar('select quick_sale_with_tender($1,$2::jsonb,$3,$4,10,$5,900,$6,null,$7,40)',[randomUUID(),tenderItems,method,received,'USD',method.startsWith('TRANSFER')?String(1000+day):null,`2026-09-${String(day).padStart(2,'0')}T12:00:00-04:00`]);
+   if(method==='CASH_USD')cashUsd+=50;
+   if(method==='CASH_VES')cashVes+=45000;
+   cashUsd-=10;
+  }
+  expect(Number(await scalar('select count(*) from orders where status=$1',['CLOSED']))).toBe(30);
+  expect(Number(await scalar('select sum(agreed_usd) from order_items'))).toBe(1200);
+  expect(Number(await scalar('select sum(change_usd-returned_usd) from order_tenders'))).toBe(0);
+  expect(Number(await scalar("select coalesce(sum(case when direction='IN' then amount_original else -amount_original end),0) from account_movements where account_id=$1",[usd]))).toBe(cashUsd);
+  expect(Number(await scalar("select coalesce(sum(case when direction='IN' then amount_original else -amount_original end),0) from account_movements where account_id=$1",[ves]))).toBe(cashVes);
+  await quickTender(50,0,'USD',900,'CASH_USD','Cliente por devolver');
+  const history=await scalar<{total:number;pending_usd:number;rows:{change_usd:number;returned_usd:number}[]}>('select order_change_history(null,0)');
+  expect(history.total).toBe(31);expect(Number(history.pending_usd)).toBe(10);
+  expect(history.rows).toHaveLength(20);expect(Number(history.rows[0].change_usd)-Number(history.rows[0].returned_usd)).toBe(10);
+  const page2=await scalar<{pending_usd:number}>('select order_change_history(null,20)');expect(Number(page2.pending_usd)).toBe(10);
+ });
+});
 
 describe('Finance Core database invariants',()=>{
  it('isolates operator, admin and owner permissions in SQL',async()=>{
