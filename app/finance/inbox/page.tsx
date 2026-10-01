@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { FinanceTaskList } from '@/components/finance-task-list';
 import { FinanceNotifications } from '@/components/finance-notifications';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -83,11 +84,7 @@ export default function FinanceInbox() {
           setTab('import');
         }}
       />}
-      {tab === 'inbox' && <section className="stack" aria-label="Excepciones">
-        {!data.total && <div className="card stack"><h2>Sin excepciones abiertas</h2><p>Revisa arriba si están completos los reportes del período. Una bandeja vacía no confirma la conciliación.</p></div>}
-        {data.cases.map(c => <article key={c.id} className="card row-between"><div><h2 className="section-title">{c.title}</h2><p>{c.explanation}</p></div><button className="btn btn-primary" disabled={busy} onClick={() => run(() => open(c))}>Revisar</button></article>)}
-        {data.total > 50 && <div className="row"><button className="btn" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Anterior</button><span>{offset + 1}–{Math.min(offset + 50, data.total)} de {data.total}</span><button className="btn" disabled={offset + 50 >= data.total} onClick={() => setOffset(offset + 50)}>Siguiente</button></div>}
-      </section>}
+      {tab === 'inbox' && <FinanceTaskList revision={data} onOpen={task=>run(()=>open(task))} />}
       {tab === 'import' && <><ImportForm sources={data.sources} selection={importSelection} busy={busy} run={run} onDone={async () => { await refresh(); }} />
         <section className="card stack"><h2>Archivos importados · {batchTotal}</h2><p>Un reporte importado puede ayudar a conciliar aunque su cobertura todavía esté pendiente.</p>{data.batches.map(b => <div className="row-between" key={b.id}><div><strong>{b.source_name}</strong><div>{b.requested_from} → {b.requested_to} · {b.row_count} filas</div></div>{b.status === 'COMPLETE' ? <span className="pill ok">Archivo verificado</span> : <button className="btn" onClick={() => { setBatch(b); setSelected(null); setReview(null); }}>Verificar cobertura</button>}</div>)}{!data.batches.length && <p>No hay archivos importados para este mes.</p>}{batchTotal > 20 && <div className="row"><button className="btn" disabled={batchOffset === 0} onClick={() => setBatchOffset(Math.max(0,batchOffset-20))}>Más recientes</button><span>{batchOffset+1}–{Math.min(batchOffset+20,batchTotal)} de {batchTotal}</span><button className="btn" disabled={batchOffset+20>=batchTotal} onClick={() => setBatchOffset(batchOffset+20)}>Más antiguos</button></div>}</section></>}
       {tab === 'setup' && role === 'OWNER' && <Settings data={data} busy={busy} run={run} />}
