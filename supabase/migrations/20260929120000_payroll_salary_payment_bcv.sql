@@ -6,7 +6,7 @@ create table public.payroll_salary_payments (
  account_movement_id uuid not null unique references public.account_movements(id) on delete restrict,
  paid_on date not null,
  salary_ref numeric(18,2) not null check (salary_ref > 0),
- bcv_rate numeric(18,4) not null check (bcv_rate > 0),
+ bcv_rate numeric(18,6) not null check (bcv_rate > 0),
  bcv_effective_at timestamptz not null,
  amount_ves numeric(18,2) not null check (amount_ves > 0),
  reference text,
@@ -23,6 +23,7 @@ returns uuid language plpgsql security definer set search_path='' as $$
 declare r public.payroll_runs; a public.financial_accounts; v_rate public.exchange_rates; v_amount numeric(18,2); v_movement uuid; v_id uuid; v_name text;
 begin
  perform lubricenter_private.require_order_admin();
+ perform pg_advisory_xact_lock(220033);
  if p_paid_on is null or p_paid_on>timezone('America/Caracas',now())::date then raise exception 'Selecciona una fecha de pago válida'; end if;
  select * into r from public.payroll_runs where id=p_run_id for update;
  if not found or r.status<>'SETTLED' or r.payroll_version<>2 then raise exception 'Selecciona una liquidación vigente de nómina'; end if;
@@ -48,3 +49,4 @@ returns uuid language sql security invoker set search_path='' as $$select lubric
 revoke all on function lubricenter_private.payroll_record_salary_payment(uuid,uuid,date,text) from public,anon;
 revoke all on function public.payroll_record_salary_payment(uuid,uuid,date,text) from public,anon;
 grant execute on function public.payroll_record_salary_payment(uuid,uuid,date,text) to authenticated;
+grant execute on function lubricenter_private.payroll_record_salary_payment(uuid,uuid,date,text) to authenticated;

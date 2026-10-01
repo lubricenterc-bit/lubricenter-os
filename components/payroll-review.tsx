@@ -2,7 +2,7 @@
 import Link from "next/link";
 import {useEffect,useState} from "react";
 import {supabase} from "@/lib/supabase";
-import {fmtRef,fmtVes} from "@/lib/format";
+import {fmtRef,fmtVes,fmtRate} from "@/lib/format";
 type Work={id:string;employee_id:string;order_id:string;order_number:string;description:string;currency:string;original_amount:number;amount:number;decision:string;reason:string|null;version:number;earned_at:string;reversal_of:string|null};
 type OrderTotal={id:string;total_ves:number;total_ref:number;total_cash_usd_equivalent:number};
 function money(n:number,c:string){return c==='USD'?`$${Number(n).toFixed(2)} USD`:fmtVes(n);}
@@ -28,7 +28,7 @@ export default function PayrollReview(){
  async function adjustment(){setBusy(true);const{error}=await supabase.rpc('add_payroll_adjustment',{p_employee_id:adjEmployee,p_adjustment_type:'OTHER',p_amount_ref:Number(adjAmount),p_note:adjReason,p_occurred_on:end});setBusy(false);if(error)return setError(error.message);setAdjAmount('');setAdjReason('');await load();}
  return <main className="container stack"><h1>Nómina · revisión de trabajos</h1><p className="muted">Comisiones según lo cobrado, separadas por moneda. Incluye trabajos pendientes de semanas anteriores. El sueldo fijo sigue separado.</p>
  <div className="row" style={{flexWrap:'wrap'}}><label><span className="label">Cierre de semana</span><input className="input" type="date" value={end} disabled={busy} onChange={e=>{if(e.target.value)setEnd(e.target.value);}}/><span className="muted small">Sueldo fijo: {start(end)} al {end}. Comisiones y ajustes pendientes hasta esta fecha.</span></label><label><span className="label">Fecha prevista de pago</span><input className="input" type="date" max={today()} value={paymentDate} onChange={e=>setPaymentDate(e.target.value)}/><span className="muted small">Solo para estimar bolívares. La tasa real se guarda al registrar el pago.</span></label></div>
- <p className="muted small">{bcv?`Tasa BCV de referencia: ${fmtVes(bcv.value)} por $1 · publicada ${new Date(bcv.effective_at).toLocaleDateString('es-VE',{timeZone:'America/Caracas'})}`:'Sin tasa BCV disponible para esa fecha.'}</p>
+ <p className="muted small">{bcv?`Tasa BCV de referencia: ${fmtRate(bcv.value)} por $1 · publicada ${new Date(bcv.effective_at).toLocaleDateString('es-VE',{timeZone:'America/Caracas'})}`:'Sin tasa BCV disponible para esa fecha.'}</p>
  {error&&<div className="error" role="alert">{error}</div>}{latest&&<div className="success">Liquidación guardada. <Link href={`/payroll/${latest}/receipt`}>Ver y registrar pago del sueldo</Link></div>}{!ready&&!error&&<p>Cargando trabajos…</p>}
  {ready&&employees.map(emp=>{const s=summary(emp.id);return <section className="card stack" key={emp.id}>
  <h2>{emp.name}</h2><strong>Comisiones: {money(s.usd,'USD')} · {fmtVes(s.ves)}</strong>

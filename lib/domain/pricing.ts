@@ -2,7 +2,7 @@ import type { ProductPriceSnapshot, RateSnapshot } from "./types";
 
 export type RoundingMode = "nearest" | "up" | "down";
 
-export function roundToStep(value: number, step = 10, mode: RoundingMode = "nearest") {
+export function roundToStep(value: number, step = 0.01, mode: RoundingMode = "nearest") {
   if (!Number.isFinite(value)) throw new Error("Valor no válido");
   if (step <= 0) return value;
   const q = value / step;
@@ -14,7 +14,7 @@ export function roundToStep(value: number, step = 10, mode: RoundingMode = "near
 export function productPriceSnapshot(
   cashUsdBase: number,
   rates: RateSnapshot,
-  roundingStep = 10,
+  roundingStep = 0.01,
   roundingMode: RoundingMode = "nearest",
 ): ProductPriceSnapshot {
   if (cashUsdBase < 0) throw new Error("El precio en divisas no puede ser negativo");

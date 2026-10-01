@@ -11,6 +11,19 @@ async function settle(){const work=await review();const emp=work[0].employee_id;
 async function rejects(fn:()=>Promise<any>,pattern:RegExp){await db.exec('savepoint rejected');let error:any;try{await fn();}catch(e){error=e;}await db.exec('rollback to rejected');expect(error?.message).toMatch(pattern);}
 beforeAll(async()=>{db=new PGlite();await db.exec(gunzipSync(readFileSync('tests/fixtures/production-structure.sql.gz')).toString());await db.exec('alter table public.account_movements add column finance_nature text');await db.exec('set check_function_bodies=on');await db.exec(readFileSync('supabase/migrations/20260924145617_usd_pricing_payroll_review.sql','utf8'));await db.exec(readFileSync('supabase/migrations/20260929120000_payroll_salary_payment_bcv.sql','utf8'));await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now());select set_config('request.jwt.claim.sub','${owner}',false);insert into employees(code,name) values('CHEO','Cheo'),('ALEXIS','Alexis');insert into financial_accounts(code,name,currency,account_type) values('CASH_USD','Caja USD','USD','CASH'),('CASH_VES','Caja Bs','VES','CASH');insert into exchange_rates(rate_type,value,effective_at) values('BCV',100,'2026-01-01'),('OPERATIVE',200,'2026-01-01');`);},120000);
 afterAll(async()=>{await db?.close();});beforeEach(async()=>{await db.exec('begin');});afterEach(async()=>{await db.exec('rollback');});
+it('allows an authenticated owner to pay salary through the public wrapper and denies other users',async()=>{
+ const id=await order();await one('select close_order($1)',[id]);const [w]=await review();
+ await db.query("insert into compensation_rules(employee_id,rule_type,value,valid_from) values($1,'FIXED_WEEKLY',50,current_date-30)",[w.employee_id]);
+ const run=await settle();const account=await one("select id from financial_accounts where code='CASH_VES'");
+ await db.exec('set local role authenticated');
+ await db.query("select set_config('request.jwt.claim.sub',$1,true)",[owner]);
+ const payment=await one('select payroll_record_salary_payment($1,$2,current_date,null)',[run,account]);
+ expect(Number(await one('select amount_ves from payroll_salary_payments where id=$1',[payment]))).toBe(5000);
+ await db.query("select set_config('request.jwt.claim.sub',$1,true)",['10000000-0000-0000-0000-000000000002']);
+ await rejects(()=>one('select payroll_record_salary_payment($1,$2,current_date,null)',[run,account]),/Solo/);
+ expect(await one("select has_function_privilege('anon','public.payroll_record_salary_payment(uuid,uuid,date,text)','EXECUTE')")).toBe(false);
+ await db.exec('reset role');
+});
 it('closes an actual USD40 service paid with USD40 without overpayment',async()=>{const id=await order();await one('select close_order($1)',[id]);expect(await one('select total_ves::float from orders where id=$1',[id])).toBe(8000);const w=await review();expect(w).toHaveLength(1);expect(Number(w[0].amount)).toBe(16);expect(w[0].currency).toBe('USD');});
 it('keeps existing REF pricing and collects the correct USD equivalent',async()=>{const id=await order('REF',20);await one('select close_order($1)',[id]);const w=await review();expect(Number(w[0].amount)).toBe(8);});
 it('splits commissions by actual collection currency and never duplicates a review',async()=>{const id=await order('USD',20,4000);await one('select close_order($1)',[id]);await review();const w=await review();expect(w).toHaveLength(2);expect(Number(w.find((w:any)=>w.currency==='USD').amount)).toBe(8);expect(Number(w.find((w:any)=>w.currency==='VES').amount)).toBe(1600);});

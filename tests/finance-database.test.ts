@@ -46,6 +46,7 @@ beforeAll(async()=>{
  await db.exec(readFileSync('supabase/migrations/20260930160819_finance_cash_due_tasks.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260930175314_cashea_merchant_balance.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20261001132405_cash_change_phone_alerts.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20261001154229_exact_bcv_digital_checkout.sql','utf8'));
  await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now()),('${admin}','admin@example.test',now());
  insert into public.locations(code,name) values('TEST','Test location');
  insert into public.financial_accounts(id,code,name,currency,account_type) values('${bank}','BDV','Bank','VES','BANK'),('${usd}','CASH_USD','USD','USD','CASH'),('${ves}','CASH_VES','Bs','VES','CASH');
@@ -85,9 +86,9 @@ describe('Tender, change and automatic notices',()=>{
   expect(Number(await scalar('select change_usd-returned_usd from order_tenders'))).toBe(0);
  });
  it('records Bs tender and USD change in the two actual physical boxes',async()=>{
-  await quickTender(46000,6,'USD',1000,'CASH_VES');
+  await quickTender(46000,17.5,'USD',800,'CASH_VES');
   expect(Number(await scalar("select sum(amount_original) from account_movements where currency='VES' and direction='IN'"))).toBe(46000);
-  expect(Number(await scalar("select sum(amount_original) from account_movements where currency='USD' and direction='OUT'"))).toBe(6);
+  expect(Number(await scalar("select sum(amount_original) from account_movements where currency='USD' and direction='OUT'"))).toBe(17.5);
  });
  it('keeps a 40 USD price settled at the agreed Bs rate without inventing Bs receipts',async()=>{
   await quickTender(32000,0,'USD',800,'CASH_VES');
@@ -143,11 +144,12 @@ describe('Tender, change and automatic notices',()=>{
   let cashUsd=0,cashVes=0;
   for(let day=1;day<=30;day++){
    const method=methods[(day-1)%methods.length],currency=['CASH_USD','ZELLE','BINANCE'].includes(method)?'USD':'VES';
-   const received=currency==='USD'?50:45000;
-   await scalar('select quick_sale_with_tender($1,$2::jsonb,$3,$4,10,$5,900,$6,null,$7,40)',[randomUUID(),tenderItems,method,received,'USD',method.startsWith('TRANSFER')?String(1000+day):null,`2026-09-${String(day).padStart(2,'0')}T12:00:00-04:00`]);
+   const cash=method.startsWith('CASH');
+   const received=cash?(currency==='USD'?50:40000):(currency==='USD'?40:32000);
+   await scalar('select quick_sale_with_tender($1,$2::jsonb,$3,$4,$8,$5,$9,$6,null,$7,40)',[randomUUID(),tenderItems,method,received,'USD',method.startsWith('TRANSFER')?String(1000+day):null,`2026-09-${String(day).padStart(2,'0')}T12:00:00-04:00`,cash?10:0,currency==='VES'?800:900]);
    if(method==='CASH_USD')cashUsd+=50;
-   if(method==='CASH_VES')cashVes+=45000;
-   cashUsd-=10;
+   if(method==='CASH_VES')cashVes+=40000;
+   if(cash)cashUsd-=10;
   }
   expect(Number(await scalar('select count(*) from orders where status=$1',['CLOSED']))).toBe(30);
   expect(Number(await scalar('select sum(agreed_usd) from order_items'))).toBe(1200);
@@ -159,6 +161,27 @@ describe('Tender, change and automatic notices',()=>{
   expect(history.total).toBe(31);expect(Number(history.pending_usd)).toBe(10);
   expect(history.rows).toHaveLength(20);expect(Number(history.rows[0].change_usd)-Number(history.rows[0].returned_usd)).toBe(10);
   const page2=await scalar<{pending_usd:number}>('select order_change_history(null,20)');expect(Number(page2.pending_usd)).toBe(10);
+ });
+});
+
+describe('Exact BCV and normal digital payments',()=>{
+ it('preserves all six BCV digits when charging a 40 REF product',async()=>{
+  await root();await db.exec("insert into exchange_rates(rate_type,value,effective_at) values('BCV',860.1753,now())");await asUser();
+  const o=await scalar<string>('select order_id from build_quick_sale_order($1::jsonb)',[tenderItems]);
+  expect(Number(await scalar('select sum(charged_ves_amount) from order_items where order_id=$1',[o]))).toBe(34407.01);
+  await scalar("select collect_order_tender($1,$2,'TRANSFER_BDV',34407.01,0,'USD',860.1753,'1234',null)",[randomUUID(),o]);
+  await scalar('select close_order($1)',[o]);expect(await scalar('select status from orders where id=$1',[o])).toBe('CLOSED');
+ });
+ it('does not manufacture physical change for a digital overpayment',async()=>{
+  await rejects(()=>quickTender(50,10,'USD',900,'ZELLE'),/digital supera/);
+  expect(Number(await scalar('select count(*) from payments'))).toBe(0);
+  await quickTender(40,0,'USD',900,'ZELLE');
+  expect(Number(await scalar('select coalesce(sum(amount_original),0) from account_movements where account_id=$1',[usd]))).toBe(0);
+  expect(Number(await scalar('select count(*) from order_change_returns'))).toBe(0);
+ });
+ it('rejects an operative or negotiated Bs rate for a USD-priced sale',async()=>{
+  await rejects(()=>quickTender(34000,0,'USD',850,'CASH_VES'),/BCV completa/);
+  expect(Number(await scalar('select count(*) from orders'))).toBe(0);
  });
 });
 
