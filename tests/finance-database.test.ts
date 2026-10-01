@@ -44,6 +44,7 @@ beforeAll(async()=>{
  await db.exec(readFileSync('supabase/migrations/20260930154654_finance_allocation_guard.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260930155832_finance_cash_anchor_review.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20260930160819_finance_cash_due_tasks.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20260930175314_cashea_merchant_balance.sql','utf8'));
  await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now()),('${admin}','admin@example.test',now());
  insert into public.locations(code,name) values('TEST','Test location');
  insert into public.financial_accounts(id,code,name,currency,account_type) values('${bank}','BDV','Bank','VES','BANK'),('${usd}','CASH_USD','USD','USD','CASH'),('${ves}','CASH_VES','Bs','VES','CASH');
@@ -346,6 +347,77 @@ describe('Finance Core database invariants',()=>{
 });
 function awaitNever(){return '00000000-0000-0000-0000-000000000000';}
 
+describe('Cashea merchant balance',()=>{
+ it('records the real 4% invoice without inventing a deduction, payment or cash movement',async()=>{
+  const request=randomUUID();
+  const args=[request,'2026-08-01','2026-08-31','TEST-FEE-001','10468.45','4','418.74','67','0','Factura de prueba y servicio prestado'];
+  const statement=await scalar<string>('select finance_cashea_statement($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',args);
+  expect(await scalar<string>('select finance_cashea_statement($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',args)).toBe(statement);
+  expect(await scalar<string>('select total_deduct_ref::text from cashea_merchant_statements where id=$1',[statement])).toBe('485.74');
+  expect(await scalar('select count(*)::int from cashea_balance_events')).toBe(0);
+  expect(await scalar('select count(*)::int from payments')).toBe(0);
+  expect(await scalar('select count(*)::int from account_movements')).toBe(0);
+  const variance=await scalar<string>('select finance_cashea_statement($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[randomUUID(),'2026-07-01','2026-07-31','variance','10468.45','4','400','67','0','Reported fee mismatch']);
+  expect(await scalar('select count(*)::int from reconciliation_cases where subject_id=$1 and kind=$2 and status=$3',[variance,'CASHEA_SERVICE_VARIANCE','OPEN'])).toBe(1);
+  await scalar('select finance_cashea_reverse($1,$2,$3)',['STATEMENT',variance,'Replaced source invoice']);
+  const deductionRequest=randomUUID();
+  const deduction=[deductionRequest,'SERVICE_DEDUCTION','2026-09-07','485.74','TEST-FEE-001','Balance comercial de agosto',statement,null];
+  const deductionId=await scalar<string>('select finance_cashea_balance_entry($1,$2,$3,$4,$5,$6,$7,$8)',deduction);
+  expect(await scalar<string>('select finance_cashea_balance_entry($1,$2,$3,$4,$5,$6,$7,$8)',deduction)).toBe(deductionId);
+  await rejects(()=>scalar('select finance_cashea_balance_entry($1,$2,$3,$4,$5,$6,$7,$8)',[randomUUID(),'SERVICE_DEDUCTION','2026-09-07','480','other','Wrong deduction',statement,null]),/factura/);
+  expect(await scalar<string>('select finance_cashea_balance_entry($1,$2,$3,$4,$5,$6,$7,$8)',[randomUUID(),'PAYOUT','2026-09-09','398.39','TEST-TRANSFER','Comprobante de pago agosto',null,null])).toBeTruthy();
+  expect(await scalar('select count(*)::int from payments')).toBe(0);
+  expect(await scalar('select count(*)::int from account_movements')).toBe(0);
+  expect(await scalar('select count(*)::int from cashea_balance_events')).toBe(2);
+  await rejects(()=>scalar('select finance_cashea_reverse($1,$2,$3)',['STATEMENT',statement,'Wrong invoice']),/Revierte primero/);
+  await scalar('select finance_cashea_reverse($1,$2,$3)',['EVENT',deductionId,'Balance entry corrected']);
+  await scalar('select finance_cashea_reverse($1,$2,$3)',['STATEMENT',statement,'Invoice correction']);
+  expect(await scalar('select count(*)::int from cashea_merchant_statements where voided_at is null')).toBe(0);
+  expect(await scalar('select count(*)::int from reconciliation_cases where kind=$1 and status=$2',['CASHEA_SERVICE_VARIANCE','OPEN'])).toBe(0);
+  expect(await scalar('select count(*)::int from cashea_balance_events where reversed_at is null')).toBe(1);
+ });
+ it('keeps merchant balance private and requires owner for openings',async()=>{
+  await asUser(operator);
+  await rejects(()=>scalar('select finance_cashea_statement($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[randomUUID(),'2026-08-01','2026-08-31','TEST-FEE-001','10468.45','4','418.74','67','0','Verified invoice']),/administrador/);
+  expect(await scalar('select count(*)::int from cashea_merchant_statements')).toBe(0);
+  await asUser(admin);
+  await rejects(()=>scalar('select finance_cashea_balance_entry($1,$2,$3,$4,$5,$6,$7,$8)',[randomUUID(),'OPENING_CREDIT','2026-08-01','10','opening','Documented opening',null,null]),/administrador/);
+  await asUser(owner);
+  expect(await scalar<string>('select finance_cashea_balance_entry($1,$2,$3,$4,$5,$6,$7,$8)',[randomUUID(),'OPENING_CREDIT','2026-08-01','10','opening','Documented opening',null,null])).toBeTruthy();
+ });
+ it('calculates the full ledger after its opening and keeps earlier history outside the anchored balance',async()=>{
+  await root();
+  await db.exec("insert into cashea_balance_events(request_id,kind,occurred_on,amount_ref,reference,evidence,created_by) select gen_random_uuid(),'COVERAGE_CREDIT','2026-08-02',1,'credit-'||n,'Synthetic balance history','"+owner+"' from generate_series(1,250) n");
+  await asUser();
+  await scalar('select finance_cashea_balance_entry($1,$2,$3,$4,$5,$6,$7,$8)',[randomUUID(),'PAYOUT','2026-07-31','20','older-payout','Before opening evidence',null,null]);
+  await scalar('select finance_cashea_balance_entry($1,$2,$3,$4,$5,$6,$7,$8)',[randomUUID(),'OPENING_CREDIT','2026-08-01','100','opening','Start of day opening',null,null]);
+  const summary=await scalar<{recorded_net:string;events_total:number;opening_on:string}>('select finance_cashea_balance_summary()');
+  expect(summary.recorded_net).toBe('350.00');expect(summary.events_total).toBe(252);expect(summary.opening_on).toBe('2026-08-01');
+  await rejects(()=>scalar('select finance_cashea_balance_entry($1,$2,$3,$4,$5,$6,$7,$8)',[randomUUID(),'OPENING_DEBIT','2026-08-01','10','opening-two','Duplicate opening',null,null]),/registro activo/);
+ });
+ it('rejects altered retries and invalid amounts and preserves service/tax/ownership independently',async()=>{
+  const request=randomUUID();const args=[request,'2026-08-01','2026-08-31','TEST-FEE-001','100','4','4','0.64','0','Synthetic service invoice'];
+  const s=await scalar<string>('select finance_cashea_statement($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',args);
+  await rejects(()=>scalar('select finance_cashea_statement($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[...args.slice(0,7),'0.65',...args.slice(8)]),/otros datos/);
+  await rejects(()=>scalar('select finance_cashea_statement($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[randomUUID(),'2026-07-01','2026-07-31','bad-vat','100','4','4','NaN','0','Invalid VAT']),/inválidos/);
+  await rejects(()=>scalar('select finance_cashea_statement($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[randomUUID(),'2026-07-01','2026-07-31','bad-round','100','4','4.001','0.64','0','Invalid fraction']),/decimales/);
+  const charges=await scalar<{service_ref:string;vat_ref:string;total_deduct_ref:string;unattributed:number}>('select finance_cashea_charges($1,$2)',['2026-08-01','2026-08-31']);
+  expect(charges).toMatchObject({service_ref:'4.00',vat_ref:'0.64',total_deduct_ref:'4.64',unattributed:1});
+  await scalar('select finance_cashea_ownership($1,$2,$3)',[s,'SHARED','Documented multiple locations']);
+  expect(await scalar<string>('select ownership_status from cashea_merchant_statements where id=$1',[s])).toBe('SHARED');
+  await scalar('select finance_cashea_ownership($1,$2,$3)',[s,'OWN','Confirmed single location statement']);
+  expect((await scalar<{unattributed:number}>('select finance_cashea_charges($1,$2)',['2026-08-01','2026-08-31'])).unattributed).toBe(0);
+  await asUser(operator);await rejects(()=>scalar('select finance_cashea_balance_summary()'),/administrador/);
+ });
+ it('does not accept a Cashea customer export as bank proof of a merchant payout',async()=>{
+  await seedCashea('777777');
+  await ingest([row(1,'8000',{external_order:'777777',amount_ref:'10',assigned_ref:'10',rate:'800',rate_date:'2026-09-10',provider_account:'Shared',installments:[1]})],'CASHEA_TRANSACTIONS');
+  const x=await tx();
+  await rejects(()=>scalar('select finance_cashea_balance_entry($1,$2,$3,$4,$5,$6,$7,$8)',[randomUUID(),'PAYOUT','2026-09-10','10','1001','Not actual bank evidence',null,x]),/ingreso bancario/);
+  expect(await scalar('select count(*)::int from cashea_balance_events')).toBe(0);
+ });
+});
+
 it('also applies the repository migration order on a fresh database',async()=>{
  const fresh=new PGlite();
  try {
@@ -356,6 +428,11 @@ it('also applies the repository migration order on a fresh database',async()=>{
   await fresh.exec(readFileSync('supabase/migrations/20260925103000_finance_cashea_mixed_accounts_usd_quick_sale.sql','utf8'));
   await fresh.exec(readFileSync('supabase/migrations/20260930143615_finance_integrity_residuals.sql','utf8'));
   await fresh.exec(readFileSync('supabase/migrations/20260930151245_finance_report_navigation.sql','utf8'));
+  await fresh.exec(readFileSync('supabase/migrations/20260930153613_finance_conflict_visibility.sql','utf8'));
+  await fresh.exec(readFileSync('supabase/migrations/20260930154654_finance_allocation_guard.sql','utf8'));
+  await fresh.exec(readFileSync('supabase/migrations/20260930155832_finance_cash_anchor_review.sql','utf8'));
+  await fresh.exec(readFileSync('supabase/migrations/20260930160819_finance_cash_due_tasks.sql','utf8'));
+  await fresh.exec(readFileSync('supabase/migrations/20260930175314_cashea_merchant_balance.sql','utf8'));
   expect((await fresh.query("select to_regclass('public.external_import_batches') as batch,to_regclass('public.payroll_work_items') as payroll")).rows[0]).toMatchObject({batch:'external_import_batches',payroll:'payroll_work_items'});
  } finally { await fresh.close(); }
 },120000);

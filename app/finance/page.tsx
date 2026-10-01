@@ -32,13 +32,23 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(true);
   const [showExpense, setShowExpense] = useState(false);
   const [error, setError] = useState("");
+  const [casheaCharges, setCasheaCharges] = useState<{ count:number; service_ref:string; vat_ref:string; withholding_ref:string; total_deduct_ref:string; unattributed:number }|null>(null);
+  const [casheaChargesError,setCasheaChargesError] = useState("");
+  const [financeRole,setFinanceRole] = useState("");
 
   async function load() {
     setLoading(true); setError("");
-    const { data: result, error } = await supabase.rpc("finance_dashboard", { p_from: from, p_to: to });
+    const [{ data: result, error }, charges, role] = await Promise.all([
+      supabase.rpc("finance_dashboard", { p_from: from, p_to: to }),
+      supabase.rpc("finance_cashea_charges",{p_from:from,p_to:to}),
+      supabase.rpc("finance_role"),
+    ]);
     setLoading(false);
     if (error) return setError(error.message);
     setData(result as FinanceData);
+    setFinanceRole(String(role.data ?? ""));
+    setCasheaCharges(charges.error?null:charges.data);
+    setCasheaChargesError(charges.error?.message??"");
   }
   useEffect(() => { load(); }, [from, to]);
 
@@ -71,6 +81,8 @@ export default function FinancePage() {
         <div className="card"><div className="muted small">COBROS REGISTRADOS EN ÓRDENES</div><div className="kpi">{fmtVes(data.collections.total_ves)}</div><div className="muted small">{fmtRef(data.collections.total_ref)} · {data.collections.payments ?? 0} pagos por comprobar</div></div>
         <div className="card"><div className="muted small">GASTOS REGISTRADOS</div><div className="kpi" style={{ color: "var(--danger)" }}>{fmtVes(data.expenses.total_ves)}</div><div className="muted small">{data.expenses.expenses ?? 0} movimientos clasificados como gasto</div></div>
       </section>
+
+      {['OWNER','ADMIN'].includes(financeRole)&&<Link href="/cashea/balance" className="card brand-card"><div className="row-between"><div><h2 className="section-title">Facturas y balance Cashea</h2><div className="muted small">Documentos cuyo período terminó entre las fechas elegidas. Servicio, impuestos y compensaciones se controlan por separado.</div></div><div style={{textAlign:"right"}}>{casheaCharges?<><strong>{fmtRef(casheaCharges.total_deduct_ref)} a descontar</strong><div className="muted small">Servicio {fmtRef(casheaCharges.service_ref)} · IVA {fmtRef(casheaCharges.vat_ref)} · ISLR {fmtRef(casheaCharges.withholding_ref)}</div><div className="muted small">{casheaCharges.count} facturas · {casheaCharges.unattributed} pendientes de atribuir por completo a Lubricenter</div></>:<span className="error">No se pudo consultar: {casheaChargesError}</span>}</div></div></Link>}
 
       <section className="grid grid-3">
         <SaleTypeCard title="Contado" row={salesTypes.get("CASH")} />
