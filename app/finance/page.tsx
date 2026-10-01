@@ -17,7 +17,6 @@ type FinanceData = {
   customer_balance_cash: { deposits_ves: number; refunds_ves: number; reversals_ves: number };
   retained_cancelled_cash_ves: number;
   expenses: Summary; expenses_by_category: Split[];
-  net_cash_ves: number;
   lc_open: { accounts: number; outstanding_ves: number; overdue: number };
   cashea_open: { sales: number; installments: number; outstanding_ref: number; overdue: number };
   accounts: Account[]; daily: Daily[];
@@ -33,13 +32,23 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(true);
   const [showExpense, setShowExpense] = useState(false);
   const [error, setError] = useState("");
+  const [casheaCharges, setCasheaCharges] = useState<{ count:number; service_ref:string; vat_ref:string; withholding_ref:string; total_deduct_ref:string; unattributed:number }|null>(null);
+  const [casheaChargesError,setCasheaChargesError] = useState("");
+  const [financeRole,setFinanceRole] = useState("");
 
   async function load() {
     setLoading(true); setError("");
-    const { data: result, error } = await supabase.rpc("finance_dashboard", { p_from: from, p_to: to });
+    const [{ data: result, error }, charges, role] = await Promise.all([
+      supabase.rpc("finance_dashboard", { p_from: from, p_to: to }),
+      supabase.rpc("finance_cashea_charges",{p_from:from,p_to:to}),
+      supabase.rpc("finance_role"),
+    ]);
     setLoading(false);
     if (error) return setError(error.message);
     setData(result as FinanceData);
+    setFinanceRole(String(role.data ?? ""));
+    setCasheaCharges(charges.error?null:charges.data);
+    setCasheaChargesError(charges.error?.message??"");
   }
   useEffect(() => { load(); }, [from, to]);
 
@@ -57,7 +66,7 @@ export default function FinancePage() {
 
   return <main className="container stack">
     <section className="brand-hero"><div><div className="eyebrow">FINANZAS · CONTROL DEL NEGOCIO</div><h1>Central financiera</h1><p>Separa lo vendido, lo cobrado, lo pendiente y lo gastado para saber qué ocurrió realmente con el dinero.</p></div><img src="/lubricenter-logo.png" alt="Lubricenter" /></section>
-    <Link href="/finance/inbox" className="card brand-card"><h2 className="section-title">Revisión financiera</h2><p>Importa banco y Cashea; atiende solo las excepciones.</p></Link>
+    <Link href="/finance/inbox" className="card brand-card"><h2 className="section-title">Pendientes del negocio</h2><p>Consulta qué reportes faltan y resuelve las excepciones comprobadas de banco y Cashea.</p></Link>
     {error && <div className="error">{error}</div>}
 
     <section className="card stack">
@@ -67,12 +76,13 @@ export default function FinancePage() {
 
     {loading && <div className="card muted">Calculando finanzas…</div>}
     {data && !loading && <>
-      <section className="grid grid-4">
+      <section className="grid grid-3">
         <div className="card brand-card"><div className="muted small">VENDIDO</div><div className="kpi">{fmtRef(data.sales.total_ref)}</div><div className="muted small">{data.sales.orders ?? 0} ventas · {fmtVes(data.sales.total_ves)}</div></div>
-        <div className="card"><div className="muted small">COBROS DE ÓRDENES</div><div className="kpi">{fmtVes(data.collections.total_ves)}</div><div className="muted small">{fmtRef(data.collections.total_ref)} · {data.collections.payments ?? 0} pagos reales</div></div>
-        <div className="card"><div className="muted small">GASTOS</div><div className="kpi" style={{ color: "var(--danger)" }}>{fmtVes(data.expenses.total_ves)}</div><div className="muted small">{data.expenses.expenses ?? 0} movimientos</div></div>
-        <div className="card"><div className="muted small">FLUJO NETO</div><div className="kpi" style={{ color: data.net_cash_ves >= 0 ? "var(--ok)" : "var(--danger)" }}>{fmtVes(data.net_cash_ves)}</div><div className="muted small">Cobros + saldo recibido − devoluciones y correcciones − gastos</div></div>
+        <div className="card"><div className="muted small">COBROS REGISTRADOS EN ÓRDENES</div><div className="kpi">{fmtVes(data.collections.total_ves)}</div><div className="muted small">{fmtRef(data.collections.total_ref)} · {data.collections.payments ?? 0} pagos por comprobar</div></div>
+        <div className="card"><div className="muted small">GASTOS REGISTRADOS</div><div className="kpi" style={{ color: "var(--danger)" }}>{fmtVes(data.expenses.total_ves)}</div><div className="muted small">{data.expenses.expenses ?? 0} movimientos clasificados como gasto</div></div>
       </section>
+
+      {['OWNER','ADMIN'].includes(financeRole)&&<Link href="/cashea/balance" className="card brand-card"><div className="row-between"><div><h2 className="section-title">Facturas y balance Cashea</h2><div className="muted small">Documentos cuyo período terminó entre las fechas elegidas. Servicio, impuestos y compensaciones se controlan por separado.</div></div><div style={{textAlign:"right"}}>{casheaCharges?<><strong>{fmtRef(casheaCharges.total_deduct_ref)} a descontar</strong><div className="muted small">Servicio {fmtRef(casheaCharges.service_ref)} · IVA {fmtRef(casheaCharges.vat_ref)} · ISLR {fmtRef(casheaCharges.withholding_ref)}</div><div className="muted small">{casheaCharges.count} facturas · {casheaCharges.unattributed} pendientes de atribuir por completo a Lubricenter</div></>:<span className="error">No se pudo consultar: {casheaChargesError}</span>}</div></div></Link>}
 
       <section className="grid grid-3">
         <SaleTypeCard title="Contado" row={salesTypes.get("CASH")} />
@@ -87,7 +97,7 @@ export default function FinancePage() {
 
       <section className="grid grid-3">
         <Link href="/receivables" className="card stack"><div className="row-between"><h2 className="section-title">Crédito LC por cobrar</h2><span className={`pill ${data.lc_open.overdue ? "warn" : "ok"}`}>{data.lc_open.overdue} vencidas</span></div><div className="kpi">{fmtVes(data.lc_open.outstanding_ves)}</div><div className="muted small">{data.lc_open.accounts} cuentas abiertas</div></Link>
-        <Link href="/cashea" className="card stack"><div className="row-between"><h2 className="section-title">Cashea por recibir</h2><span className={`pill ${data.cashea_open.overdue ? "warn" : "ok"}`}>{data.cashea_open.overdue} vencidas</span></div><div className="kpi">{fmtRef(data.cashea_open.outstanding_ref)}</div><div className="muted small">{data.cashea_open.installments} cuotas · {data.cashea_open.sales} ventas activas</div></Link>
+        <Link href="/cashea" className="card stack"><div className="row-between"><h2 className="section-title">Cuotas Cashea según registro interno</h2><span className={`pill ${data.cashea_open.overdue ? "warn" : "ok"}`}>{data.cashea_open.overdue} vencidas</span></div><div className="kpi">{fmtRef(data.cashea_open.outstanding_ref)}</div><div className="muted small">{data.cashea_open.installments} cuotas · {data.cashea_open.sales} ventas activas. Pendiente de contrastar con reportes y abonos.</div></Link>
         <Link href="/customer-balances" className="card stack"><h2 className="section-title">Saldos a favor de clientes</h2><div className="muted small">Anticipos y sobrantes recibidos: {fmtVes(data.customer_balance_cash.deposits_ves)}</div><div className="muted small">Cobros conservados de ventas anuladas: {fmtVes(data.retained_cancelled_cash_ves)}</div><div className="muted small">Devoluciones: {fmtVes(data.customer_balance_cash.refunds_ves)} · Cobros corregidos: {fmtVes(data.customer_balance_cash.reversals_ves)}</div><div className="muted small">Ver deuda actual por cliente y moneda →</div></Link>
       </section>
       <section className="grid grid-2">
@@ -95,7 +105,7 @@ export default function FinancePage() {
         <Link href="/cash-close" className="card brand-card"><div className="eyebrow">CONTROL DIARIO</div><h2 className="section-title">Cuadre de caja</h2><div className="muted small">Compara saldos esperados y reales de cada cuenta.</div></Link>
       </section>
 
-      <section className="card stack"><div><h2 className="section-title">Saldos registrados</h2><div className="muted small">Son saldos construidos por pagos, gastos y transferencias ingresados en Lubricenter OS.</div></div><div className="grid grid-3">{data.accounts.map(a => <div className="finance-account" key={a.id}><div className="row-between"><strong>{a.name}</strong><span className="pill">{a.currency}</span></div><div className="money-lg">{a.currency === "USD" ? `$${Number(a.balance_native).toFixed(2)}` : fmtVes(a.balance_native)}</div><div className="muted small">{accountTypeLabel(a.account_type)}</div></div>)}</div></section>
+      <section className="card stack"><div><h2 className="section-title">Movimientos acumulados por cuenta</h2><div className="muted small">Estos importes vienen de movimientos registrados. Sin apertura respaldada y conciliación de cada cuenta, no representan saldo bancario verificado ni dinero disponible para retirar.</div></div><div className="grid grid-3">{data.accounts.map(a => <div className="finance-account" key={a.id}><div className="row-between"><strong>{a.name}</strong><span className="pill">{a.currency}</span></div><div className="money-lg">{a.currency === "USD" ? `$${Number(a.balance_native).toFixed(2)}` : fmtVes(a.balance_native)}</div><div className="muted small">{accountTypeLabel(a.account_type)}</div></div>)}</div></section>
 
       <section className="card stack"><div><h2 className="section-title">Actividad diaria</h2><div className="muted small">Compara el día de la venta con el día en que entró el dinero.</div></div><div className="finance-days">{data.daily.filter(d => Number(d.sales_ref) || Number(d.collected_ref) || Number(d.expenses_ves)).map(d => <div className="finance-day" key={d.activity_date}><div className="small"><strong>{formatShortDate(d.activity_date)}</strong></div><div className="finance-bars"><div className="finance-bar sales" style={{ width: `${Math.max(2, Number(d.sales_ref) / maxDailyRef * 100)}%` }} /><div className="finance-bar collected" style={{ width: `${Math.max(2, Number(d.collected_ref) / maxDailyRef * 100)}%` }} /></div><div className="finance-day-values"><span>Vendido {fmtRef(d.sales_ref)}</span><span>Cobrado {fmtRef(d.collected_ref)}</span>{Number(d.expenses_ves) > 0 && <span>Gastos {fmtVes(d.expenses_ves)}</span>}</div></div>)}{!data.daily.some(d => Number(d.sales_ref) || Number(d.collected_ref) || Number(d.expenses_ves)) && <div className="muted">No hay actividad en este período.</div>}</div></section>
 

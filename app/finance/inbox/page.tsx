@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { FinanceNotifications } from '@/components/finance-notifications';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { parseBdv, parseCashea, type Preview, type Provider } from '@/lib/finance/importers';
@@ -10,21 +11,51 @@ type Source = { id: string; name: string; provider: Provider; external_account: 
 type Case = { id: string; kind: string; subject_id: string; subject_type: string; title: string; explanation: string; evidence: Record<string, unknown> };
 type Batch = { id: string; source_id: string; source_name: string; status: string; requested_from: string; requested_to: string; row_count: number; balance_chain: boolean | null };
 type Data = { users: {id:string;email:string;role:string}[]; rules: {id:string;description_contains:string;nature:string}[]; role: string; total: number; cases: Case[]; sources: Source[]; batches: Batch[]; accounts: { id: string; code: string; name: string; currency: string }[] };
+type ReportSource = { source_id: string; source_name: string; provider: Provider; status: 'MISSING_REPORT' | 'NEEDS_VERIFICATION' | 'PARTIAL' | 'IN_PROGRESS' | 'BALANCE_CONFLICT' | 'SOURCE_CONFLICT' | 'COVERAGE_VERIFIED' | 'SNAPSHOT_AVAILABLE'; covered_through: string | null; missing_from: string | null; balance_conflict_from: string | null; source_conflict_from: string | null; source_conflicts: number; latest_snapshot_imported_at: string | null; review_batches: number };
+type ReportCoverage = { from: string; to: string; sources: ReportSource[] };
+type ImportSelection = { source_id: string; from: string; to: string; nonce: number };
+type CashTask = { task_key: string; business_date: string; kind: 'CLOSE' | 'REVIEW'; title: string; reason: string; action_url: string };
+type CashDue = { status: 'ACTIVE' | 'NEEDS_OPENING' | 'NEEDS_LOCATION'; total: number; tasks: CashTask[] };
 type Review = { transaction: { id: string; occurred_at: string; description: string; reference: string; external_order: string | null; amount: string; amount_ref: string | null; assigned_ref: string | null; currency: string; ownership_status: string; ownership_reason: string; direction: string; nature: Nature; raw: Record<string, unknown> }; targets: { id: string; kind: string; amount: string; remaining: string; currency: string; reference?: string; installment_no?: number; occurred_at?: string }[]; allocations: { id: string; external_amount: string; target_amount: string; difference: string; reason: string; reversed_at: string | null }[]; history: { id: string; event_type: string; created_at: string }[] };
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
+function monthRange(month: string) {
+  const [year, number] = month.split('-').map(Number);
+  const end = new Date(Date.UTC(year, number, 0)).toISOString().slice(0, 10);
+  return { from: `${month}-01`, to: end > today() ? today() : end };
+}
 const labels: Record<Provider, string> = { BDV: 'Banco de Venezuela · pegar movimientos', CASHEA_TRANSACTIONS: 'Cashea · cobros (export.xlsx)', CASHEA_ORDERS: 'Cashea · órdenes (ordenes.xlsx)' };
 
 export default function FinanceInbox() {
   const [data, setData] = useState<Data | null>(null), [role, setRole] = useState(''), [offset, setOffset] = useState(0);
+  const [month, setMonth] = useState(today().slice(0, 7)), [reportCoverage, setReportCoverage] = useState<ReportCoverage | null>(null), [importSelection, setImportSelection] = useState<ImportSelection | null>(null);
+  const [batchOffset, setBatchOffset] = useState(0), [batchTotal, setBatchTotal] = useState(0);
+  const [cashOffset, setCashOffset] = useState(0), [cashDue, setCashDue] = useState<CashDue | null>(null);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [tab, setTab] = useState<'inbox' | 'import' | 'setup'>('inbox');
   const [selected, setSelected] = useState<Case | null>(null), [review, setReview] = useState<Review | null>(null), [batch, setBatch] = useState<Batch | null>(null);
   async function load() {
     const r = await supabase.rpc('finance_role'); if (r.error) throw new Error('Finance Core está pendiente de activar en esta base. No se modificaron los datos.');
     setRole(r.data);
-    if (r.data === 'OPERATOR') return;
-    const res = await supabase.rpc('finance_inbox', { p_offset: offset }); if (res.error) throw res.error; setData(res.data);
+    const cash = await supabase.rpc('finance_cash_due', { p_offset: cashOffset });
+    if (cash.error) throw cash.error;
+    setCashDue(cash.data as CashDue);
+    if (r.data === 'OPERATOR') { setReportCoverage(null); return; }
+    const range = monthRange(month);
+    const [res, coverage, batches] = await Promise.all([
+      supabase.rpc('finance_inbox', { p_offset: offset }),
+      supabase.rpc('finance_report_coverage', { p_from: range.from, p_to: range.to }),
+      supabase.rpc('finance_batches', { p_from: range.from, p_to: range.to, p_offset: batchOffset }),
+    ]);
+    if (res.error) throw res.error;
+    if (coverage.error) throw coverage.error;
+    if (batches.error) throw batches.error;
+    setData({ ...res.data, batches: batches.data.batches });
+    setReportCoverage(coverage.data as ReportCoverage); setBatchTotal(batches.data.total);
   }
-  useEffect(() => { load().catch(e => setError(e.message)); }, [offset]);
+  useEffect(() => { load().catch(e => setError(e.message)); }, [offset, month, batchOffset, cashOffset]);
+  useEffect(()=>{
+    const timer=setInterval(()=>{if(document.visibilityState==='visible'&&!busy&&!selected&&!batch)load().catch(e=>setError(e.message));},60000);
+    return ()=>clearInterval(timer);
+  },[offset,month,batchOffset,cashOffset,busy,selected,batch]);
   async function run(action: () => Promise<void>) {
     if (busy) return; setBusy(true); setError(''); setNotice('');
     try { await action(); await load(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
@@ -33,32 +64,92 @@ export default function FinanceInbox() {
   async function open(c: Case) {
     setSelected(c); setReview(null);
     if (c.subject_type === 'external_transaction') { const r = await supabase.rpc('finance_review', { p_id: c.subject_id }); if (r.error) throw r.error; setReview(r.data); }
-    if (c.subject_type === 'import_batch') setBatch(data?.batches.find(b => b.id === c.subject_id) ?? null);
+    if (c.subject_type === 'import_batch') { const r = await supabase.rpc('finance_batch', { p_id: c.subject_id }); if (r.error) throw r.error; setBatch(r.data as Batch); }
   }
   return <main className="container stack finance-inbox">
     <section className="brand-hero"><div><div className="eyebrow">FINANCE CORE</div><h1>Revisión financiera</h1><p>Resuelve excepciones. Las ventas y la atención pueden continuar.</p></div><Link href="/cash-close" className="btn">Contar efectivo</Link></section>
     {error && <div className="error" role="alert">{error}</div>}{notice && <div className="success" role="status">{notice}</div>}
+    {cashDue && <CashDueTasks data={cashDue} offset={cashOffset} onPage={setCashOffset} />}
+    <section className="card row-between"><div><strong>Vuelto pendiente de devolver</strong><p>Se conserva en USD y descuenta caja al entregarlo.</p></div><Link className="btn" href="/change">Revisar vueltos</Link></section>
+    <FinanceNotifications />
     {role === 'OPERATOR' ? <section className="card stack"><h2>Tu tarea diaria</h2><p>Registra los cobros con su referencia y cuenta Caja USD y Caja Bs al finalizar. El administrador revisa bancos y Cashea.</p><Link href="/cash-close" className="btn btn-primary">Cuadre de caja</Link><Link href="/orders/new" className="btn">Nueva orden</Link></section> : data && <>
-      <nav className="row" aria-label="Herramientas financieras"><button className={`btn ${tab === 'inbox' ? 'btn-primary' : ''}`} onClick={() => setTab('inbox')}>Pendientes · {data.total}</button><button className={`btn ${tab === 'import' ? 'btn-primary' : ''}`} onClick={() => setTab('import')}>Importar reporte</button>{role === 'OWNER' && <button className="btn" onClick={() => setTab('setup')}>Configuración</button>}<button className="btn" disabled={busy} onClick={() => run(refresh)}>{busy ? 'Procesando…' : 'Conciliar ahora'}</button></nav>
+      <nav className="row" aria-label="Herramientas financieras"><button className={`btn ${tab === 'inbox' ? 'btn-primary' : ''}`} onClick={() => setTab('inbox')}>Pendientes · {data.total + (cashDue?.total ?? 0)}</button><button className={`btn ${tab === 'import' ? 'btn-primary' : ''}`} onClick={() => setTab('import')}>Importar reporte</button>{role === 'OWNER' && <button className="btn" onClick={() => setTab('setup')}>Configuración</button>}<button className="btn" disabled={busy} onClick={() => run(refresh)}>{busy ? 'Procesando…' : 'Conciliar ahora'}</button></nav>
+      {(tab === 'inbox' || tab === 'import') && reportCoverage && <CoverageSummary
+        coverage={reportCoverage}
+        month={month}
+        onMonthChange={value => { setMonth(value); setBatchOffset(0); }}
+        onImport={sourceId => {
+          setImportSelection({ source_id: sourceId, from: reportCoverage.from, to: reportCoverage.to, nonce: Date.now() });
+          setTab('import');
+        }}
+      />}
       {tab === 'inbox' && <section className="stack" aria-label="Excepciones">
-        {!data.total && <div className="card stack"><h2>Sin excepciones abiertas</h2><p>Esto no certifica períodos aún no importados. Puedes revisar la cobertura en Importar reporte.</p></div>}
+        {!data.total && <div className="card stack"><h2>Sin excepciones abiertas</h2><p>Revisa arriba si están completos los reportes del período. Una bandeja vacía no confirma la conciliación.</p></div>}
         {data.cases.map(c => <article key={c.id} className="card row-between"><div><h2 className="section-title">{c.title}</h2><p>{c.explanation}</p></div><button className="btn btn-primary" disabled={busy} onClick={() => run(() => open(c))}>Revisar</button></article>)}
         {data.total > 50 && <div className="row"><button className="btn" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Anterior</button><span>{offset + 1}–{Math.min(offset + 50, data.total)} de {data.total}</span><button className="btn" disabled={offset + 50 >= data.total} onClick={() => setOffset(offset + 50)}>Siguiente</button></div>}
       </section>}
-      {tab === 'import' && <><ImportForm sources={data.sources} busy={busy} run={run} onDone={async () => { await refresh(); }} />
-        <section className="card stack"><h2>Cobertura de reportes</h2><p>Un reporte importado puede ayudar a conciliar aunque su cobertura todavía esté pendiente.</p>{data.batches.map(b => <div className="row-between" key={b.id}><div><strong>{b.source_name}</strong><div>{b.requested_from} → {b.requested_to} · {b.row_count} filas</div></div>{b.status === 'COMPLETE' ? <span className="pill ok">Cobertura verificada</span> : <button className="btn" onClick={() => { setBatch(b); setSelected(null); setReview(null); }}>Verificar cobertura</button>}</div>)}</section></>}
+      {tab === 'import' && <><ImportForm sources={data.sources} selection={importSelection} busy={busy} run={run} onDone={async () => { await refresh(); }} />
+        <section className="card stack"><h2>Archivos importados · {batchTotal}</h2><p>Un reporte importado puede ayudar a conciliar aunque su cobertura todavía esté pendiente.</p>{data.batches.map(b => <div className="row-between" key={b.id}><div><strong>{b.source_name}</strong><div>{b.requested_from} → {b.requested_to} · {b.row_count} filas</div></div>{b.status === 'COMPLETE' ? <span className="pill ok">Archivo verificado</span> : <button className="btn" onClick={() => { setBatch(b); setSelected(null); setReview(null); }}>Verificar cobertura</button>}</div>)}{!data.batches.length && <p>No hay archivos importados para este mes.</p>}{batchTotal > 20 && <div className="row"><button className="btn" disabled={batchOffset === 0} onClick={() => setBatchOffset(Math.max(0,batchOffset-20))}>Más recientes</button><span>{batchOffset+1}–{Math.min(batchOffset+20,batchTotal)} de {batchTotal}</span><button className="btn" disabled={batchOffset+20>=batchTotal} onClick={() => setBatchOffset(batchOffset+20)}>Más antiguos</button></div>}</section></>}
       {tab === 'setup' && role === 'OWNER' && <Settings data={data} busy={busy} run={run} />}
       {batch && <Coverage key={batch.id} batch={batch} busy={busy} run={run} onClose={() => setBatch(null)} onDone={async () => { setBatch(null); setSelected(null); await refresh(); }} />}
       {selected && !batch && <section className="card stack" aria-label="Detalle de excepción"><div className="row-between"><h2>{selected.title}</h2><button className="btn" onClick={() => { setSelected(null); setReview(null); }}>Cerrar detalle</button></div>
-        {selected.kind === "OUTFLOW_NATURE" && <InternalNature caseId={selected.subject_id} busy={busy} run={run} onDone={async () => { setSelected(null); await refresh(); }} />}{review ? <ReviewPanel key={review.transaction.id} review={review} busy={busy} run={run} onDone={async () => { await refresh(); await open(selected); }} /> : <><p>{selected.explanation}</p>{selected.subject_type === 'cash_closing' ? <Link className="btn" href="/cash-close">Revisar conteo de caja</Link> : selected.subject_type === 'cashea_sale' ? <Link className="btn" href="/cashea">Revisar orden Cashea</Link> : <Link className="btn" href="/cash">Revisar movimiento interno</Link>}<details><summary>Evidencia</summary><pre>{JSON.stringify(selected.evidence, null, 2)}</pre></details></>}
+        {selected.kind === "OUTFLOW_NATURE" && <InternalNature caseId={selected.subject_id} busy={busy} run={run} onDone={async () => { setSelected(null); await refresh(); }} />}{review ? <ReviewPanel key={review.transaction.id} review={review} busy={busy} run={run} onDone={async () => { await refresh(); await open(selected); }} /> : <><p>{selected.explanation}</p>{selected.subject_type === 'cash_closing' ? <Link className="btn" href="/cash-close">Revisar conteo de caja</Link> : selected.subject_type === 'cashea_merchant_statement' ? <Link className="btn" href="/cashea/balance">Revisar factura Cashea</Link> : selected.subject_type === 'cashea_sale' ? <Link className="btn" href="/cashea">Revisar orden Cashea</Link> : <Link className="btn" href="/cash">Revisar movimiento interno</Link>}<details><summary>Evidencia</summary><pre>{JSON.stringify(selected.evidence, null, 2)}</pre></details></>}
       </section>}
     </>}
     <Link href="/finance" className="btn btn-ghost">← Central financiera</Link>
   </main>;
 }
 
-function ImportForm({ sources, busy, run, onDone }: { sources: Source[]; busy: boolean; run: (f: () => Promise<void>) => void; onDone: () => Promise<void> }) {
+function CashDueTasks({ data, offset, onPage }: { data: CashDue; offset: number; onPage: (value: number) => void }) {
+  if (data.status === 'NEEDS_LOCATION') return <section className="card">Configura la ubicación antes de llevar el cuadre diario.</section>;
+  if (data.status === 'NEEDS_OPENING') return <section className="card stack"><h2>Falta la apertura física de caja</h2><p>El dueño debe confirmar cuánto efectivo hay en Caja USD y Caja Bs para iniciar el control diario.</p><Link className="btn" href="/cash-close">Abrir cuadre de caja</Link></section>;
+  if (!data.total) return null;
+  return <section className="card stack" aria-label="Cuadres de caja pendientes">
+    <h2>Cuadres de caja por atender · {data.total}</h2>
+    <p className="muted small">Solo aparecen días con movimiento de efectivo o un conteo iniciado. Un conteo físico antiguo que no se hizo no debe inventarse.</p>
+    {data.tasks.map(task => <div className="row-between order-item" key={task.task_key}>
+      <div><strong>{task.title} · {task.business_date}</strong><div className="muted small">{task.reason}</div></div>
+      <Link className="btn" href={task.action_url}>Abrir día</Link>
+    </div>)}
+    {data.total>20 && <div className="row"><button className="btn" disabled={offset===0} onClick={() => onPage(Math.max(0,offset-20))}>Más recientes</button><span>{offset+1}–{Math.min(offset+20,data.total)} de {data.total}</span><button className="btn" disabled={offset+20>=data.total} onClick={() => onPage(offset+20)}>Más antiguos</button></div>}
+  </section>;
+}
+
+function coverageDescription(source: ReportSource, coverage: ReportCoverage) {
+  switch (source.status) {
+    case 'COVERAGE_VERIFIED': return `Archivos completos del ${coverage.from} al ${coverage.to}`;
+    case 'BALANCE_CONFLICT': return `Los saldos no enlazan desde ${source.balance_conflict_from}`;
+    case 'SOURCE_CONFLICT': return `${source.source_conflicts} contradicción(es) en archivos desde ${source.source_conflict_from}. Revisa Pendientes antes de dar el período por conciliado.`;
+    case 'IN_PROGRESS': return `Hoy sigue en curso · comprobado hasta ${source.covered_through ?? 'ayer no verificado'}`;
+    case 'PARTIAL': return `Comprobado hasta ${source.covered_through ?? 'ningún día'} · falta desde ${source.missing_from}`;
+    case 'NEEDS_VERIFICATION': return `${source.review_batches} archivo(s) pendientes de verificar`;
+    case 'SNAPSHOT_AVAILABLE': return `Último archivo de órdenes verificado al importarlo: ${source.latest_snapshot_imported_at?.slice(0, 10) ?? 'sin fecha'}. No acredita todo el mes.`;
+    default: return 'Falta el reporte de este período';
+  }
+}
+
+function CoverageSummary({ coverage, month, onMonthChange, onImport }: {
+  coverage: ReportCoverage;
+  month: string;
+  onMonthChange: (value: string) => void;
+  onImport: (sourceId: string) => void;
+}) {
+  return <section className="card stack" aria-label="Cobertura de reportes">
+    <div className="row-between">
+      <div><h2 className="section-title">Reportes del período</h2><p className="muted small">La cobertura indica qué archivos están comprobados; las diferencias se revisan en Pendientes.</p></div>
+      <label>Mes <input className="input" type="month" max={today().slice(0, 7)} value={month} onChange={event => onMonthChange(event.target.value)} /></label>
+    </div>
+    {coverage.sources.map(source => <div className="row-between order-item" key={source.source_id}>
+      <div><strong>{source.source_name}</strong><div className="muted small">{coverageDescription(source, coverage)}</div></div>
+      {source.status === 'COVERAGE_VERIFIED' ? <span className="pill ok">Cobertura verificada</span> : source.status === 'IN_PROGRESS' ? <span className="pill">Día en curso</span> : source.status === 'SOURCE_CONFLICT' ? <span className="pill">Revisar contradicción</span> : <button className="btn" onClick={() => onImport(source.source_id)}>{source.status === 'NEEDS_VERIFICATION' ? 'Verificar archivo' : 'Revisar reporte'}</button>}
+    </div>)}
+    {!coverage.sources.length && <p>Configura la fuente del banco y los dos reportes Cashea para comenzar la revisión.</p>}
+  </section>;
+}
+
+function ImportForm({ sources, selection, busy, run, onDone }: { sources: Source[]; selection: ImportSelection | null; busy: boolean; run: (f: () => Promise<void>) => void; onDone: () => Promise<void> }) {
   const [source, setSource] = useState(sources[0]?.id ?? ''), [text, setText] = useState(''), [from, setFrom] = useState(today()), [to, setTo] = useState(today()), [preview, setPreview] = useState<Preview | null>(null), [name, setName] = useState('Movimientos BDV');
+  useEffect(() => { if (selection) { setSource(selection.source_id); setFrom(selection.from); setTo(selection.to); setPreview(null); } }, [selection]);
   const selected = sources.find(s => s.id === source);
   async function file(file?: File) {
     if (!file || !selected) return;

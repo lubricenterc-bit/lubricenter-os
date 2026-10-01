@@ -61,12 +61,12 @@ export default function CasheaPage() {
   const dueCount = installments.filter(x => x.status !== "PAID" && new Date(`${x.due_date}T23:59:59`) < new Date()).length;
 
   return <main className="container stack">
-    <div className="row-between"><div><div className="eyebrow">FINANZAS · CASHEA TRADICIONAL</div><h1 style={{ marginBottom: 4 }}>Cashea</h1><div className="muted">Inicial recibida hoy, tres cuotas por recibir y comisión contractual separada de Crédito LC.</div></div><Link href="/quick-sale" className="btn btn-primary">+ Venta Cashea</Link></div>
+    <div className="row-between"><div><div className="eyebrow">FINANZAS · CASHEA TRADICIONAL</div><h1 style={{ marginBottom: 4 }}>Cashea</h1><div className="muted">Inicial recibida hoy, cuotas por recibir y costo de Cashea separado de Crédito LC.</div></div><div className="row"><Link href="/cashea/balance" className="btn">Balance y facturas</Link><Link href="/quick-sale" className="btn btn-primary">+ Venta Cashea</Link></div></div>
 
     <section className="grid grid-3">
       <div className="card"><div className="muted small">POR RECIBIR</div><div className="kpi">{fmtRef(outstandingRef)}</div><div className="muted small">saldo Cashea en REF / USD</div></div>
       <div className="card"><div className="muted small">VENTAS ACTIVAS</div><div className="kpi">{active.length}</div><div className="muted small">{dueCount} cuotas vencidas</div></div>
-      <div className="card"><div className="muted small">COMISIÓN REGISTRADA</div><div className="kpi">{fmtRef(commissionRef)}</div><div className="muted small">costo Cashea acumulado</div></div>
+      <div className="card"><div className="muted small">COMISIÓN ESTIMADA DE VENTAS</div><div className="kpi">{fmtRef(commissionRef)}</div><div className="muted small">sin IVA · la factura y el descuento real están en Balance y facturas</div></div>
     </section>
 
     <section className="card stack">
@@ -84,7 +84,7 @@ export default function CasheaPage() {
           <div className="grid grid-3"><div><div className="muted small">INICIAL · {s.initial_percent}%</div><strong>{fmtRef(s.initial_ref)}</strong><div className="muted small">{paymentLabel(s.initial_payment_method)}</div></div><div><div className="muted small">SALDO CASHEA</div><strong>{fmtRef(remain)}</strong></div><div><div className="muted small">COMISIÓN · {s.commission_percent}%</div><strong>{fmtRef(s.commission_ref)}</strong><div className="muted small">no aumenta precio</div></div></div>
           <div className="divider" />
           <div className="stack"><div className="label">Cuotas</div>{parts.map(x => { const remaining = Math.max(x.amount_ref-x.paid_ref,0); const overdue = x.status !== "PAID" && new Date(`${x.due_date}T23:59:59`) < new Date(); return <div className="card" key={x.id} style={{ padding: 12 }}><div className="row-between"><div><strong>Cuota {x.installment_no} · {fmtRef(x.amount_ref)}</strong><div className="muted small">Vence {x.due_date}{x.paid_ref > 0 ? ` · recibido ${fmtRef(x.paid_ref)}` : ""}</div></div><span className={`pill ${x.status === "PAID" ? "ok" : "warn"}`}>{x.status === "PAID" ? "PAGADA" : overdue ? "VENCIDA" : x.status === "PARTIAL" ? "PARCIAL" : "PENDIENTE"}</span></div>{x.status !== "PAID" && <div className="row-between" style={{ marginTop: 10 }}><span className="muted small">Por recibir {fmtRef(remaining)}</span><button className="btn btn-primary" onClick={() => setSelected(x)}>Registrar llegada</button></div>}</div>; })}</div>
-          <div className="row-between"><Link className="btn btn-ghost" href={`/orders/${s.order_id}`}>Ver orden</Link><span className="muted small">Neto económico tras comisión: {fmtRef(Math.max(s.gross_ref-s.commission_ref,0))}</span></div>
+          <div className="row-between"><Link className="btn btn-ghost" href={`/orders/${s.order_id}`}>Ver orden</Link><span className="muted small">Venta íntegra: {fmtRef(s.gross_ref)} · comisión estimada, sin IVA: {fmtRef(s.commission_ref)}</span></div>
         </article>;
       })}
       {!visible.length && <div className="card muted">No hay ventas Cashea en este filtro.</div>}
