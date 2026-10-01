@@ -47,6 +47,7 @@ beforeAll(async()=>{
  await db.exec(readFileSync('supabase/migrations/20260930175314_cashea_merchant_balance.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20261001132405_cash_change_phone_alerts.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20261001154229_exact_bcv_digital_checkout.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20261001153446_finance_followup.sql','utf8'));
  await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now()),('${admin}','admin@example.test',now());
  insert into public.locations(code,name) values('TEST','Test location');
  insert into public.financial_accounts(id,code,name,currency,account_type) values('${bank}','BDV','Bank','VES','BANK'),('${usd}','CASH_USD','USD','USD','CASH'),('${ves}','CASH_VES','Bs','VES','CASH');
@@ -565,3 +566,38 @@ it('also applies the repository migration order on a fresh database',async()=>{
   expect((await fresh.query("select to_regclass('public.external_import_batches') as batch,to_regclass('public.payroll_work_items') as payroll")).rows[0]).toMatchObject({batch:'external_import_batches',payroll:'payroll_work_items'});
  } finally { await fresh.close(); }
 },120000);
+
+
+describe('Financial task follow-up without changing reconciliation',()=>{
+ it('returns an honest empty task view without claiming reconciliation',async()=>{
+  const result=await scalar<{total:number;counts:object;rows:unknown[]}>("select finance_tasks('READY',0)");
+  expect(result.total).toBe(0);expect(result.counts).toEqual({});expect(result.rows).toEqual([]);
+ });
+ async function task(){await root();const id=await scalar<string>("insert into reconciliation_cases(case_key,kind,subject_type,subject_id,title,explanation) values('test-followup','SOURCE_CONFLICT','external_transaction',gen_random_uuid(),'Contradiction','Need evidence') returning id");await asUser();return id;}
+ it('requires notes, future review and authorized assignee; optimistic versions prevent lost decisions',async()=>{
+  const id=await task();await rejects(()=>scalar("select finance_followup($1,1,'WAITING',null,current_date+1,'')",[id]),/nota/);
+  await rejects(()=>scalar("select finance_followup($1,1,'WAITING',null,null,'Esperar reporte')",[id]),/cuándo/);
+  await rejects(()=>scalar("select finance_followup($1,1,'WAITING',$2,current_date+1,'Esperar reporte')",[id,operator]),/administrador/);
+  await scalar("select finance_followup($1,1,'WAITING',$2,current_date+1,'Esperar el reporte completo')",[id,admin]);
+  expect(await scalar('select status from reconciliation_cases where id=$1',[id])).toBe('OPEN');
+  expect(Number(await scalar('select count(*) from account_movements'))).toBe(0);
+  await rejects(()=>scalar("select finance_followup($1,1,'READY',null,null,'Segunda decisión')",[id]),/Otra persona/);
+  const result=await scalar<{rows:{id:string;work_note:string}[];total:number}>("select finance_tasks('WAITING',0)");expect(result.total).toBe(1);expect(result.rows[0].work_note).toContain('reporte completo');
+  const audit=await scalar<{actor_id:string;data:{after:{work_version:number;work_note:string}}}>("select to_jsonb(a) from audit_events a where entity_type='reconciliation_cases' and entity_id=$1 and data->'after'->>'work_note'='Esperar el reporte completo'",[id]);
+  expect(audit.actor_id).toBe(owner);expect(audit.data.after.work_version).toBe(2);
+  const before=await scalar('select count(*) from audit_events');await scalar("select finance_tasks('WAITING',0)");await scalar("select finance_tasks('WAITING',0)");expect(await scalar('select count(*) from audit_events')).toBe(before);
+ });
+ it('makes a deferred task actionable on its review day without falsely resolving it',async()=>{
+  const id=await task();await scalar("select finance_followup($1,1,'NEEDS_INFO',null,timezone('America/Caracas',now())::date,'Buscar referencia real')",[id]);
+  const result=await scalar<{rows:{id:string;work_status:string}[]}>("select finance_tasks('READY',0)");expect(result.rows[0].id).toBe(id);expect(result.rows[0].work_status).toBe('NEEDS_INFO');
+  await asUser(operator);await rejects(()=>scalar("select finance_tasks('READY',0)"),/administrador|autorizado|permiso|Acceso/i);
+ });
+ it('preserves work notes on reopening the same stable case and distinguishes dismissal from reconciliation',async()=>{
+  const id=await task();await scalar("select finance_followup($1,1,'READY',null,null,'Validar con el dueño')",[id]);
+  await root();await db.query("update reconciliation_cases set status='RESOLVED' where id=$1",[id]);await asUser();
+  await rejects(()=>scalar("select finance_followup($1,2,'READY',null,null,'Intentar sobre cerrado')",[id]),/resuelto/);
+  await root();await scalar("select lubricenter_private.finance_case('test-followup','SOURCE_CONFLICT','external_transaction',$1,'Contradiction','New evidence','{}')",[randomUUID()]);await asUser();
+  expect(await scalar('select work_note from reconciliation_cases where id=$1',[id])).toBe('Validar con el dueño');
+  expect(await scalar('select status from reconciliation_cases where id=$1',[id])).toBe('OPEN');
+ });
+});
