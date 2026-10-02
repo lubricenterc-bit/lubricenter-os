@@ -34,7 +34,7 @@ describe('Payments assigned to contractual components', () => {
     const q2 = quoteCollection(q1.components, [tender('ves-next', '12000', 'motor', { currency: 'VES', bcv: '120' })]);
     expect(outstanding(q2.components[0])).toBe('0.00000000');
     expect(q2.applications[0].commission?.amount).toBe('4800.00');
-    expect(q2.components[0].commissionPaid).toEqual({ USD: '40.00', VES: '8800.00' });
+    expect(q2.components[0].commissionAccrued).toEqual({ USD: '40.00', VES: '8800.00' });
   });
   it('A07/A10 reduces REF with negotiated rate while commission uses only real money', () => {
     const q = quoteCollection([service('400', { basis: 'USD_REF_BCV' })], [tender('cash', '200', 'motor', { bcv: '100', targets: [{ component: 'motor', amount: '200', exchange: { mode: 'RATE', bcv: '100', acceptance: '120' } }] })]);
@@ -99,7 +99,7 @@ describe('Payments assigned to contractual components', () => {
   it('commission is invariant to payment fragmentation at half-cent boundaries', () => {
     const whole = quoteCollection([service('1')], [tender('whole', '1')]);
     const split = quoteCollection([service('1')], Array.from({ length: 100 }, (_, i) => tender(`fragment-${i}`, '0.01')));
-    expect(split.components[0].commissionPaid).toEqual(whole.components[0].commissionPaid);
+    expect(split.components[0].commissionAccrued).toEqual(whole.components[0].commissionAccrued);
     expect(collectionSummary(split).commissions).toEqual(collectionSummary(whole).commissions);
   });
   it('coverage is also invariant to fragmenting repeating conversions across previews', () => {
@@ -109,7 +109,20 @@ describe('Payments assigned to contractual components', () => {
     for (let i = 0; i < 100; i++) state = quoteCollection(state, [tender(`piece-${i}`, '0.01', 'motor', { currency: 'VES', bcv: '3' })]).components;
     expect(state[0].covered).toBe('0.33333333');
     expect(state[0].covered).toBe(whole.components[0].covered);
-    expect(state[0].commissionPaid).toEqual(whole.components[0].commissionPaid);
+    expect(state[0].commissionAccrued).toEqual(whole.components[0].commissionAccrued);
+  });
+  it('keeps an exact agreement group stable as used capacity and decimal spellings change', () => {
+    const c = service('10', { basis: 'USD_REF_BCV' });
+    const exchange = { mode: 'EXACT' as const, id: 'stable', native: '3', covered: '1' };
+    const first = quoteCollection([c], [tender('a', '1', 'motor', { bcv: '100', targets: [{ component: 'motor', amount: '1', exchange }] })]);
+    const next = quoteCollection(first.components, [tender('b', '1', 'motor', { bcv: '100.0000', targets: [{ component: 'motor', amount: '1', exchange: { ...exchange, native: '3.00', covered: '1.00000000', usedNative: '1' } }] })]);
+    expect(next.components[0].covered).toBe('0.66666667');
+    expect(Object.keys(next.components[0].conversionTotals!)).toHaveLength(1);
+    expect(next.exactAgreements.stable).toBe('2.00');
+  });
+  it('stores exact settlement residual in the conversion accumulator for SQL parity', () => {
+    const q = quoteCollection([service('40')], [tender('bank', '34407.01', 'motor', { currency: 'VES', bcv: '860.1753', cash: false, targets: [{ component: 'motor', amount: 'EXACT_DUE' }] })]);
+    expect(Object.values(q.components[0].conversionTotals!)[0]).toEqual({ native: '34407.01200000', covered: '40.00000000' });
   });
   it('rejects the same agreement ID reused for another concept', () => {
     const exchange = { mode: 'EXACT' as const, id: 'same', native: '200', covered: '240' };
@@ -139,6 +152,6 @@ describe('Payments assigned to contractual components', () => {
     expect(() => quoteCollection([service()], [tender('bad', '1', 'foreign')])).toThrow(/ajeno/);
     expect(() => reserveFinancing(service(), '301')).toThrow(/saldo/);
     expect(() => quoteCollection([service('300', { ownership: 'THIRD_PARTY' })], [])).toThrow(/propia/);
-    expect(() => quoteCollection([service('300', { commissionBase: { USD: '200' }, commissionPaid: { USD: '96' } })], [])).toThrow(/inconsistente/);
+    expect(() => quoteCollection([service('300', { commissionBase: { USD: '200' }, commissionAccrued: { USD: '96' } })], [])).toThrow(/inconsistente/);
   });
 });
