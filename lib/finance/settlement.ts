@@ -8,7 +8,7 @@ export type Component = {
   id: string; basis: PriceBasis; principal: string; covered: string; financed: string;
   ownership: Ownership; commission?: Commission;
   commissionBase?: Partial<Record<Currency, string>>;
-  commissionPaid?: Partial<Record<Currency, string>>;
+  commissionAccrued?: Partial<Record<Currency, string>>;
   conversionTotals?: Record<string, { native: string; covered: string }>;
 };
 export type Exchange =
@@ -47,6 +47,15 @@ function currency(value: string): asserts value is Currency {
   if (value !== 'USD' && value !== 'VES') throw new Error('Moneda inválida');
 }
 function unit(basis: PriceBasis) { return basis === 'VES_FIXED' ? 'VES' : 'USD'; }
+/** Stable identity excludes changing consumed capacity and normalizes decimal spellings. */
+export function conversionGroupKey(basis: PriceBasis, coin: Currency, exchange: Exchange, bcv?: string) {
+  const normalize = (n?: string) => n === undefined ? null : new D(n).toString();
+  return JSON.stringify([basis, coin, exchange.mode, normalize(bcv),
+    exchange.mode === 'RATE' ? normalize(exchange.acceptance) : null,
+    exchange.mode === 'EXACT' ? exchange.id : null,
+    exchange.mode === 'EXACT' ? normalize(exchange.native) : null,
+    exchange.mode === 'EXACT' ? normalize(exchange.covered) : null]);
+}
 function validateComponent(c: Component) {
   if (!c.id || !['USD_FIXED', 'USD_REF_BCV', 'VES_FIXED'].includes(c.basis)) throw new Error('Concepto o base inválida');
   if (!['SELF', 'THIRD_PARTY', 'UNRESOLVED'].includes(c.ownership)) throw new Error('Propiedad inválida');
@@ -60,7 +69,7 @@ function validateComponent(c: Component) {
     }
     for (const coin of ['USD', 'VES'] as const) {
       const base = decimal(c.commissionBase?.[coin] ?? '0', 'Base acumulada');
-      const paid = decimal(c.commissionPaid?.[coin] ?? '0', 'Comisión acumulada', false, 2);
+      const paid = decimal(c.commissionAccrued?.[coin] ?? '0', 'Comisión acumulada', false, 2);
       if (!paid.eq(base.mul('0.4').toDecimalPlaces(2))) throw new Error('Comisión acumulada inconsistente');
     }
   }
@@ -91,7 +100,7 @@ function conversion(c: Component, t: Tender, exchange: Exchange) {
 
 /** Pure preview. Database authorization, ownership of service and locks remain mandatory at commit. */
 export function quoteCollection(input: readonly Component[], tenders: readonly Tender[]): Collection {
-  const components = input.map(c => ({ ...c, commissionBase: { ...c.commissionBase }, commissionPaid: { ...c.commissionPaid }, conversionTotals: { ...c.conversionTotals } }));
+  const components = input.map(c => ({ ...c, commissionBase: { ...c.commissionBase }, commissionAccrued: { ...c.commissionAccrued }, conversionTotals: { ...c.conversionTotals } }));
   const index = new Map<string, Component>();
   for (const c of components) {
     validateComponent(c);
@@ -132,9 +141,9 @@ export function quoteCollection(input: readonly Component[], tenders: readonly T
       }
       if (applied.add(amount).gt(received)) throw new Error('Las aplicaciones superan el dinero recibido');
       const computed = amount.mul(factor);
-      const groupKey = JSON.stringify([c.basis, t.currency, exchange, t.bcv ?? null]);
+      const groupKey = conversionGroupKey(c.basis, t.currency, exchange, t.bcv);
       const group = c.conversionTotals![groupKey] ?? { native: '0', covered: '0' };
-      const priorGroupNative = decimal(group.native, 'Conversión acumulada', false, 2);
+      const priorGroupNative = decimal(group.native, 'Conversión acumulada');
       const priorGroupCovered = decimal(group.covered, 'Cobertura acumulada');
       if (priorGroupCovered.gt(c.covered)) throw new Error('Cobertura acumulada inconsistente');
       const nextGroupNative = priorGroupNative.add(amount);
@@ -155,15 +164,15 @@ export function quoteCollection(input: readonly Component[], tenders: readonly T
       let commission: Application['commission'] = null;
       if (c.commission) {
         const prior = new D(c.commissionBase?.[t.currency] ?? '0');
-        const priorCommission = new D(c.commissionPaid?.[t.currency] ?? '0');
+        const priorCommission = new D(c.commissionAccrued?.[t.currency] ?? '0');
         const accumulated = prior.add(amount);
         const nextCommission = accumulated.mul('0.4').toDecimalPlaces(2);
         commission = { worker: c.commission.worker, currency: t.currency, amount: nextCommission.sub(priorCommission).toFixed(2) };
         c.commissionBase![t.currency] = accumulated.toFixed(2);
-        c.commissionPaid![t.currency] = nextCommission.toFixed(2);
+        c.commissionAccrued![t.currency] = nextCommission.toFixed(2);
       }
       c.covered = new D(c.covered).add(covered).toFixed(8);
-      c.conversionTotals![groupKey] = { native: nextGroupNative.toFixed(2), covered: priorGroupCovered.add(covered).toFixed(8) };
+      c.conversionTotals![groupKey] = { native: nextGroupNative.sub(rounding).toFixed(8), covered: priorGroupCovered.add(covered).toFixed(8) };
       applications.push({ tender: t.id, component: c.id, currency: t.currency, native: amount.toFixed(2),
         covered: covered.toFixed(8), baseline: baseline.toFixed(8), benefit: exchange.mode === 'PAR' ? '0.00000000' : computed.sub(baseline).toDecimalPlaces(8).abs().eq(0) ? '0.00000000' : computed.sub(baseline).toFixed(8),
         roundingNative: rounding.toFixed(8), exchange, bcv: t.bcv ?? null, commission });
