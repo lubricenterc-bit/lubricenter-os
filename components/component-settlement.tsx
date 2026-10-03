@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { D } from '@/lib/finance/money';
 import type { PriceBasis } from '@/lib/finance/settlement';
 
-type Line = { id: string; description: string; basis: PriceBasis; principal: string; covered: string; financed: string };
+type Line = { id: string; item_id: string; quantity: string; description: string; basis: PriceBasis; ownership: string; principal: string; covered: string; financed: string };
 type Summary = { revision: number; version: number; components: Line[]; payments: { id: string; currency: string; amount: string; method: string; paid_at: string; valuation_status: string }[] };
 type Preview = { quote_id: string; applications: { component: string; native: string; covered: string; currency: string; bcv: string|null; benefit: string }[]; tenders: { received: string; applied: string; change: string; currency: string }[] };
 const methods = [['CASH_USD','Efectivo USD'],['CASH_VES','Efectivo Bs'],['TRANSFER_BDV','Pago móvil · Venezuela'],['TRANSFER_BNC','Pago móvil · BNC'],['ZELLE','Zelle USD'],['BINANCE','Binance USD']];
@@ -14,7 +14,7 @@ const basisLabel = (l: Line) => l.basis === 'USD_FIXED' ? 'USD pactados' : l.bas
 const native = (value: string, currency: string) => `${currency==='VES'?'Bs':'$'} ${new D(value).toFixed(2)}`;
 
 /** Visible only for explicitly activated v3 orders. Never activates or converts old orders. */
-export function ComponentSettlement({ orderId, locked, onCommitted }: { orderId: string; locked: boolean; onCommitted: () => Promise<void> }) {
+export function ComponentSettlement({ orderId, revision, locked, onCommitted }: { orderId: string; revision?: number; locked: boolean; onCommitted: () => Promise<void> }) {
   const [summary,setSummary]=useState<Summary|null>(null);
   const [error,setError]=useState('');
   const [show,setShow]=useState(false);
@@ -29,6 +29,10 @@ export function ComponentSettlement({ orderId, locked, onCommitted }: { orderId:
   const [attempted,setAttempted]=useState(false);
   const [bcv,setBcv]=useState('');
   const [notice,setNotice]=useState('');
+  const [priceLine,setPriceLine]=useState<Line|null>(null);
+  const [priceBasis,setPriceBasis]=useState<PriceBasis>('USD_REF_BCV');
+  const [priceUnit,setPriceUnit]=useState('');
+  const [priceReason,setPriceReason]=useState('Precio pactado con el cliente');
   const request=useRef<{ quote:string; tender:string; effective:string; commit:string }|null>(null);
   const sheet=useRef<HTMLDivElement>(null);
   const currency=['CASH_USD','ZELLE','BINANCE'].includes(method)?'USD':'VES';
@@ -39,9 +43,9 @@ export function ComponentSettlement({ orderId, locked, onCommitted }: { orderId:
     setSummary(data);
     return data as Summary;
   }
-  useEffect(()=>{load().catch(e=>setError(e.message));},[orderId]);
+  useEffect(()=>{load().catch(e=>setError(e.message));},[orderId,revision]);
   useEffect(()=>{
-    if(!show)return;
+    if(!show&&!priceLine)return;
     const previous=document.activeElement as HTMLElement|null;
     const overflow=document.body.style.overflow;
     document.body.style.overflow='hidden';
@@ -55,8 +59,19 @@ export function ComponentSettlement({ orderId, locked, onCommitted }: { orderId:
     }
     document.addEventListener('keydown',trap);
     return()=>{document.body.style.overflow=overflow;document.removeEventListener('keydown',trap);previous?.focus();};
-  },[show]);
+  },[show,priceLine?.id]);
   function changed(){setPreview(null);request.current=null;setError('');}
+  function openPrice(l:Line){setPriceLine(l);setPriceBasis(l.basis);setPriceUnit(new D(l.principal).div(l.quantity).toString());setPriceReason('Precio pactado con el cliente');setError('');setShow(false);}
+  async function savePrice(){
+    if(!priceLine||!summary||busy)return;setBusy(true);setError('');
+    try{
+      const normalized=priceUnit.trim().replace(',','.');
+      const principal=new D(normalized).mul(priceLine.quantity).toFixed(priceBasis==='USD_REF_BCV'?8:2);
+      const {error}=await supabase.rpc('set_order_price_v3',{p_item:priceLine.item_id,p_revision:summary.revision,p_basis:priceBasis,p_principal:principal,p_ownership:priceLine.ownership,p_reason:priceReason});
+      if(error)throw error;setPriceLine(null);setNotice('Precio acordado guardado con historial.');
+      try{await load();await onCommitted();}catch(e:any){setError(`El precio quedó guardado. Recarga para actualizar la pantalla: ${e.message}`);}
+    }catch(e:any){setError(e.message);}finally{setBusy(false);}
+  }
   async function open(){
     setError('');setNotice('');setBusy(true);
     try{
@@ -104,12 +119,13 @@ export function ComponentSettlement({ orderId, locked, onCommitted }: { orderId:
   const hasChange=preview?.tenders.some(t=>new D(t.change).gt(0));
   return <section className="card stack">
     <h2 className="section-title">Saldo por concepto</h2>
-    {summary?.components.map(l=><div className="stack" key={l.id}><strong>{l.description}</strong><div className="muted small">{new D(l.principal).toFixed(2)} {basisLabel(l)}</div><div className="row-between"><span>Cubierto {new D(l.covered).toFixed(2)} · financiado {new D(l.financed).toFixed(2)}</span><strong>Pendiente {remaining(l).toFixed(2)}</strong></div></div>)}
+    {summary?.components.map(l=><div className="stack" key={l.id}><div className="row-between"><strong>{l.description}</strong>{!locked&&new D(l.covered).eq(0)&&new D(l.financed).eq(0)&&<button className="btn btn-ghost" disabled={busy} onClick={()=>openPrice(l)}>Editar precio</button>}</div><div className="muted small">{l.quantity} × {new D(l.principal).div(l.quantity).toFixed(2)} · total {new D(l.principal).toFixed(2)} {basisLabel(l)}</div><div className="row-between"><span>Cubierto {new D(l.covered).toFixed(2)} · financiado {new D(l.financed).toFixed(2)}</span><strong>Pendiente {remaining(l).toFixed(2)}</strong></div></div>)}
     <p className="muted small">Los saldos de referencia se pagan en Bs al BCV del día de cada abono. Los pagos anteriores conservan su tasa.</p>
     {summary?.payments.map(p=><div className="row-between" key={p.id}><span>{methods.find(([m])=>m===p.method)?.[1]??p.method}{p.valuation_status==='PENDING'&&<div className="muted small">Valoración en Bs pendiente</div>}</span><strong>{native(p.amount,p.currency)}</strong></div>)}
     {!locked&&<button className="btn btn-primary" disabled={busy||!summary?.components.some(l=>remaining(l).gt(0))} onClick={open}>Agregar pago por concepto</button>}
     {notice&&<div className="success" role="status">{notice}</div>}
-    {error&&!show&&<div className="error" role="alert">{error}</div>}
+    {error&&!show&&!priceLine&&<div className="error" role="alert">{error}</div>}
+    {priceLine&&<div className="overlay"><div ref={sheet} className="sheet stack" role="dialog" aria-modal="true" aria-label="Precio acordado"><div className="row-between"><h2>Precio de {priceLine.description}</h2><button className="btn btn-ghost" disabled={busy} onClick={()=>setPriceLine(null)}>Cerrar</button></div><fieldset disabled={busy} className="stack" style={{border:0,padding:0}}><label>Base del precio<select className="select" value={priceBasis} onChange={e=>setPriceBasis(e.target.value as PriceBasis)}><option value="USD_REF_BCV">Referencia BCV · Bs al día de pago</option><option value="USD_FIXED">USD pactados · divisas</option><option value="VES_FIXED">Bs pactados</option></select></label><label>Precio unitario<input className="input" inputMode="decimal" value={priceUnit} onChange={e=>setPriceUnit(e.target.value)}/></label><p className="muted small">Cantidad: {priceLine.quantity}. El precio se multiplica por esta cantidad y conserva el acuerdo anterior en el historial.</p><label>Razón del acuerdo<input className="input" value={priceReason} onChange={e=>setPriceReason(e.target.value)}/></label></fieldset>{error&&<div className="error" role="alert">{error}</div>}<button className="btn btn-primary" disabled={busy||priceReason.trim().length<5||!priceUnit.trim()} onClick={savePrice}>{busy?'Guardando…':'Guardar precio acordado'}</button></div></div>}
     {show&&<div className="overlay"><div ref={sheet} className="sheet stack" role="dialog" aria-modal="true" aria-label="Pago por concepto">
       <div className="row-between"><h2>Registrar pago</h2><button className="btn btn-ghost" disabled={busy} onClick={()=>setShow(false)}>Cerrar</button></div>
       <fieldset disabled={busy||attempted} style={{border:0,padding:0}} className="stack">

@@ -17,6 +17,8 @@ beforeAll(async () => {
   await db.exec(readFileSync('supabase/migrations/20261002143508_mixed_payment_storage.sql', 'utf8'));
   await db.exec(readFileSync('supabase/migrations/20261002151056_mixed_payment_quotes.sql', 'utf8'));
   await db.exec(readFileSync('supabase/migrations/20261002151902_mixed_payment_commit.sql', 'utf8'));
+  await db.exec(readFileSync('supabase/migrations/20261002155430_mixed_payment_pricing.sql', 'utf8'));
+  await db.exec(readFileSync('supabase/migrations/20261003141121_mixed_payment_closure_payroll.sql', 'utf8'));
   await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now());
     select set_config('request.jwt.claim.sub','${owner}',false);
     insert into employees(code,name) values('CHEO','Cheo');
@@ -264,7 +266,7 @@ it('accepts native USD without inventing a BCV valuation and marks it pending', 
 it('prevents legacy payments and legacy close from bypassing component settlement', async () => {
   const s=await enabled(await seed());
   await rejects(()=>db.query("select add_payment($1,'CASH_USD',10)",[s.order]),/cotización/);
-  await rejects(()=>db.query("update orders set status='CLOSED' where id=$1",[s.order]),/cierre.*v3/i);
+  await rejects(()=>db.query("update orders set status='CLOSED' where id=$1",[s.order]),/cierra por conceptos/i);
 });
 it('does not grant direct payment writes to the browser', async () => {
   expect(await scalar("select has_table_privilege('authenticated','payments','INSERT')")).toBe(false);
@@ -314,4 +316,170 @@ it('prevents authenticated clients from changing the engine version directly', a
   await db.exec('create policy fixture_order_write on orders for all to authenticated using(true) with check(true)');
   await db.exec('set local role authenticated');
   await rejects(()=>db.query('update orders set settlement_version=3 where id=$1',[s.order]),/activación/);
+});
+it('keeps release off and refuses to prepare an already paid historical order', async () => {
+  const s=await seed();
+  await rejects(()=>db.query('select prepare_order_v3($1)',[s.order]),/no está habilitado/);
+  await db.exec("update app_settings set value='true' where key='finance_settlement_v3_ready'");
+  await rejects(()=>db.query('select prepare_order_v3($1)',[s.order]),/revisión individual/);
+  expect(await scalar('select settlement_version from orders where id=$1',[s.order])).toBe(2);
+});
+it('creates strong default agreements for an unpaid mixed order and preserves USD denomination', async () => {
+  const order=await scalar('insert into orders(is_walk_in) values(true) returning id');
+  await db.query("select add_service_priced($1,'WORKSHOP','Mano de obra USD',300,300,null,false,'USD')",[order]);
+  await db.query("select add_service_priced($1,'STORE','Productos BCV',65.5,65.5,null,false,'REF')",[order]);
+  await db.exec("update app_settings set value='true' where key='finance_settlement_v3_ready'");
+  const result=await scalar('select prepare_order_v3($1)',[order]);
+  expect(result.version).toBe(3);
+  expect(result.components.map((l:any)=>[l.basis,Number(l.principal)])).toEqual(expect.arrayContaining([['USD_FIXED',300],['USD_REF_BCV',65.5]]));
+  expect(result.components.find((l:any)=>l.basis==='USD_FIXED').commission).toMatchObject({mode:'CHEO_COLLECTION',percent:'40'});
+});
+it('versions a negotiated price without losing its original agreement or creating cash', async () => {
+  const s=await enabled(await seed('65.5','1','USD_REF_BCV'));
+  const id=await scalar("select set_order_price_v3($1,1,'USD_FIXED','55','SELF','Rebaja pactada en divisas')",[s.item]);
+  expect(await scalar('select state from order_price_agreements where id=$1',[s.agreement])).toBe('SUPERSEDED');
+  expect(Number(await scalar('select principal from order_price_agreements where id=$1',[id]))).toBe(55);
+  expect(await scalar('select supersedes_id from order_price_agreements where id=$1',[id])).toBe(s.agreement);
+  expect(await scalar('select count(*)::integer from payments')).toBe(1);
+  await rejects(()=>db.query("select set_order_price_v3($1,1,'USD_FIXED','50','SELF','Nuevo acuerdo')",[s.item]),/orden cambió/);
+});
+it('refuses changing price after money was applied instead of silently recalculating commission', async () => {
+  const s=await enabled(await seed()); const q=await preview(s,[{id:uuid(),method:'CASH_USD',received:'200',targets:[{component:s.agreement,amount:'200'}]}]); await commit(q.quote_id);
+  const revision=await scalar('select settlement_revision from orders where id=$1',[s.order]);
+  await rejects(()=>db.query("select set_order_price_v3($1,$2,'USD_FIXED','300','SELF','Cambio después del abono')",[s.item,revision]),/reversión económica/);
+  expect(await scalar('select state from order_price_agreements where id=$1',[s.agreement])).toBe('ACTIVE');
+});
+it('adds manual resale oil at USD 7 as own revenue with explicit price basis', async () => {
+  const s=await enabled(await seed());
+  const item=await scalar('select add_product_v3($1,$2)',[s.order,{kind:'MANUAL',description:'Aceite externo comprado y revendido',quantity:'1',unit:'7',basis:'USD_FIXED'}]);
+  const result=await scalar('select get_order_financial_summary_v3($1)',[s.order]);
+  expect(result.components.find((l:any)=>l.item_id===item)).toMatchObject({basis:'USD_FIXED',principal:'7.00000000',ownership:'SELF',commission:null});
+});
+it('creates Cheo service with 40 percent of collection even when the nominal base is higher', async () => {
+  const s=await enabled(await seed());
+  const item=await scalar("select add_service_v3($1,'WORKSHOP','Precio USD acordado','400','300','USD_FIXED',false)",[s.order]);
+  const result=await scalar('select get_order_financial_summary_v3($1)',[s.order]);
+  const line=result.components.find((l:any)=>l.item_id===item);
+  expect(line).toMatchObject({basis:'USD_FIXED',principal:'300.00000000',commission:{mode:'CHEO_COLLECTION',percent:'40'}});
+  await rejects(()=>db.query("select add_service_v3($1,'WORKSHOP','Base protegida inválida','400','300','USD_FIXED',false,'160')",[s.order]),/Cheo recibe 40/);
+});
+
+async function freshOrder() {
+ const order=await scalar('insert into orders(is_walk_in,settlement_version) values(true,3) returning id');
+ return order;
+}
+it('keeps Bs product prices out of a fictitious REF principal',async()=>{
+ const order=await freshOrder();
+ const item=await scalar('select add_product_v3($1,$2)',[order,{kind:'MANUAL',description:'Precio fijo Bs',quantity:'2',unit:'500',basis:'VES_FIXED'}]);
+ expect(Number(await scalar('select charged_ref_amount from order_items where id=$1',[item]))).toBe(10);
+ expect(Number(await scalar('select principal from order_price_agreements where item_id=$1',[item]))).toBe(1000);
+});
+it('keeps USD and Bs labor commissions in their received currencies',async()=>{
+ const order=await freshOrder();
+ const item=await scalar("select add_service_v3($1,'WORKSHOP','Abono mixto','100','100','USD_REF_BCV',false)",[order]);
+ const agreement=await scalar('select id from order_price_agreements where item_id=$1',[item]);
+ for(const [method,amount] of [['CASH_USD','40'],['CASH_VES','6000']]) {
+  const revision=await scalar('select settlement_revision from orders where id=$1',[order]);
+  const q=await scalar('select prepare_collection_v3($1,$2,$3,$4,$5)',[order,uuid(),revision,{tenders:[{id:uuid(),method,received:amount,targets:[{component:agreement,amount}]}]},new Date().toISOString()]);
+  await commit(q.quote_id);
+ }
+ const revision=await scalar('select settlement_revision from orders where id=$1',[order]);
+ await db.query('select close_order_v3($1,$2)',[order,revision]);await db.exec('select lubricenter_private.payroll_sync()');
+ const rows=(await db.query('select currency,amount::text from payroll_work_items where order_id=$1 order by currency',[order])).rows;
+ expect(rows).toEqual([{currency:'USD',amount:'16.00'},{currency:'VES',amount:'2400.00'}]);
+});
+it('closes real USD money with pending Bs valuation instead of inventing a rate',async()=>{
+ const order=await freshOrder();
+ await db.query("select add_service_v3($1,'WORKSHOP','Trabajo sin valoración Bs','40','40','USD_FIXED',false)",[order]);
+ await db.exec("delete from exchange_rates where rate_type='BCV'");
+ const revision=await collectAll(order,'40');const summary=await scalar('select close_order_v3($1,$2)',[order,revision]);
+ expect(Number(summary.total_ref)).toBe(40);expect(summary.total_ves).toBeNull();expect(summary.valuation_status).toBe('PENDING');
+ expect(await scalar('select total_ves from orders where id=$1',[order])).toBeNull();
+ await db.exec('select lubricenter_private.payroll_sync()');
+ expect(Number(await scalar('select amount from payroll_work_items where order_id=$1',[order]))).toBe(16);
+});
+it('compensates a partial labor allocation reversal before payroll without duplicating cash',async()=>{
+ const order=await freshOrder();
+ await db.query("select add_service_v3($1,'WORKSHOP','Trabajo reversible','40','40','USD_FIXED',false)",[order]);
+ const revision=await collectAll(order,'40');await db.query('select close_order_v3($1,$2)',[order,revision]);
+ await db.exec('select lubricenter_private.payroll_sync()');
+ await db.query(`insert into order_payment_applications(order_id,agreement_id,payment_id,quote_id,direction,reverses_id,currency,native_amount,covered_amount,baseline_amount,benefit_amount,exchange_mode,bcv_rate,bcv_rate_id,commission_amount,reason,created_by)
+ select order_id,agreement_id,payment_id,quote_id,'REVERSE',id,currency,20,20,20,0,exchange_mode,bcv_rate,bcv_rate_id,8,'Corrección parcial de aplicación',created_by from order_payment_applications where order_id=$1 and direction='APPLY'`,[order]);
+ await db.exec('select lubricenter_private.payroll_sync()');
+ expect(Number(await scalar('select amount from payroll_work_items where order_id=$1',[order]))).toBe(8);
+ expect(await scalar('select count(*)::integer from account_movements where source_payment_id is not null')).toBe(1);
+ await db.exec('select lubricenter_private.payroll_sync()');expect(await scalar('select count(*)::integer from payroll_work_items where order_id=$1',[order])).toBe(1);
+});
+it('preserves paid payroll and creates one source-bound correction per reversal',async()=>{
+ const order=await freshOrder();
+ await db.query("select add_service_v3($1,'WORKSHOP','Trabajo ya liquidado','40','40','USD_FIXED',false)",[order]);
+ const revision=await collectAll(order,'40');await db.query('select close_order_v3($1,$2)',[order,revision]);
+ await db.exec('select lubricenter_private.payroll_sync()');
+ const worker=await scalar('select employee_id from payroll_work_items where order_id=$1',[order]);
+ const expected=await scalar("select jsonb_build_object('fixed_ref',0,'adjustments','[]'::jsonb,'work',jsonb_agg(jsonb_build_object('id',id,'version',version) order by id)) from payroll_work_items where order_id=$1",[order]);
+ await db.query('select payroll_settle($1,current_date-6,current_date,$2)',[worker,expected]);
+ await db.query(`insert into order_payment_applications(order_id,agreement_id,payment_id,quote_id,direction,reverses_id,currency,native_amount,covered_amount,baseline_amount,benefit_amount,exchange_mode,bcv_rate,bcv_rate_id,commission_amount,reason,created_by)
+ select order_id,agreement_id,payment_id,quote_id,'REVERSE',id,currency,20,20,20,0,exchange_mode,bcv_rate,bcv_rate_id,8,'Reversión posterior a liquidación',created_by from order_payment_applications where order_id=$1 and direction='APPLY'`,[order]);
+ await db.exec('select lubricenter_private.payroll_sync()');
+ expect(Number(await scalar('select amount from payroll_work_items where order_id=$1 and payroll_run_id is not null',[order]))).toBe(16);
+ expect(Number(await scalar('select amount from payroll_work_items where order_id=$1 and payroll_run_id is null',[order]))).toBe(-8);
+ await db.exec('select lubricenter_private.payroll_sync()');
+ expect(await scalar('select count(*)::integer from payroll_work_items where order_id=$1',[order])).toBe(2);
+});
+async function collectAll(order:string,amount:string) {
+ const summary=await scalar('select get_order_financial_summary_v3($1)',[order]);
+ const q=await scalar('select prepare_collection_v3($1,$2,$3,$4,$5)',[order,uuid(),summary.revision,{tenders:[{id:uuid(),method:'CASH_USD',received:amount,targets:summary.components.map((l:any)=>({component:l.id,amount:'EXACT_DUE'}))}]},new Date().toISOString()]);
+ await commit(q.quote_id);
+ return scalar('select settlement_revision from orders where id=$1',[order]);
+}
+it('closes the real USD 355 example without operative inflation and pays only labor to Cheo', async()=>{
+ const order=await freshOrder();
+ await db.query("select add_service_v3($1,'WORKSHOP','Mano de obra','300','300','USD_FIXED',false)",[order]);
+ for(const [description,quantity,unit] of [['Aceite','5','9'],['Filtro','1','3'],['Aceite externo','1','7']])
+  await db.query('select add_product_v3($1,$2)',[order,{kind:'MANUAL',description,quantity,unit,basis:'USD_FIXED'}]);
+ const revision=await collectAll(order,'355');
+ const summary=await scalar('select close_order_v3($1,$2)',[order,revision]);
+ expect(Number(summary.total_ref)).toBe(355);
+ expect(Number(summary.cash_usd)).toBe(355);
+ expect(await scalar('select status from orders where id=$1',[order])).toBe('CLOSED');
+ await db.exec('select lubricenter_private.payroll_sync()');
+ expect(Number(await scalar('select sum(amount) from payroll_work_items where order_id=$1',[order]))).toBe(120);
+ expect(await scalar('select count(*)::integer from payroll_accruals')).toBe(0);
+ await db.exec('select lubricenter_private.payroll_sync()');
+ expect(await scalar('select count(*)::integer from payroll_work_items where order_id=$1',[order])).toBe(1);
+ expect(await scalar('select count(*)::integer from account_movements where source_payment_id is not null')).toBe(1);
+ expect(await scalar('select close_order_v3($1,$2)',[order,revision])).toEqual(summary);
+});
+it('refuses closing an unpaid component and stale revisions with an actionable reason',async()=>{
+ const order=await freshOrder();
+ await db.query("select add_service_v3($1,'WORKSHOP','Trabajo pendiente','40','40','USD_FIXED',false)",[order]);
+ const revision=await scalar('select settlement_revision from orders where id=$1',[order]);
+ await rejects(()=>db.query('select close_order_v3($1,$2)',[order,revision]),/Falta cobrar.*Trabajo pendiente/);
+ await rejects(()=>db.query('select close_order_v3($1,$2)',[order,revision-1]),/orden cambió/);
+ expect(await scalar('select count(*)::integer from order_settlement_closures')).toBe(0);
+});
+it('redacts an owner-created closing snapshot when an operator retries closing',async()=>{
+ const order=await freshOrder();
+ await db.query("select add_service_v3($1,'WORKSHOP','Trabajo privado','40','40','USD_FIXED',false)",[order]);
+ const revision=await collectAll(order,'40');
+ const ownerSnapshot=await scalar('select close_order_v3($1,$2)',[order,revision]);
+ expect(ownerSnapshot.components[0].commission_accrued.USD).toBe('16.00');
+ await db.query("select set_config('request.jwt.claim.sub',$1,true)",[operator]);await db.exec('set local role authenticated');
+ const snapshot=await scalar('select close_order_v3($1,$2)',[order,revision]);
+ expect(snapshot.components[0].commission_accrued).toBeNull();
+ expect(snapshot.components[0].commission_base).toBeNull();
+ expect(snapshot.components[0].commission).toBeNull();
+});
+it('retains owner payroll decisions and logs adjustments for allocated labor',async()=>{
+ const order=await freshOrder();
+ await db.query("select add_service_v3($1,'WORKSHOP','Trabajo USD','40','40','USD_FIXED',false)",[order]);
+ const revision=await collectAll(order,'40');
+ await db.query('select close_order_v3($1,$2)',[order,revision]);
+ await db.exec('select lubricenter_private.payroll_sync()');
+ const work=await scalar('select id from payroll_work_items where order_id=$1',[order]);
+ await db.query("select payroll_review_work($1,1,'PAY',15,'Ajuste acordado con el trabajador')",[work]);
+ expect(Number(await scalar('select amount from payroll_work_items where id=$1',[work]))).toBe(15);
+ expect(await scalar('select count(*)::integer from payroll_work_history where work_item_id=$1',[work])).toBeGreaterThan(0);
+ await db.exec('select lubricenter_private.payroll_sync()');
+ expect(Number(await scalar('select amount from payroll_work_items where id=$1',[work]))).toBe(15);
 });

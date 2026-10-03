@@ -10,7 +10,7 @@ Estado: desarrollo en `codex/mixed-payment-storage`, dependiente del motor del P
 
 ## Implementado
 
-Tres migraciones aditivas generadas con CLI: acuerdos comerciales inmutables/versionados, cotizaciones de cinco minutos, aplicaciones por concepto y reservas de contratos Cashea/LC. FK impiden cruzar órdenes; límites impiden aplicar más dinero o deuda de lo disponible. Reservas tampoco exceden capacidad del contrato externo.
+Cinco migraciones aditivas generadas con CLI: acuerdos comerciales inmutables/versionados, cotizaciones de cinco minutos, aplicaciones por concepto, reservas de contratos Cashea/LC, creación de precios y cierre por conceptos. FK impiden cruzar órdenes; límites impiden aplicar más dinero o deuda de lo disponible. Reservas tampoco exceden capacidad del contrato externo.
 
 `prepare_collection_v3` carga precios, saldos, trabajadores y BCV desde la base de datos. Acepta medios de pago con asignaciones por concepto y condición 1:1, tasa preferencial o acuerdo exacto limitado por ID. Rechaza metadatos económicos aportados por el navegador, exceso digital, referencias bancarias incompletas, conceptos ajenos y revisiones desactualizadas. Selecciona BCV a la fecha del pago; fechas atrasadas necesitan administración. Escribe una cotización, no dinero.
 
@@ -20,14 +20,20 @@ El resumen comparte principal/cobertura/financiación por concepto y cobros nati
 
 La pantalla `ComponentSettlement`, conectada a `OrderWorkspace` únicamente para versión 3, permite seleccionar destinos, abonos, preferencias y revisar el cálculo autoritativo antes de confirmar. Evita repetir una confirmación tras una respuesta incierta. Las órdenes versión 2 conservan su interfaz anterior.
 
-Cambios de productos/acuerdos invalidan cotizaciones. Los importes/trabajadores de conceptos ya acordados requieren cambio de acuerdo. El cliente autenticado no puede cambiar directamente la versión de cálculo. El cierre antiguo está bloqueado para v3: sumar `value_ves` ya no prueba que se cubrió cada concepto.
+Cambios de productos/acuerdos invalidan cotizaciones. Los importes/trabajadores de conceptos ya acordados requieren cambio de acuerdo. El cliente autenticado no puede cambiar directamente la versión de cálculo. El cierre antiguo deriva al cierre por conceptos para v3: sumar `value_ves` ya no prueba que se cubrió cada concepto.
+
+`create_order_finance` conserva versión 2 mientras el interruptor de entrega siga apagado. La preparación de una orden anterior rechaza pagos o contratos existentes. Servicios/productos nuevos usan precio USD pactado, referencia BCV o Bs pactados; los precios anteriores se versionan y no se sustituyen si tienen dinero o financiación aplicada. Cinco litros a USD 9 producen USD 45, sin multiplicarlos por la tasa operativa.
+
+`close_order_v3` exige igualdad exacta de cobertura y financiación por concepto y la revisión vigente. Conserva inventario, validación de atención y eventos CRM existentes, sin repetir caja ni crear nómina nominal antigua. Guarda un resumen inmutable; un reintento del operador vuelve a ocultar la información de nómina aunque el cierre lo haya hecho el dueño. Los totales de orden son proyecciones comerciales brutas; los beneficios negociados y cobros reales siguen separados. Falta de valoración Bs conserva NULL/PENDING, nunca una tasa ficticia.
+
+Nómina v3 incorpora el 40% real de cada aplicación de mano de obra de Cheo, en la moneda recibida. Sincronizar de nuevo no duplica trabajo. Una reversión reduce trabajo aún no liquidado; si hubo ajuste manual, lo deja en revisión. Después de liquidar conserva el recibo y genera una corrección con origen estable. Las decisiones de pago/monto conservan historial. Este puente todavía no cubre los derechos protegidos de otros empleados ni bonos; **no activar hasta completar esos casos**. Sueldo fijo y su pago a BCV del día permanecen en su flujo existente.
 
 ## Integración pendiente: NO activar todavía
 
-1. Creación y edición de acuerdos por línea en todos los formularios; venta rápida y aceite. La activación debe exigir todos los conceptos vinculados y evitar adopción automática de pagos anteriores.
+1. Llevar creación y edición de acuerdos a venta rápida y cambio de aceite completo. La orden estándar ya tiene el puente; todos los formularios deben exigir conceptos vinculados y evitar adopción automática de pagos anteriores.
 2. Vuelto/anticipo/saldo del cliente: actualmente la vista previa distingue sobrante, pero este commit lo rechaza hasta completar su puente y devolución. No duplicar caja.
 3. Cashea parcial y Crédito LC, con sus iniciales/cuotas y aplicaciones posteriores. Las reservas existen, los flujos completos todavía no.
-4. Cierre v3 con inventario/CRM, comisión elegible según aplicaciones, nómina y reversión posterior al pago; reglas de otros empleados y bonos. Sueldos fijos sin cambios.
+4. Completar reglas de otros empleados y bonos, redondeo agregado de correcciones múltiples de nómina, devoluciones reales y rectificación de órdenes cerradas. El cierre v3 y el puente de Cheo ya están implementados. Sueldos fijos sin cambios.
 5. Recibo 58 mm y reportes/Finance Inbox con valoración pendiente; períodos históricos y correcciones individuales con evidencia.
 6. Pruebas PostgreSQL con conexiones realmente concurrentes, recorrido de PC/móvil y despliegue completo aprobado. PGlite verifica transacciones, permisos y estados, **no demuestra concurrencia entre conexiones de producción**.
 
