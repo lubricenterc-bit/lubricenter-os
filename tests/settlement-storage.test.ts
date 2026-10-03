@@ -14,11 +14,13 @@ beforeAll(async () => {
   await db.exec(gunzipSync(readFileSync('tests/fixtures/production-structure.sql.gz')).toString());
   await db.exec(readFileSync('supabase/migrations/20260924145617_usd_pricing_payroll_review.sql', 'utf8'));
   await db.exec(readFileSync('supabase/migrations/20260923145542_finance_core_v22.sql', 'utf8'));
+  await db.exec(readFileSync('supabase/migrations/20261001132405_cash_change_phone_alerts.sql', 'utf8'));
   await db.exec(readFileSync('supabase/migrations/20261002143508_mixed_payment_storage.sql', 'utf8'));
   await db.exec(readFileSync('supabase/migrations/20261002151056_mixed_payment_quotes.sql', 'utf8'));
   await db.exec(readFileSync('supabase/migrations/20261002151902_mixed_payment_commit.sql', 'utf8'));
   await db.exec(readFileSync('supabase/migrations/20261002155430_mixed_payment_pricing.sql', 'utf8'));
   await db.exec(readFileSync('supabase/migrations/20261003141121_mixed_payment_closure_payroll.sql', 'utf8'));
+  await db.exec(readFileSync('supabase/migrations/20261003144620_mixed_payment_change_bridge.sql', 'utf8'));
   await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now());
     select set_config('request.jwt.claim.sub','${owner}',false);
     insert into employees(code,name) values('CHEO','Cheo');
@@ -432,6 +434,77 @@ async function collectAll(order:string,amount:string) {
  await commit(q.quote_id);
  return scalar('select settlement_revision from orders where id=$1',[order]);
 }
+async function cashChangeQuote(method='CASH_USD',received='50'){
+ const order=await freshOrder();
+ const item=await scalar("select add_service_v3($1,'WORKSHOP','Trabajo con vuelto','40','40','USD_FIXED',false)",[order]);
+ const agreement=await scalar('select id from order_price_agreements where item_id=$1',[item]);
+ const revision=await scalar('select settlement_revision from orders where id=$1',[order]);
+ const tender=uuid();
+ const q=await scalar('select prepare_collection_v3($1,$2,$3,$4,$5)',[order,uuid(),revision,{tenders:[{id:tender,method,received,targets:[{component:agreement,amount:'EXACT_DUE'}]}]},new Date().toISOString()]);
+ return {order,tender,q};
+}
+it('keeps immediate USD cash change outside revenue and Cheo commission',async()=>{
+ const s=await cashChangeQuote();
+ await rejects(()=>commit(s.q.quote_id),/Revisa la entrega/);
+ expect(await scalar('select count(*)::integer from payments')).toBe(0);
+ await scalar('select prepare_change_v3($1,$2)',[s.q.quote_id,[{tender:s.tender,return_usd:'10',return_currency:'USD'}]]);
+ const request=uuid();await commit(s.q.quote_id,request);await commit(s.q.quote_id,request);
+ expect(Number(await scalar('select sum(amount_original) from payments'))).toBe(40);
+ expect(Number(await scalar("select sum(case when direction='IN' then amount_original else -amount_original end) from account_movements where currency='USD'"))).toBe(40);
+ expect(Number(await scalar('select sum(commission_amount) from order_payment_applications'))).toBe(16);
+ expect(Number(await scalar('select returned_usd from order_tenders'))).toBe(10);
+ expect(await scalar('select count(*)::integer from order_change_returns')).toBe(1);
+});
+it('requires identity for pending change and routes a later refund idempotently',async()=>{
+ const s=await cashChangeQuote();
+ await rejects(()=>scalar('select prepare_change_v3($1,$2)',[s.q.quote_id,[{tender:s.tender,return_usd:'0',return_currency:'USD'}]]),/Identifica al cliente/);
+ await scalar('select prepare_change_v3($1,$2)',[s.q.quote_id,[{tender:s.tender,return_usd:'0',return_currency:'USD',customer_label:'Cliente identificado'}]]);
+ await commit(s.q.quote_id);
+ expect(Number(await scalar('select change_usd-returned_usd from order_tenders'))).toBe(10);
+ const refund=uuid();
+ await scalar("select return_order_change($1,$2,10,'USD',100,'Entrega al cliente')",[refund,s.tender]);
+ await scalar("select return_order_change($1,$2,10,'USD',100,'Entrega al cliente')",[refund,s.tender]);
+ expect(Number(await scalar('select change_usd-returned_usd from order_tenders'))).toBe(0);
+ expect(await scalar('select count(*)::integer from order_change_returns')).toBe(1);
+});
+it('returns agreed-rate Bs change without valuing outgoing USD at that preferential rate',async()=>{
+ const s=await cashChangeQuote('CASH_VES','5000');
+ const plans=await scalar('select prepare_change_v3($1,$2)',[s.q.quote_id,[{tender:s.tender,rate:'125',return_usd:'8',return_currency:'USD'}]]);
+ expect(Number(plans[0].change_usd)).toBe(8);
+ await commit(s.q.quote_id);
+ expect(Number(await scalar("select sum(amount_original) from account_movements where direction='IN' and currency='VES'"))).toBe(5000);
+ expect(Number(await scalar("select amount_original from account_movements where direction='OUT' and currency='USD'"))).toBe(8);
+ expect(Number(await scalar("select value_ves from account_movements where direction='OUT' and currency='USD'"))).toBe(800);
+});
+it('freezes a reviewed change plan and rejects money above the surplus',async()=>{
+ const s=await cashChangeQuote();
+ await rejects(()=>scalar('select prepare_change_v3($1,$2)',[s.q.quote_id,[{tender:s.tender,return_usd:'11',return_currency:'USD'}]]),/supera el sobrante/);
+ const plan=[{tender:s.tender,return_usd:'10',return_currency:'USD'}];
+ await scalar('select prepare_change_v3($1,$2)',[s.q.quote_id,plan]);
+ await rejects(()=>scalar('select prepare_change_v3($1,$2)',[s.q.quote_id,[{...plan[0],return_usd:'9'}]]),/cotización nueva/);
+});
+it('returns USD change without BCV while keeping native money and valuation pending',async()=>{
+ const order=await freshOrder();
+ const item=await scalar("select add_service_v3($1,'WORKSHOP','USD sin tasa','40','40','USD_FIXED',false)",[order]);
+ const agreement=await scalar('select id from order_price_agreements where item_id=$1',[item]);
+ const revision=await scalar('select settlement_revision from orders where id=$1',[order]);
+ await db.exec("delete from exchange_rates where rate_type='BCV'");
+ const tender=uuid();const q=await scalar('select prepare_collection_v3($1,$2,$3,$4,$5)',[order,uuid(),revision,{tenders:[{id:tender,method:'CASH_USD',received:'50',targets:[{component:agreement,amount:'EXACT_DUE'}]}]},new Date().toISOString()]);
+ await scalar('select prepare_change_v3($1,$2)',[q.quote_id,[{tender,return_usd:'10',return_currency:'USD'}]]);
+ await commit(q.quote_id);
+ expect(Number(await scalar("select sum(case when direction='IN' then amount_original else -amount_original end) from account_movements where currency='USD'"))).toBe(40);
+ expect(await scalar("select value_ves from account_movements where direction='OUT'" )).toBeNull();
+});
+it('returns an exact Bs surplus below one USD cent without losing native money',async()=>{
+ await db.exec("insert into exchange_rates(rate_type,value,effective_at) values('BCV',1000,now()-interval '1 minute')");
+ const s=await cashChangeQuote('CASH_VES','40001');
+ await scalar('select prepare_change_v3($1,$2)',[s.q.quote_id,[{tender:s.tender,return_usd:'0',return_currency:'VES'}]]);
+ await commit(s.q.quote_id);
+ expect(Number(await scalar("select sum(case when direction='IN' then amount_original else -amount_original end) from account_movements where currency='VES'"))).toBe(40000);
+ expect(Number(await scalar('select amount_original from order_change_returns'))).toBe(1);
+ expect(Number(await scalar('select amount_usd from order_change_returns'))).toBe(0);
+ expect(Number(await scalar('select change_usd-returned_usd from order_tenders'))).toBe(0);
+});
 it('closes the real USD 355 example without operative inflation and pays only labor to Cheo', async()=>{
  const order=await freshOrder();
  await db.query("select add_service_v3($1,'WORKSHOP','Mano de obra','300','300','USD_FIXED',false)",[order]);

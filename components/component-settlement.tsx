@@ -8,6 +8,7 @@ import type { PriceBasis } from '@/lib/finance/settlement';
 type Line = { id: string; item_id: string; quantity: string; description: string; basis: PriceBasis; ownership: string; principal: string; covered: string; financed: string };
 type Summary = { revision: number; version: number; components: Line[]; payments: { id: string; currency: string; amount: string; method: string; paid_at: string; valuation_status: string }[] };
 type Preview = { quote_id: string; applications: { component: string; native: string; covered: string; currency: string; bcv: string|null; benefit: string }[]; tenders: { received: string; applied: string; change: string; currency: string }[] };
+type ChangePlan = { native_return?: string|null; change_usd: string; return_usd: string; return_currency: string; rate: string|null };
 const methods = [['CASH_USD','Efectivo USD'],['CASH_VES','Efectivo Bs'],['TRANSFER_BDV','Pago móvil · Venezuela'],['TRANSFER_BNC','Pago móvil · BNC'],['ZELLE','Zelle USD'],['BINANCE','Binance USD']];
 const remaining = (l: Line) => new D(l.principal).sub(l.covered).sub(l.financed);
 const basisLabel = (l: Line) => l.basis === 'USD_FIXED' ? 'USD pactados' : l.basis === 'USD_REF_BCV' ? 'USD de referencia BCV' : 'Bs pactados';
@@ -24,6 +25,12 @@ export function ComponentSettlement({ orderId, revision, locked, onCommitted }: 
   const [amounts,setAmounts]=useState<Record<string,string>>({});
   const [selected,setSelected]=useState<Record<string,boolean>>({});
   const [acceptance,setAcceptance]=useState<Record<string,string>>({});
+  const [changeRate,setChangeRate]=useState('');
+  const [returnUsd,setReturnUsd]=useState('');
+  const [returnCurrency,setReturnCurrency]=useState('USD');
+  const [pendingChange,setPendingChange]=useState(false);
+  const [customerLabel,setCustomerLabel]=useState('');
+  const [changePlans,setChangePlans]=useState<ChangePlan[]>([]);
   const [preview,setPreview]=useState<Preview|null>(null);
   const [busy,setBusy]=useState(false);
   const [attempted,setAttempted]=useState(false);
@@ -60,7 +67,7 @@ export function ComponentSettlement({ orderId, revision, locked, onCommitted }: 
     document.addEventListener('keydown',trap);
     return()=>{document.body.style.overflow=overflow;document.removeEventListener('keydown',trap);previous?.focus();};
   },[show,priceLine?.id]);
-  function changed(){setPreview(null);request.current=null;setError('');}
+  function changed(){setPreview(null);setChangePlans([]);request.current=null;setError('');}
   function openPrice(l:Line){setPriceLine(l);setPriceBasis(l.basis);setPriceUnit(new D(l.principal).div(l.quantity).toString());setPriceReason('Precio pactado con el cliente');setError('');setShow(false);}
   async function savePrice(){
     if(!priceLine||!summary||busy)return;setBusy(true);setError('');
@@ -81,6 +88,7 @@ export function ComponentSettlement({ orderId, revision, locked, onCommitted }: 
       setBcv(row?.bcv_rate==null?'':String(row.bcv_rate));
       setSelected(Object.fromEntries(data.components.map(l=>[l.id,remaining(l).gt(0)])));
       setAmounts({});setAcceptance({});setReceived('');setReference('');setPreview(null);setAttempted(false);request.current=null;setShow(true);
+      setChangeRate('');setReturnUsd('');setReturnCurrency('USD');setPendingChange(false);setCustomerLabel('');setChangePlans([]);
     }catch(e:any){setError(e.message);}finally{setBusy(false);}
   }
   function exactNative(l:Line){
@@ -99,7 +107,18 @@ export function ComponentSettlement({ orderId, revision, locked, onCommitted }: 
     try{
       const targets=summary.components.filter(l=>selected[l.id]).map(l=>({component:l.id,amount:amounts[l.id]||'EXACT_DUE',...(currency==='USD'&&acceptance[l.id]?{exchange:{mode:'RATE',acceptance:acceptance[l.id]}}:{})}));
       const {data,error}=await supabase.rpc('prepare_collection_v3',{p_order:orderId,p_request:request.current.quote,p_revision:summary.revision,p_effective_at:request.current.effective,p_payload:{tenders:[{id:request.current.tender,method,received:received||suggestion,reference:reference.trim()||null,targets}]}});
-      if(error)throw error;setPreview(data);
+      if(error)throw error;
+      const calculated=data as Preview;
+      if(calculated.tenders.some(t=>new D(t.change).gt(0))){
+        const plans=calculated.tenders.filter(t=>new D(t.change).gt(0)).map(t=>{
+          const rate=changeRate||calculated.applications[0]?.bcv||'';
+          const total=t.currency==='USD'?new D(t.change):new D(t.change).div(rate).toDecimalPlaces(2);
+          return {tender:request.current!.tender,rate:changeRate||null,return_usd:pendingChange?'0':returnUsd||total.toFixed(2),return_currency:returnCurrency,customer_label:customerLabel.trim()||null};
+        });
+        const result=await supabase.rpc('prepare_change_v3',{p_quote:calculated.quote_id,p_plans:plans});
+        if(result.error)throw result.error;setChangePlans(result.data);
+      }else setChangePlans([]);
+      setPreview(calculated);
     }catch(e:any){setError(e.message);}finally{setBusy(false);}
   }
   async function confirm(){
@@ -134,10 +153,11 @@ export function ComponentSettlement({ orderId, revision, locked, onCommitted }: 
         <p className="muted small">Elige qué estás cobrando. Para un abono, escribe el dinero que aplicas a cada concepto; vacío cobra su saldo completo.</p>
         {summary?.components.filter(l=>remaining(l).gt(0)).map(l=><div className="card stack" key={l.id}><label><input type="checkbox" checked={!!selected[l.id]} onChange={e=>{setSelected({...selected,[l.id]:e.target.checked});changed();}}/> {l.description} · {remaining(l).toFixed(2)} {basisLabel(l)}</label>{selected[l.id]&&<><label>Aplicar {currency==='USD'?'USD':'Bs'}<input className="input" inputMode="decimal" placeholder="Todo el saldo" value={amounts[l.id]??''} onChange={e=>{setAmounts({...amounts,[l.id]:e.target.value});changed();}}/></label>{currency==='USD'&&l.basis==='USD_REF_BCV'&&<details><summary>Negociar aceptación de divisas</summary><label>Tasa acordada en Bs por USD<input className="input" inputMode="decimal" placeholder="Sin preferencia: USD 1 cancela REF 1" value={acceptance[l.id]??''} onChange={e=>{setAcceptance({...acceptance,[l.id]:e.target.value});changed();}}/></label><p className="muted small">Solo cambia la deuda cancelada por este concepto; el dinero recibido conserva su monto.</p></details>}</>}</div>)}
         <label>Dinero recibido ({currency==='USD'?'USD':'Bs'})<input className="input" inputMode="decimal" value={received} placeholder={suggestion} onChange={e=>{setReceived(e.target.value);changed();}}/></label>
+        {method.startsWith('CASH')&&<details><summary>Vuelto si entregan más dinero</summary><div className="stack"><label>Moneda que entregas<select className="select" value={returnCurrency} onChange={e=>{setReturnCurrency(e.target.value);changed();}}><option value="USD">USD</option><option value="VES">Bs</option></select></label><label>Tasa acordada para convertir el vuelto<input className="input" inputMode="decimal" value={changeRate} placeholder="Vacío usa BCV del pago" onChange={e=>{setChangeRate(e.target.value);changed();}}/></label><label><input type="checkbox" checked={pendingChange} onChange={e=>{setPendingChange(e.target.checked);changed();}}/> Dejar el vuelto pendiente de entregar</label>{!pendingChange&&<label>USD de vuelto que entregas<input className="input" inputMode="decimal" value={returnUsd} placeholder="Vacío devuelve todo el sobrante" onChange={e=>{setReturnUsd(e.target.value);changed();}}/></label>}<label>Nombre del cliente si queda vuelto pendiente<input className="input" value={customerLabel} onChange={e=>{setCustomerLabel(e.target.value);changed();}} placeholder="Si la orden ya tiene cliente, no es necesario"/></label></div></details>}
       </fieldset>
-      {preview&&<div className="card stack"><strong>Revisa antes de confirmar</strong>{preview.tenders.map((t,i)=><div key={i}>Recibido {native(t.received,t.currency)} · aplicado {native(t.applied,t.currency)}{new D(t.change).gt(0)&&<> · sobrante {native(t.change,t.currency)}</>}</div>)}{preview.applications.map((a,i)=><div key={i}>{summary?.components.find(l=>l.id===a.component)?.description}: {native(a.native,a.currency)} cancela {new D(a.covered).toFixed(2)} {basisLabel(summary!.components.find(l=>l.id===a.component)!)}{a.bcv&&<div className="muted small">BCV del pago: {a.bcv}</div>}</div>)}{hasChange&&<div className="error">La integración de vuelto aún está pendiente. Este cobro no puede confirmarse con sobrante.</div>}</div>}
+      {preview&&<div className="card stack"><strong>Revisa antes de confirmar</strong>{preview.tenders.map((t,i)=><div key={i}>Recibido {native(t.received,t.currency)} · aplicado {native(t.applied,t.currency)}{new D(t.change).gt(0)&&<> · sobrante {native(t.change,t.currency)}</>}</div>)}{preview.applications.map((a,i)=><div key={i}>{summary?.components.find(l=>l.id===a.component)?.description}: {native(a.native,a.currency)} cancela {new D(a.covered).toFixed(2)} {basisLabel(summary!.components.find(l=>l.id===a.component)!)}{a.bcv&&<div className="muted small">BCV del pago: {a.bcv}</div>}</div>)}{changePlans.map((p,i)=><div key={i}><strong>Vuelto: {native(p.change_usd,"USD")}</strong><div>Entregas {p.native_return?native(p.native_return,"VES"):p.return_currency==="USD"?native(p.return_usd,"USD"):native(new D(p.return_usd).mul(p.rate||0).toFixed(2),"VES")} · pendiente {native(new D(p.change_usd).sub(p.return_usd).toFixed(2),"USD")}</div>{p.rate&&<div className="muted small">Tasa acordada del vuelto: {p.rate} Bs/USD</div>}</div>)}</div>}
       {error&&<div className="error" role="alert">{error}</div>}
-      {preview?<><button className="btn btn-primary" disabled={busy||hasChange} onClick={confirm}>{busy?'Confirmando…':attempted?'Reintentar la misma confirmación':'Confirmar cobro'}</button>{!attempted&&<button className="btn" disabled={busy} onClick={changed}>Editar el cobro</button>}</>:<button className="btn btn-primary" disabled={busy||!Object.values(selected).some(Boolean)} onClick={prepare}>{busy?'Calculando…':'Revisar cobro'}</button>}
+      {preview?<><button className="btn btn-primary" disabled={busy||(hasChange&&!changePlans.length)} onClick={confirm}>{busy?'Confirmando…':attempted?'Reintentar la misma confirmación':'Confirmar cobro'}</button>{!attempted&&<button className="btn" disabled={busy} onClick={changed}>Editar el cobro</button>}</>:<button className="btn btn-primary" disabled={busy||!Object.values(selected).some(Boolean)} onClick={prepare}>{busy?'Calculando…':'Revisar cobro'}</button>}
     </div></div>}
   </section>;
 }

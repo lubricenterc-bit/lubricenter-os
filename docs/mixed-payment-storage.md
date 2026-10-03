@@ -10,7 +10,7 @@ Estado: desarrollo en `codex/mixed-payment-storage`, dependiente del motor del P
 
 ## Implementado
 
-Cinco migraciones aditivas generadas con CLI: acuerdos comerciales inmutables/versionados, cotizaciones de cinco minutos, aplicaciones por concepto, reservas de contratos Cashea/LC, creación de precios y cierre por conceptos. FK impiden cruzar órdenes; límites impiden aplicar más dinero o deuda de lo disponible. Reservas tampoco exceden capacidad del contrato externo.
+Seis migraciones aditivas generadas con CLI: acuerdos comerciales inmutables/versionados, cotizaciones de cinco minutos, aplicaciones por concepto, reservas de contratos Cashea/LC, creación de precios, cierre por conceptos y vuelto. FK impiden cruzar órdenes; límites impiden aplicar más dinero o deuda de lo disponible. Reservas tampoco exceden capacidad del contrato externo.
 
 `prepare_collection_v3` carga precios, saldos, trabajadores y BCV desde la base de datos. Acepta medios de pago con asignaciones por concepto y condición 1:1, tasa preferencial o acuerdo exacto limitado por ID. Rechaza metadatos económicos aportados por el navegador, exceso digital, referencias bancarias incompletas, conceptos ajenos y revisiones desactualizadas. Selecciona BCV a la fecha del pago; fechas atrasadas necesitan administración. Escribe una cotización, no dinero.
 
@@ -28,10 +28,14 @@ Cambios de productos/acuerdos invalidan cotizaciones. Los importes/trabajadores 
 
 Nómina v3 incorpora el 40% real de cada aplicación de mano de obra de Cheo, en la moneda recibida. Sincronizar de nuevo no duplica trabajo. Una reversión reduce trabajo aún no liquidado; si hubo ajuste manual, lo deja en revisión. Después de liquidar conserva el recibo y genera una corrección con origen estable. Las decisiones de pago/monto conservan historial. Este puente todavía no cubre los derechos protegidos de otros empleados ni bonos; **no activar hasta completar esos casos**. Sueldo fijo y su pago a BCV del día permanecen en su flujo existente.
 
+`prepare_change_v3` congela la entrega elegida después de cotizar: devolver USD/Bs con tasa acordada, devolver una parte o conservar vuelto identificado. `commit_collection_v3` exige ese plan para un sobrante y lo guarda junto con cobro/aplicaciones en la misma transacción. Reutiliza `order_tenders`, `order_change_returns` y sus movimientos. USD50 para una ventaUSD40 registra entrada50, devolución10, venta40 y comisión16. El sobrante no se convierte en ingreso ni comisión.
+
+La tasa acordada convierte la obligación de vuelto; el movimiento de USD se valora contablemente al BCV, separado de esa preferencia. Los USD recibidos/devueltos sin BCV conservan valoración pendiente y monto nativo correcto. Una entrega posterior conserva el mismo identificador ante reintentos. La UI solo muestra configuración de vuelto para efectivo y enseña lo entregado y pendiente antes de confirmar. El redondeo de Bs a USD queda en `rounding_ves`. Un sobrante de Bs inferior a un centavo USD se devuelve exactamente en Bs con su propio movimiento, sin perder dinero ni inventar obligación en USD.
+
 ## Integración pendiente: NO activar todavía
 
 1. Llevar creación y edición de acuerdos a venta rápida y cambio de aceite completo. La orden estándar ya tiene el puente; todos los formularios deben exigir conceptos vinculados y evitar adopción automática de pagos anteriores.
-2. Vuelto/anticipo/saldo del cliente: actualmente la vista previa distingue sobrante, pero este commit lo rechaza hasta completar su puente y devolución. No duplicar caja.
+2. Anticipo/saldo del cliente y conversión explícita de vuelto pendiente a saldo a favor. Vuelto estándar ya tiene puente, entrega inmediata/posterior y reintentos sin duplicar caja. Completar fechas retroactivas de devoluciones inmediatas.
 3. Cashea parcial y Crédito LC, con sus iniciales/cuotas y aplicaciones posteriores. Las reservas existen, los flujos completos todavía no.
 4. Completar reglas de otros empleados y bonos, redondeo agregado de correcciones múltiples de nómina, devoluciones reales y rectificación de órdenes cerradas. El cierre v3 y el puente de Cheo ya están implementados. Sueldos fijos sin cambios.
 5. Recibo 58 mm y reportes/Finance Inbox con valoración pendiente; períodos históricos y correcciones individuales con evidencia.
