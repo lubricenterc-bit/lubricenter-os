@@ -1,4 +1,4 @@
-export const CAMPAIGN_END = '2026-10-18';
+export const CAMPAIGN_END = '2026-10-10';
 export type Customer = {id:string; name:string; phone:string|null};
 export type Vehicle = {id:string; customer_id:string|null; make:string|null; model:string|null; year:number|null; plate:string|null};
 export type Service = {vehicle_id:string|null; performed_at:string; service_type:string; description:string|null; service_notes:string|null; oil_brand:string|null; oil_viscosity:string|null; next_service_date:string|null};
@@ -18,10 +18,7 @@ const clean=(s:string)=>s.replace(/[*_~`\r\n]/g,' ').replace(/\s+/g,' ').trim();
 
 export function campaignMessage(contact:Pick<Contact,'name'|'vehicle'|'kind'>) {
   const name=clean(contact.name), vehicle=clean(contact.vehicle);
-  const intro=contact.kind==='reenganche'
-    ? `Hace un tiempo atendimos tu *${vehicle}* y queremos invitarte a volver con un beneficio especial 🚗✨`
-    : `Según la revisión que dejamos programada para tu *${vehicle}*, podría corresponderle su próximo cambio de aceite 🚗✨`;
-  return `¡Hola, ${name}! 👋😊 Somos *Lubricenter*.\n\n${intro}\n\nSi ya le toca el *cambio de aceite*, al hacerlo con aceite comprado en nuestro local puedes aprovechar una *limpieza de inyectores GRATIS* 🔧🎁\n\nEn vehículos que requieren un trabajo más complejo, ofrecemos un *70% o 50% de descuento* en la limpieza. Te confirmamos cuál aplica al tuyo antes de coordinar; repuestos y consumibles adicionales se cotizan aparte.\n\n🗓️ *Disponible hasta el domingo 18 de octubre*. Una promoción por vehículo, no acumulable con otras promociones.\n\n*¿Ya hiciste el cambio o todavía lo tienes pendiente?* Escríbenos y te ayudamos a revisar las opciones de aceite y cómo aplica la promoción para tu carro 💬\n\n— *Lubricenter*`;
+  return `¡Hola, ${name}! 👋😊 Somos *Lubricenter*.\n\nTenemos un beneficio especial para tu *${vehicle}* 🚗✨\n\nHaz tu *cambio de aceite* con aceite comprado en nuestro local y aprovecha una *limpieza de inyectores GRATIS* 🔧🎁\n\n🗓️ *Solo hasta este sábado 10 de octubre*. Aplican condiciones según el vehículo.\n\n*¿Tienes el cambio pendiente?* Respóndenos y coordinamos tu visita 💬\n\n— *Lubricenter*`;
 }
 
 export function selectContacts(customers:Customer[],vehicles:Vehicle[],services:Service[],visits:Visit[],asOf:string):Contact[] {
