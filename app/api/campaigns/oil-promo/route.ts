@@ -27,17 +27,19 @@ async function readAll<T>(client:SupabaseClient,table:string,columns:string,clos
   }
   throw new Error('El historial supera el límite de esta consulta');
 }
-async function authorizedClient(request:Request){
+async function authorizedClient(request:Request):Promise<
+  {error:Response;client:null;userId:null}|{error:null;client:SupabaseClient;userId:string}
+>{
   const token=request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
-  if(!token)return {error:reply({error:'Inicia sesión para ver campañas.'},401)};
+  if(!token)return {error:reply({error:'Inicia sesión para ver campañas.'},401),client:null,userId:null};
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if(!url||!key)return {error:reply({error:'La conexión no está disponible.'},503)};
+  if(!url||!key)return {error:reply({error:'La conexión no está disponible.'},503),client:null,userId:null};
   const client=createClient(url,key,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false,autoRefreshToken:false}});
   const auth=await client.auth.getUser(token);
-  if(auth.error||!auth.data.user)return {error:reply({error:'Tu sesión venció. Inicia sesión nuevamente.'},401)};
+  if(auth.error||!auth.data.user)return {error:reply({error:'Tu sesión venció. Inicia sesión nuevamente.'},401),client:null,userId:null};
   const role=await client.rpc('finance_role');
-  if(role.error||!['OWNER','ADMIN'].includes(role.data))return {error:reply({error:'Campañas requiere una cuenta de dueño o administrador.'},403)};
-  return {client,userId:auth.data.user.id};
+  if(role.error||!['OWNER','ADMIN'].includes(role.data))return {error:reply({error:'Campañas requiere una cuenta de dueño o administrador.'},403),client:null,userId:null};
+  return {error:null,client,userId:auth.data.user.id};
 }
 async function campaign(client:SupabaseClient){
   const {data,error}=await client.from('crm_campaigns').select('*').eq('slug',CAMPAIGN_SLUG).single();
