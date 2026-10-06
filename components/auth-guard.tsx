@@ -17,11 +17,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
-      if (!data.session) router.replace("/login");
+      if (!data.session) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
       else setReady(true);
     });
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session && pathname !== "/login") router.replace("/login");
+      if (!session && pathname !== "/login") router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     });
     return () => {
       mounted = false;
