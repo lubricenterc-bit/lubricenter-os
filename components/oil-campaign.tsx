@@ -44,9 +44,9 @@ export function OilCampaign(){
     <header className="campaign-card">
       <p className="campaign-eyebrow">CAMPAÑA PRIVADA · MENSAJES MANUALES</p>
       <h1>Cambio de aceite + limpieza de inyectores</h1>
-      <p><strong>Disponible hasta el domingo 18 de octubre de 2026.</strong></p>
+      <p><strong>Solo hasta este sábado 10 de octubre de 2026.</strong></p>
       <p>Abre el mensaje de cada cliente y pulsa <strong>Enviar</strong> en WhatsApp. Las negritas y emojis ya están preparados.</p>
-      <p className="muted">La limpieza gratis, 70% o 50% se confirma según el motor y la complejidad. Esta lista no modifica el CRM ni envía mensajes automáticamente.</p>
+      <p className="muted">Aplican condiciones según el vehículo. Esta lista no modifica el CRM ni envía mensajes automáticamente.</p>
       {asOf&&<p className="muted">Consulta actualizada: {asOf.split('-').reverse().join('/')} · {contacts.length} contactos distintos · {contacts.filter(c=>c.first).length} prioritarios</p>}
       {expired&&<p className="error" role="alert">La promoción terminó. Los enlaces están desactivados para no enviar una fecha vencida.</p>}
     </header>
