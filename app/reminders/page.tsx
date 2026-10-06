@@ -181,7 +181,7 @@ export default function CrmPage() {
 
   return <main className="container stack">
     <section className="brand-hero">
-      <div><div className="eyebrow">CRM · EXPERIENCIA DEL CLIENTE</div><h1>Seguimiento</h1><p>El mensaje post-servicio es editable. El mantenimiento queda separado para contactar al cliente cuando corresponda.</p></div>
+      <div><div className="eyebrow">CRM · EXPERIENCIA DEL CLIENTE</div><h1>Seguimiento</h1><p>El mensaje post-servicio es editable. El mantenimiento queda separado para contactar al cliente cuando corresponda.</p><div className="row" style={{marginTop:12}}><Link href="/campaigns" className="btn btn-primary">Campañas</Link></div></div>
       <img src="/lubricenter-logo.png" alt="Lubricenter" />
     </section>
 
@@ -256,4 +256,3 @@ export default function CrmPage() {
     </section>}
   </main>;
 }
-
