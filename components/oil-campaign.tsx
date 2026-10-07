@@ -81,16 +81,17 @@ export function OilCampaign(){
       setBusyId('');
     }
   }
-  const sentCount=contacts.filter(c=>c.status!=='PENDING').length;
+  const sentCount=contacts.filter(c=>!!c.sentAt).length;
   const convertedCount=contacts.filter(c=>c.status==='CONVERTED').length;
+  const conversionRate=sentCount?Math.round(convertedCount/sentCount*100):0;
   return <main className="container campaign">
     <header className="campaign-card">
       <p className="campaign-eyebrow">CRM · CAMPAÑA ACTIVA</p>
       <h1>Aceite + filtro + limpieza de inyectores gratis</h1>
       <p><strong>Piloto Cabudare · vigente hasta este sábado 10 de octubre de 2026.</strong></p>
-      <p>Abre el mensaje de cada cliente y envíalo manualmente por WhatsApp. Después registra el resultado para que quede sincronizado entre teléfono y computadora.</p><p className="muted"><strong>Regla comercial:</strong> debe comprar aceite + filtro con nosotros. Internamente se cobran $5 por el servicio de cambio. No aplica Cashea. Lubricenter cubre los insumos normales; fallas o repuestos de inyectores van por cuenta del cliente. Vehículos complicados se cotizan aparte y mantienen la regla especial del 70% de descuento.</p>
-      <p className="muted">Aplican condiciones según el vehículo. El envío sigue siendo manual; Lubricenter OS solo prepara el mensaje y registra el seguimiento.</p>
-      {asOf&&<p className="muted">Consulta actualizada: {asOf.split('-').reverse().join('/')} · {contacts.length} contactos · {sentCount} gestionados · {convertedCount} compras registradas</p>}
+      <p>Tu trabajo aquí es solo <strong>enviar el mensaje</strong>. Lubricenter OS registra el envío y detecta automáticamente si ese mismo vehículo vuelve al negocio durante la campaña.</p><p className="muted"><strong>Regla comercial:</strong> debe comprar aceite + filtro con nosotros. Internamente se cobran $5 por el servicio de cambio. No aplica Cashea. Lubricenter cubre los insumos normales; fallas o repuestos de inyectores van por cuenta del cliente. Vehículos complicados se cotizan aparte y mantienen la regla especial del 70% de descuento.</p>
+      <p className="muted">No necesitas marcar Respondió, Agendó o Visitó. Una orden cerrada de ese vehículo en Cabudare entra al registro operativo y se marca como éxito automáticamente.</p>
+      {asOf&&<p className="muted">Consulta actualizada: {asOf.split('-').reverse().join('/')} · {contacts.length} contactos · {sentCount} enviados · {convertedCount} éxitos · {conversionRate}% conversión</p>}
       {expired&&<p className="error" role="alert">La promoción terminó. Los enlaces están desactivados para no enviar una fecha vencida.</p>}
     </header>
     {loading?<div className="campaign-card" role="status">Revisando clientes e historial…</div>:error?<div className="campaign-card"><p className="error" role="alert">{error}</p><button className="btn" onClick={()=>setRetry(x=>x+1)}>Intentar nuevamente</button></div>:<>
@@ -102,18 +103,20 @@ export function OilCampaign(){
       </section>
       {notice&&<p className="success" role="status">{notice}</p>}
       {visible.length===0&&<div className="campaign-card">No hay contactos para este filtro.</div>}
-      {visible.map(c=><article key={c.id} className={`campaign-card ${c.status!=='PENDING'?'campaign-done':''}`}>
-        <div className="campaign-top"><div><p className="campaign-eyebrow">{c.first?'PRIMERA TANDA · ':''}{c.kind==='reenganche'?'REENGANCHE':'MANTENIMIENTO'}</p><h2>{c.name}</h2><p>{c.vehicle} · {c.plate||'Sin placa registrada'}<br/>+{c.phone}</p><span className={`pill ${c.status==='CONVERTED'?'ok':c.status==='PENDING'?'warn':''}`}>{labels[c.status]}</span></div>
-          {!expired&&<a className="campaign-send" href={c.url} target="_blank" rel="noopener noreferrer">Abrir mensaje en WhatsApp ↗</a>}
+      {visible.map(c=>{
+        const converted=c.status==='CONVERTED';
+        const sent=!!c.sentAt;
+        const stateLabel=converted?'Éxito · volvió':sent?'Enviado · esperando regreso':'Pendiente de envío';
+        return <article key={c.id} className={`campaign-card ${sent?'campaign-done':''}`}>
+        <div className="campaign-top"><div><p className="campaign-eyebrow">{c.first?'PRIMERA TANDA · ':''}{c.kind==='reenganche'?'REENGANCHE':'MANTENIMIENTO'}</p><h2>{c.name}</h2><p>{c.vehicle} · {c.plate||'Sin placa registrada'}<br/>+{c.phone}</p><span className={`pill ${converted?'ok':'warn'}`}>{stateLabel}</span></div>
+          {!expired&&<a className="campaign-send" href={c.url} target="_blank" rel="noopener noreferrer" onClick={()=>{if(!sent)void setStatus(c,'SENT');}}>Abrir mensaje en WhatsApp ↗</a>}
         </div>
         <p className="muted">{c.reason}</p>
         <details><summary>Ver mensaje personalizado</summary><RichMessage text={c.message}/></details>
-        <label><span className="label">Resultado del contacto</span><select className="input" value={c.status} disabled={busyId===c.id} onChange={e=>setStatus(c,e.target.value as CampaignStatus)}>
-          <option value="PENDING">Pendiente</option><option value="SENT">Enviado</option><option value="RESPONDED">Respondió</option><option value="SCHEDULED">Agendó</option><option value="VISITED">Visitó</option><option value="CONVERTED">Compró</option><option value="NOT_INTERESTED">No interesado</option>
-        </select></label>
-        {busyId===c.id&&<p className="muted small">Guardando en la nube…</p>}
-      </article>)}
-      <p className="muted">Los estados se guardan ahora en Lubricenter OS y se sincronizan entre dispositivos. “Sin visita registrada” no confirma que el cliente no haya realizado mantenimiento en otro lugar.</p>
+        {busyId===c.id&&<p className="muted small">Registrando envío…</p>}
+        {converted&&c.convertedAt&&<p className="success">Regreso detectado automáticamente · {new Date(c.convertedAt).toLocaleString('es-VE')}</p>}
+      </article>})}
+      <p className="muted">La conversión se basa en el registro operativo de Cabudare. Los historiales importados o registros en papel no cuentan como retorno de esta campaña.</p>
     </>}
   </main>;
 }
