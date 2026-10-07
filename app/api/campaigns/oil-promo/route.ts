@@ -93,16 +93,41 @@ export async function PATCH(request:Request){
     const body=await request.json().catch(()=>null) as {contactId?:string;status?:string;scheduledFor?:string|null;note?:string|null;convertedOrderId?:string|null}|null;
     if(!body?.contactId||!body.status||!allowedStatuses.includes(body.status as CampaignStatus))return reply({error:'Estado de campaña inválido.'},400);
     const current=await campaign(client);
+    const {data:existing,error:existingError}=await client
+      .from('crm_campaign_contacts')
+      .select('id,status,sent_at,responded_at,scheduled_for,visited_at,converted_at,converted_order_id,outcome_note')
+      .eq('id',body.contactId)
+      .eq('campaign_id',current.id)
+      .maybeSingle();
+    if(existingError)throw existingError;
+    if(!existing)return reply({error:'El contacto ya no pertenece a esta campaña. Recarga la lista.'},404);
+
     const now=new Date().toISOString();
     const status=body.status as CampaignStatus;
-    const patch:Record<string,unknown>={status,outcome_note:body.note?.trim()||null,last_action_by:userId,updated_at:now};
-    if(status==='SENT')patch.sent_at=now;
-    if(status==='RESPONDED')patch.responded_at=now;
-    if(status==='SCHEDULED'){patch.responded_at=now;patch.scheduled_for=body.scheduledFor||null;}
-    if(status==='VISITED')patch.visited_at=now;
-    if(status==='CONVERTED'){patch.visited_at=now;patch.converted_at=now;patch.converted_order_id=body.convertedOrderId||null;}
-    const {data,error}=await client.from('crm_campaign_contacts').update(patch).eq('id',body.contactId).eq('campaign_id',current.id).select('*').single();
+    const patch:Record<string,unknown>={status,last_action_by:userId,updated_at:now};
+    if(body.note!==undefined)patch.outcome_note=body.note?.trim()||null;
+    if(status==='SENT'&&!existing.sent_at)patch.sent_at=now;
+    if(status==='RESPONDED'&&!existing.responded_at)patch.responded_at=now;
+    if(status==='SCHEDULED'){
+      if(!existing.responded_at)patch.responded_at=now;
+      if(body.scheduledFor!==undefined)patch.scheduled_for=body.scheduledFor||null;
+    }
+    if(status==='VISITED'&&!existing.visited_at)patch.visited_at=now;
+    if(status==='CONVERTED'){
+      if(!existing.visited_at)patch.visited_at=now;
+      if(!existing.converted_at)patch.converted_at=now;
+      if(body.convertedOrderId!==undefined)patch.converted_order_id=body.convertedOrderId||null;
+    }
+
+    const {data,error}=await client
+      .from('crm_campaign_contacts')
+      .update(patch)
+      .eq('id',body.contactId)
+      .eq('campaign_id',current.id)
+      .select('id,status,sent_at,responded_at,scheduled_for,visited_at,converted_at,converted_order_id,outcome_note')
+      .maybeSingle();
     if(error)throw error;
+    if(!data)return reply({error:'No se pudo confirmar el cambio. Recarga e intenta de nuevo.'},409);
     return reply({ok:true,contact:data});
   }catch(error){
     console.error('campaign PATCH failed',error);
