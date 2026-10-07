@@ -100,15 +100,61 @@ describe('acceso privado y estado cloud de campañas',()=>{
   it('guarda un resultado comercial solo dentro de la campaña autorizada',async()=>{
     authMock.rpc.mockResolvedValue({data:'OWNER',error:null});
     let updated:Record<string,unknown>|null=null;
+    let contactReads=0;
     authMock.from.mockImplementation((table:string)=>{
       if(table==='crm_campaigns'){const q:any={select:()=>q,eq:()=>q,single:()=>Promise.resolve({data:campaign,error:null})};return q;}
       if(table==='crm_campaign_contacts'){
-        const q:any={update:(patch:Record<string,unknown>)=>{updated=patch;return q;},eq:()=>q,select:()=>q,single:()=>Promise.resolve({data:{...storedContact,status:'RESPONDED'},error:null})};return q;
+        const q:any={
+          select:()=>q,eq:()=>q,
+          maybeSingle:()=>{contactReads++;return Promise.resolve({data:contactReads===1?storedContact:{...storedContact,status:'RESPONDED',responded_at:'2026-10-07T14:00:00.000Z'},error:null});},
+          update:(patch:Record<string,unknown>)=>{updated=patch;return q;}
+        };
+        return q;
       }
       return thenable([]);
     });
     const response=await PATCH(new Request('https://test.invalid/api/campaigns/oil-promo',{method:'PATCH',headers:{Authorization:'Bearer test','Content-Type':'application/json'},body:JSON.stringify({contactId:storedContact.id,status:'RESPONDED'})}));
     expect(response.status).toBe(200);expect(updated?.status).toBe('RESPONDED');expect(updated?.responded_at).toBeTruthy();
+  });
+  it('cambia PENDING a SENT, persiste sent_at y responde de forma estable',async()=>{
+    authMock.rpc.mockResolvedValue({data:'OWNER',error:null});
+    let updated:Record<string,unknown>|null=null;
+    let contactReads=0;
+    authMock.from.mockImplementation((table:string)=>{
+      if(table==='crm_campaigns'){const q:any={select:()=>q,eq:()=>q,single:()=>Promise.resolve({data:campaign,error:null})};return q;}
+      if(table==='crm_campaign_contacts'){
+        const q:any={
+          select:()=>q,eq:()=>q,
+          maybeSingle:()=>{contactReads++;return Promise.resolve({data:contactReads===1?storedContact:{...storedContact,status:'SENT',sent_at:'2026-10-07T14:00:00.000Z'},error:null});},
+          update:(patch:Record<string,unknown>)=>{updated=patch;return q;}
+        };
+        return q;
+      }
+      return thenable([]);
+    });
+    const response=await PATCH(new Request('https://test.invalid/api/campaigns/oil-promo',{method:'PATCH',headers:{Authorization:'Bearer test','Content-Type':'application/json'},body:JSON.stringify({contactId:storedContact.id,status:'SENT'})}));
+    expect(response.status).toBe(200);
+    const body=await response.json();
+    expect(body.ok).toBe(true);expect(body.contact.status).toBe('SENT');expect(body.contact.sent_at).toBeTruthy();
+    expect(updated?.status).toBe('SENT');expect(updated?.sent_at).toBeTruthy();
+  });
+  it('si no puede confirmar el update devuelve conflicto en vez de una respuesta corrupta',async()=>{
+    authMock.rpc.mockResolvedValue({data:'OWNER',error:null});
+    let contactReads=0;
+    authMock.from.mockImplementation((table:string)=>{
+      if(table==='crm_campaigns'){const q:any={select:()=>q,eq:()=>q,single:()=>Promise.resolve({data:campaign,error:null})};return q;}
+      if(table==='crm_campaign_contacts'){
+        const q:any={
+          select:()=>q,eq:()=>q,
+          maybeSingle:()=>{contactReads++;return Promise.resolve({data:contactReads===1?storedContact:null,error:null});},
+          update:()=>q
+        };
+        return q;
+      }
+      return thenable([]);
+    });
+    const response=await PATCH(new Request('https://test.invalid/api/campaigns/oil-promo',{method:'PATCH',headers:{Authorization:'Bearer test','Content-Type':'application/json'},body:JSON.stringify({contactId:storedContact.id,status:'SENT'})}));
+    expect(response.status).toBe(409);expect((await response.json()).error).toContain('confirmar');
   });
   it('permite administradores con RLS y falla sin devolver una lista incompleta',async()=>{
     authMock.rpc.mockResolvedValue({data:'ADMIN',error:null});
