@@ -363,8 +363,8 @@ begin
   if v_outstanding<=0 then raise exception 'Esta liquidación ya está pagada'; end if;
 
   insert into public.payroll_payments(
-    payroll_run_id,paid_on,currency,amount_original,usd_equivalent,note,payment_mode
-  ) values(r.id,p_paid_on,'MANUAL',v_outstanding,v_outstanding,trim(p_note),'HISTORICAL_MANUAL')
+    payroll_run_id,paid_on,currency,amount_original,usd_equivalent,note,payment_mode,component
+  ) values(r.id,p_paid_on,'MANUAL',v_outstanding,v_outstanding,trim(p_note),'HISTORICAL_MANUAL','MANUAL')
   returning id into v_id;
 
   insert into public.audit_events(event_type,entity_type,entity_id,data)
