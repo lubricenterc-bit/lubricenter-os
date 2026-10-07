@@ -111,6 +111,9 @@ begin
   if p_period_start is null or p_period_end is null or p_period_end<p_period_start or p_period_end-p_period_start<>6 then
     raise exception 'Selecciona una semana de 7 días';
   end if;
+  if p_period_end>timezone('America/Caracas',now())::date then
+    raise exception 'No puedes liquidar una semana que todavía no ha terminado';
+  end if;
   perform 1 from public.employees where id=p_employee_id and active for update;
   if not found then raise exception 'Empleado no disponible'; end if;
   if exists(
