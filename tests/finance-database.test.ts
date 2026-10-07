@@ -48,6 +48,8 @@ beforeAll(async()=>{
  await db.exec(readFileSync('supabase/migrations/20261001132405_cash_change_phone_alerts.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20261001154229_exact_bcv_digital_checkout.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20261001153446_finance_followup.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20261007210757_finance_weekly_reconciliation_core.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20261007211631_finance_rules_resolve_outflows.sql','utf8'));
  await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now()),('${admin}','admin@example.test',now());
  insert into public.locations(code,name) values('TEST','Test location');
  insert into public.financial_accounts(id,code,name,currency,account_type) values('${bank}','BDV','Bank','VES','BANK'),('${usd}','CASH_USD','USD','USD','CASH'),('${ves}','CASH_VES','Bs','VES','CASH');
@@ -218,6 +220,16 @@ describe('Finance Core database invariants',()=>{
   expect(await scalar("select count(*)::int from audit_events where entity_type='reconciliation_cases'")).toBe(history);
  });
  it('records an explicitly classified bank outflow once and links it atomically',async()=>{await ingest([row(1,'14',{direction:'OUT',description:'COMISION PAGOMOVILBDV'})]);const x=await tx();await scalar("select finance_resolve('CLASSIFY',$1,$2)",[x,JSON.stringify({nature:'BANK_FEE',category:'Comisiones',reason:'Verified bank commission'})]);const id=await scalar('select finance_record_external_outflow($1,$2)',[x,'Verified no prior internal record']);expect(await scalar('select finance_record_external_outflow($1,$2)',[x,'Retry after connection timeout'])).toBe(id);expect(await scalar('select count(*)::int from account_movements')).toBe(1);expect(await scalar('select count(*)::int from reconciliation_allocations')).toBe(1);});
+ it('classifies a bank outflow in one step with an editable category and stays idempotent',async()=>{
+  await ingest([row(1,'123.45',{direction:'OUT',description:'COMPRA CON TARJETA DE DEBITO',reference:'99991234'})]);
+  const x=await tx();const category=await scalar<string>("select finance_category_upsert('Casa','EXPENSE')");
+  const first=await scalar<{movement_id:string}>('select finance_classify_external($1,$2::jsonb)',[x,JSON.stringify({nature:'EXPENSE',category_id:category,note:'Clasificado en cuadre'})]);
+  const retry=await scalar<{movement_id:string}>('select finance_classify_external($1,$2::jsonb)',[x,JSON.stringify({nature:'EXPENSE',category_id:category,note:'Reintento'})]);
+  expect(retry.movement_id).toBe(first.movement_id);
+  expect(await scalar('select count(*)::int from account_movements where finance_request_id=$1',[x])).toBe(1);
+  expect(await scalar('select count(*)::int from reconciliation_allocations where external_transaction_id=$1 and reversed_at is null',[x])).toBe(1);
+  expect(await scalar('select category from external_transactions where id=$1',[x])).toBe('Casa');
+ });
  it('resolves an unknown internal outflow without recording money twice',async()=>{const id=await scalar<string>('select finance_outflow($1,$2,10,$3,null,null,null,$4,$5)',[randomUUID(),bank,'UNCLASSIFIED','1234','2026-09-10']);await scalar("select finance_resolve('CLASSIFY_MOVEMENT',$1,$2)",[id,JSON.stringify({nature:'ASSET_PURCHASE',reason:'Purchase of business equipment'})]);expect(await scalar('select count(*)::int from account_movements')).toBe(1);expect(await scalar('select movement_type from account_movements')).toBe('ADJUSTMENT');expect(await scalar("select status from reconciliation_cases where kind='OUTFLOW_NATURE'")).toBe('RESOLVED');});
  it('deduplicates overlapping batches without dropping their provenance',async()=>{
   await ingest([row()]);await scalar('select public.finance_import($1,$2,$3,$4,$5)',[source,'next week','2026-09-05','2026-09-15',JSON.stringify(preview([row()]))]);

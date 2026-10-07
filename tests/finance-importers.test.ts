@@ -9,6 +9,10 @@ describe('Financial importer boundaries',()=>{
  it('deduplicates an overlapping page without reference-only dedup',()=>{const p=parseBdv(bdv+'\n'+bdv);expect(p.rows).toHaveLength(2);expect(p.duplicates).toBe(2);});
  it('catches omitted bank row by balances',()=>expect(parseBdv(bdv.replace('34.626,27','34.625,27')).balance_chain).toBe(false));
  it('accepts tabular copy/paste and ascending bank order',()=>{const p=parseBdv(bdv.replaceAll('\n','\t'));expect(p.rows).toHaveLength(2);expect(p.balance_chain).toBe(true);});
+ it('parses the current BDV online-movements copy format used for weekly close',()=>{
+  const sample='Fecha\nReferencia\nDescripción\nDébito / Crédito\nMonto\nSaldo\n07-10-2026 - 16:05\n0050905572712\nOP PAGOMOVILBDV OTROS BANCO\nCREDITO\n55.927,68\n384.748,34\n07-10-2026 - 16:01\n0677294240086\nOPERACION PAGOMOVIL BDV\nCREDITO\n6.117,09\n328.820,66\n07-10-2026 - 15:18\n0050905398857\nOP PAGOMOVILBDV OTROS BANCO\nCREDITO\n8.638,67\n322.703,57';
+  const p=parseBdv(sample);expect(p.errors).toEqual([]);expect(p.rows).toHaveLength(3);expect(p.balance_chain).toBe(true);expect(p.rows[0]).toMatchObject({reference:'0050905572712',amount:'55927.68000000'});
+ });
  it('rejects malformed and truncated rows instead of silently losing data',()=>{expect(parseBdv(bdv+'\n24-09-2026 - 09:00\n1234').errors.length).toBeGreaterThan(0);expect(parseBdv(bdv.replace('-14,00','14,00')).errors.length).toBeGreaterThan(0);});
  it('rejects impossible dates and amounts',()=>{expect(parseBdv(bdv.replace('23-09-2026','31-02-2026')).errors.length).toBeGreaterThan(0);expect(()=>money('NaN')).toThrow();expect(()=>money('Infinity')).toThrow();});
  it('imports exact Cashea schema without inferring channel from account name',()=>{const p=parseCashea([headers,payment],'CASHEA_TRANSACTIONS');expect(p.errors).toEqual([]);expect(p.rows[0].channel_label).toBeUndefined();expect(p.rows[0].amount_ref).toBe('9.40000000');});

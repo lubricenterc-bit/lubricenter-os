@@ -28,6 +28,7 @@ export function referenceError(method: string, reference: string): string | null
 export const natures = {
   EXPENSE: 'Gasto del negocio', INVENTORY_PURCHASE: 'Compra de inventario', ASSET_PURCHASE: 'Equipo o activo',
   SUPPLIER_PAYMENT: 'Pago de factura a proveedor', OWNER_DRAW: 'Retiro del dueño', PAYROLL: 'Nómina',
-  INTERNAL_TRANSFER: 'Entre cuentas propias', REFUND: 'Devolución', TAX: 'Impuesto', BANK_FEE: 'Comisión bancaria', UNCLASSIFIED: 'No sé todavía',
+  INTERNAL_TRANSFER: 'Entre cuentas propias', REFUND: 'Devolución', TAX: 'Impuesto', BANK_FEE: 'Comisión bancaria',
+  OWNER_CONTRIBUTION: 'Aporte del dueño', OTHER_INCOME: 'Otro ingreso', UNCLASSIFIED: 'No sé todavía',
 } as const;
 export type Nature = keyof typeof natures;
