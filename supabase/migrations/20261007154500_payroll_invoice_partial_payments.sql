@@ -36,7 +36,7 @@ create table if not exists public.payroll_payments (
 );
 
 alter table public.payroll_payments add column if not exists component text;
-do $
+do $$
 begin
   if not exists (
     select 1 from pg_constraint
@@ -47,7 +47,7 @@ begin
       add constraint payroll_payments_component_check
       check (component is null or component in ('HARD_USD','BCV_VES','MANUAL'));
   end if;
-end $;
+end $$;
 update public.payroll_payments set component='MANUAL'
 where payment_mode='HISTORICAL_MANUAL' and component is null;
 
@@ -125,8 +125,11 @@ declare
   hard_usd numeric:=0; bcv_usd numeric:=0; actual_work jsonb; actual_adjustments jsonb;
 begin
   perform lubricenter_private.payroll_sync();
-  if p_period_start is null or p_period_end is null or p_period_end<p_period_start or p_period_end-p_period_start<>6 then
-    raise exception 'Selecciona una semana de 7 días';
+  if p_period_start is null or p_period_end is null or p_period_end<p_period_start or p_period_end-p_period_start<>5 then
+    raise exception 'Selecciona una semana de lunes a sábado';
+  end if;
+  if extract(isodow from p_period_start)<>1 or extract(isodow from p_period_end)<>6 then
+    raise exception 'La nómina debe ir de lunes a sábado';
   end if;
   if p_period_end>timezone('America/Caracas',now())::date then
     raise exception 'No puedes liquidar una semana que todavía no ha terminado';
@@ -400,7 +403,7 @@ as $$
   where pr.employee_id=p_employee_id
     and pr.status='SETTLED'
     and pr.payroll_version>=3
-$;
+$$;
 grant execute on function public.payroll_employee_open_balance(uuid) to authenticated;
 
 create or replace function lubricenter_private.payroll_review(p_end date)
