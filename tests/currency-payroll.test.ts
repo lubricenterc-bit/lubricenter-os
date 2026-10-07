@@ -74,15 +74,15 @@ it('keeps a deferred adjustment out of the current invoice and available for the
  expect((pending.rows[0] as any).payroll_run_id).toBeNull();
 });
 
-it('records partial USD and VES payroll payments and preserves the unpaid balance',async()=>{
- const id=await order();await one('select close_order($1)',[id]);
- const run=await settle();
+it('records partial USD and VES payroll payments without letting Bs cover hard USD',async()=>{
+ const employee=await one("select id from employees where code='CHEO'");
+ const run=await one("insert into payroll_runs(employee_id,period_start,period_end,fixed_ref,variable_ref,adjustments_ref,total_ref,commission_usd,commission_hard_usd,commission_bcv_usd,payroll_version) values($1,current_date-13,current_date-7,0,100,0,100,20,20,80,3) returning id",[employee]);
  const usd=await one("select id from financial_accounts where code='CASH_USD'");
  const ves=await one("select id from financial_accounts where code='CASH_VES'");
- await one("select payroll_record_payment($1,$2,current_date,5,null,'Pago parcial USD')",[run,usd]);
- await one("select payroll_record_payment($1,$2,current_date,500,null,'Pago parcial Bs')",[run,ves]);
- const paid=Number(await one("select sum(usd_equivalent)::float from payroll_payments where payroll_run_id=$1",[run]));
- const total=Number(await one("select total_ref::float from payroll_runs where id=$1",[run]));
- expect(paid).toBe(10);
- expect(Number(await one("select payroll_employee_open_balance(employee_id)::float from payroll_runs where id=$1",[run]))).toBe(total-paid);
+ await rejects(()=>one("select payroll_record_payment($1,$2,current_date,9000,null,'Demasiado Bs')",[run,ves]),/parte BCV pendiente/);
+ await one("select payroll_record_payment($1,$2,current_date,20,null,'Pago USD real')",[run,usd]);
+ await one("select payroll_record_payment($1,$2,current_date,3000,null,'Pago parcial Bs')",[run,ves]);
+ const rows=(await db.query("select component,usd_equivalent::float from payroll_payments where payroll_run_id=$1 order by component",[run])).rows as any[];
+ expect(rows).toEqual([{component:'BCV_VES',usd_equivalent:30},{component:'HARD_USD',usd_equivalent:20}]);
+ expect(Number(await one("select payroll_employee_open_balance($1)::float",[employee]))).toBe(50);
 });
