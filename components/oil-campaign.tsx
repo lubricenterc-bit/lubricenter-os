@@ -53,7 +53,8 @@ export function OilCampaign(){
         method:'PATCH',
         headers:{Authorization:`Bearer ${session.data.session.access_token}`,'Content-Type':'application/json'},
         body:JSON.stringify({contactId:contact.id,status}),
-        cache:'no-store'
+        cache:'no-store',
+        keepalive:true
       });
       const text=await response.text();
       let data:any={};
