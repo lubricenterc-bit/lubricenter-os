@@ -25,12 +25,12 @@ async function setupContact(){
   `,[campaign,customer,vehicle]);
   return {location,customer,vehicle,contact};
 }
-async function closedOrder(customer:string,vehicle:string,location:string,seq=900000001){
+async function closedOrder(customer:string,vehicle:string,location:string){
   return scalar(`
-    insert into orders(order_seq,order_number,status,customer_id,vehicle_id,location_id,closed_at,business_at)
-    values($1,$2,'CLOSED',$3,$4,$5,'2026-10-07 12:00:00-04','2026-10-07 12:00:00-04')
+    insert into orders(status,customer_id,vehicle_id,location_id,opened_at,closed_at,business_at)
+    values('CLOSED',$1,$2,$3,'2026-10-07 11:59:00-04','2026-10-07 12:00:00-04','2026-10-07 12:00:00-04')
     returning id
-  `,[seq,`TEST-${seq}`,customer,vehicle,location]);
+  `,[customer,vehicle,location]);
 }
 
 beforeAll(async()=>{
@@ -57,7 +57,7 @@ it('marks the campaign as converted when the exact promoted vehicle returns in C
 it('does not count another vehicle from the same customer as campaign success',async()=>{
   const x=await setupContact();
   const other=await scalar("insert into vehicles(customer_id,plate,make,model) values($1,'OTHER1','Ford','Fiesta') returning id",[x.customer]);
-  const order=await closedOrder(x.customer,other,x.location,900000002);
+  const order=await closedOrder(x.customer,other,x.location);
   await db.query(`
     insert into service_records(order_id,customer_id,vehicle_id,service_type,description,performed_at)
     values($1,$2,$3,'OIL_CHANGE','Cambio de aceite','2026-10-07 12:05:00-04')
@@ -76,7 +76,7 @@ it('does not treat a paper or legacy import as a campaign conversion',async()=>{
 
 it('does not attribute a return after the campaign window closes',async()=>{
   const x=await setupContact();
-  const order=await closedOrder(x.customer,x.vehicle,x.location,900000003);
+  const order=await closedOrder(x.customer,x.vehicle,x.location);
   await db.query(`
     insert into service_records(order_id,customer_id,vehicle_id,service_type,description,performed_at)
     values($1,$2,$3,'OIL_CHANGE','Cambio de aceite','2026-10-11 09:00:00-04')
