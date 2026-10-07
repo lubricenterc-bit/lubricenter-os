@@ -8,7 +8,8 @@ import { ReceiptPrintButton } from "@/components/receipt-print-button";
 
 type Run = { payroll_version:number;commission_usd:number;commission_ves:number;commission_hard_usd:number|null;commission_bcv_usd:number|null; id: string; employee_id: string; period_start: string; period_end: string; fixed_ref: number; variable_ref: number; adjustments_ref: number; total_ref: number; status: string; created_at: string };
 type SalaryPayment = {id:string;paid_on:string;salary_ref:number;bcv_rate:number;bcv_effective_at:string;amount_ves:number;reference:string|null};
-type Account = {id:string;name:string;account_type:string};
+type Account = {id:string;name:string;account_type:string;currency:string};
+type PayrollPayment={id:string;paid_on:string;currency:string;amount_original:number;usd_equivalent:number;bcv_rate:number|null;reference:string|null;note:string|null;payment_mode:string};
 const today = () => new Intl.DateTimeFormat("en-CA",{timeZone:"America/Caracas"}).format(new Date());
 export default function PayrollReceipt() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +20,9 @@ export default function PayrollReceipt() {
   const [error, setError] = useState("");
   const [salaryPayment,setSalaryPayment]=useState<SalaryPayment|null>(null);
   const [accounts,setAccounts]=useState<Account[]>([]);
+  const [payments,setPayments]=useState<PayrollPayment[]>([]);
+  const [payAmount,setPayAmount]=useState("");
+  const [payNote,setPayNote]=useState("");
   const [paymentDate,setPaymentDate]=useState(today);
   const [accountId,setAccountId]=useState("");
   const [reference,setReference]=useState("");
@@ -27,16 +31,17 @@ export default function PayrollReceipt() {
   useEffect(() => { (async () => {
     const r = await supabase.from("payroll_runs").select("*").eq("id", id).single();
     if (r.error) return setError(r.error.message);
-    const [e,a,j,p,accountsResult] = await Promise.all([
+    const [e,a,j,p,accountsResult,paymentsResult] = await Promise.all([
       supabase.from("employees").select("name").eq("id",r.data.employee_id).single(),
       supabase.from("payroll_accruals").select("id,description,amount_ref").eq("payroll_run_id",id).order("occurred_at"),
       supabase.from("payroll_adjustments").select("id,note,adjustment_type,amount_ref").eq("payroll_run_id",id).order("occurred_on"),
       supabase.from("payroll_salary_payments").select("id,paid_on,salary_ref,bcv_rate,bcv_effective_at,amount_ves,reference").eq("payroll_run_id",id).maybeSingle(),
-      supabase.from("financial_accounts").select("id,name,account_type").eq("currency","VES").eq("active",true).in("account_type",["BANK","CASH"]).order("name"),
+      supabase.from("financial_accounts").select("id,name,account_type,currency").eq("active",true).in("account_type",["BANK","CASH","CLEARING"]).in("currency",["USD","VES"]).order("currency").order("name"),
+      supabase.from("payroll_payments").select("id,paid_on,currency,amount_original,usd_equivalent,bcv_rate,reference,note,payment_mode").eq("payroll_run_id",id).order("paid_on"),
     ]);
-    if (e.error || a.error || j.error || p.error || accountsResult.error) return setError((e.error || a.error || j.error || p.error || accountsResult.error)!.message);
-    if(r.data.payroll_version===2){const w=await supabase.from("payroll_work_items").select("*").eq("payroll_run_id",id).order("earned_at");if(w.error)return setError(w.error.message);setWork(w.data??[]);}
-    setRun(r.data); setName(e.data.name); setSalaryPayment(p.data);setAccounts(accountsResult.data??[]);setAccountId(accountsResult.data?.[0]?.id??"");
+    if (e.error || a.error || j.error || p.error || accountsResult.error || paymentsResult.error) return setError((e.error || a.error || j.error || p.error || accountsResult.error || paymentsResult.error)!.message);
+    if(r.data.payroll_version>=2){const w=await supabase.from("payroll_work_items").select("*").eq("payroll_run_id",id).order("earned_at");if(w.error)return setError(w.error.message);setWork(w.data??[]);}
+    setRun(r.data); setName(e.data.name); setSalaryPayment(p.data);setAccounts(accountsResult.data??[]);setAccountId(accountsResult.data?.[0]?.id??"");setPayments(paymentsResult.data??[]);
     setLines([...(a.data ?? []).map(x=>({...x,description:x.description || "Comisión"})),...(j.data ?? []).map(x=>({id:x.id,description:x.note || x.adjustment_type,amount_ref:x.amount_ref}))]);
   })(); },[id]);
   useEffect(()=>{let active=true;setRate(null);void supabase.from("exchange_rates").select("value,effective_at").eq("rate_type","BCV").lte("effective_at",`${paymentDate}T23:59:59-04:00`).order("effective_at",{ascending:false}).limit(1).then(({data})=>{if(active&&data?.[0])setRate({value:Number(data[0].value),effective_at:data[0].effective_at});});return()=>{active=false;};},[paymentDate]);
