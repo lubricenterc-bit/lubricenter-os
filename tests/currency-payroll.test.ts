@@ -9,7 +9,7 @@ async function order(denomination='USD',usd=40,ves=0){const o=await one('insert 
 async function review(){return one('select payroll_review(current_date)');}
 async function settle(){const work=await review();const emp=work[0].employee_id;const expected=work.filter((w:any)=>w.employee_id===emp&&w.decision!=='HOLD').sort((a:any,b:any)=>a.id.localeCompare(b.id)).map((w:any)=>({id:w.id,version:w.version}));return one('select payroll_settle($1,current_date-6,current_date,$2)',[emp,JSON.stringify({work:expected,fixed_ref:Number(await one("select coalesce((select value from compensation_rules where employee_id=$1 and rule_type='FIXED_WEEKLY' and valid_from<=current_date and (valid_to is null or valid_to>=current_date) order by valid_from desc limit 1),0)",[emp])),adjustments:[]})]);}
 async function rejects(fn:()=>Promise<any>,pattern:RegExp){await db.exec('savepoint rejected');let error:any;try{await fn();}catch(e){error=e;}await db.exec('rollback to rejected');expect(error?.message).toMatch(pattern);}
-beforeAll(async()=>{db=new PGlite();await db.exec(gunzipSync(readFileSync('tests/fixtures/production-structure.sql.gz')).toString());await db.exec('alter table public.account_movements add column finance_nature text');await db.exec('set check_function_bodies=on');await db.exec(readFileSync('supabase/migrations/20260924145617_usd_pricing_payroll_review.sql','utf8'));await db.exec(readFileSync('supabase/migrations/20260929120000_payroll_salary_payment_bcv.sql','utf8'));await db.exec(readFileSync('supabase/migrations/20261007133000_payroll_usd_obligation_bcv.sql','utf8'));await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now());select set_config('request.jwt.claim.sub','${owner}',false);insert into employees(code,name) values('CHEO','Cheo'),('ALEXIS','Alexis');insert into financial_accounts(code,name,currency,account_type) values('CASH_USD','Caja USD','USD','CASH'),('CASH_VES','Caja Bs','VES','CASH');insert into exchange_rates(rate_type,value,effective_at) values('BCV',100,'2026-01-01'),('OPERATIVE',200,'2026-01-01');`);},120000);
+beforeAll(async()=>{db=new PGlite();await db.exec(gunzipSync(readFileSync('tests/fixtures/production-structure.sql.gz')).toString());await db.exec('alter table public.account_movements add column finance_nature text');await db.exec('set check_function_bodies=on');await db.exec(readFileSync('supabase/migrations/20260924145617_usd_pricing_payroll_review.sql','utf8'));await db.exec(readFileSync('supabase/migrations/20260929120000_payroll_salary_payment_bcv.sql','utf8'));await db.exec(readFileSync('supabase/migrations/20261007133000_payroll_usd_obligation_bcv.sql','utf8'));await db.exec(readFileSync('supabase/migrations/20261007154500_payroll_invoice_partial_payments.sql','utf8'));await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now());select set_config('request.jwt.claim.sub','${owner}',false);insert into employees(code,name) values('CHEO','Cheo'),('ALEXIS','Alexis');insert into financial_accounts(code,name,currency,account_type) values('CASH_USD','Caja USD','USD','CASH'),('CASH_VES','Caja Bs','VES','CASH');insert into exchange_rates(rate_type,value,effective_at) values('BCV',100,'2026-01-01'),('OPERATIVE',200,'2026-01-01');`);},120000);
 afterAll(async()=>{await db?.close();});beforeEach(async()=>{await db.exec('begin');});afterEach(async()=>{await db.exec('rollback');});
 it('allows an authenticated owner to pay salary through the public wrapper and denies other users',async()=>{
  const id=await order();await one('select close_order($1)',[id]);const [w]=await review();
@@ -43,7 +43,9 @@ it('requires the owner and a bank reference for salary payments',async()=>{const
 
 
 it('keeps a VES-paid workshop commission denominated in USD and converts only at payroll payment rate',async()=>{
- const id=await order('REF',0,4000);
+ const id=await one('insert into orders(is_walk_in) values(true) returning id');
+ await one("select add_service_priced($1,'WORKSHOP','Trabajo pactado',20,20,null,false,'REF')",[id]);
+ await one("select add_payment($1,'CASH_VES',2000)",[id]);
  await one('select close_order($1)',[id]);
  const [w]=await review();
  expect(w.payout_mode).toBe('BCV_VES');
@@ -52,11 +54,35 @@ it('keeps a VES-paid workshop commission denominated in USD and converts only at
  expect(Number(w.obligation_usd)*150).toBe(1200);
 });
 it('splits mixed collections by payout channel without changing the USD commission total',async()=>{
- const id=await order('REF',20,4000);
+ const id=await one('insert into orders(is_walk_in) values(true) returning id');
+ await one("select add_service_priced($1,'WORKSHOP','Trabajo pactado',40,40,null,false,'REF')",[id]);
+ await one("select add_payment($1,'CASH_USD',10)",[id]);
+ await one("select add_payment($1,'CASH_VES',2000)",[id]);
  await one('select close_order($1)',[id]);
  const rows=await review();
  const cheo=rows.filter((w:any)=>w.description.includes('40% taller'));
- expect(cheo.reduce((s:number,w:any)=>s+Number(w.obligation_usd),0)).toBe(8);
- expect(cheo.find((w:any)=>w.payout_mode==='HARD_USD')).toBeTruthy();
- expect(cheo.find((w:any)=>w.payout_mode==='BCV_VES')).toBeTruthy();
+ expect(cheo.reduce((s:number,w:any)=>s+Number(w.obligation_usd),0)).toBe(16);
+ expect(Number(cheo.find((w:any)=>w.payout_mode==='HARD_USD').obligation_usd)).toBe(8);
+ expect(Number(cheo.find((w:any)=>w.payout_mode==='BCV_VES').obligation_usd)).toBe(8);
+});
+it('keeps a deferred adjustment out of the current invoice and available for the next week',async()=>{
+ const id=await order();await one('select close_order($1)',[id]);const [w]=await review();
+ const adj=await one("select add_payroll_adjustment($1,'DEBT',-5,'Cliente aún no pagó',current_date)",[w.employee_id]);
+ await one("select payroll_review_adjustment($1,1,'HOLD',-5,'Prórroga hasta la siguiente semana')",[adj]);
+ const pending=await db.query("select decision,payroll_run_id from payroll_adjustments where id=$1",[adj]);
+ expect((pending.rows[0] as any).decision).toBe('HOLD');
+ expect((pending.rows[0] as any).payroll_run_id).toBeNull();
+});
+
+it('records partial USD and VES payroll payments without letting Bs cover hard USD',async()=>{
+ const employee=await one("select id from employees where code='CHEO'");
+ const run=await one("insert into payroll_runs(employee_id,period_start,period_end,fixed_ref,variable_ref,adjustments_ref,total_ref,commission_usd,commission_hard_usd,commission_bcv_usd,payroll_version) values($1,current_date-13,current_date-7,0,100,0,100,20,20,80,3) returning id",[employee]);
+ const usd=await one("select id from financial_accounts where code='CASH_USD'");
+ const ves=await one("select id from financial_accounts where code='CASH_VES'");
+ await rejects(()=>one("select payroll_record_payment($1,$2,current_date,9000,null,'Demasiado Bs')",[run,ves]),/parte BCV pendiente/);
+ await one("select payroll_record_payment($1,$2,current_date,20,null,'Pago USD real')",[run,usd]);
+ await one("select payroll_record_payment($1,$2,current_date,3000,null,'Pago parcial Bs')",[run,ves]);
+ const rows=(await db.query("select component,usd_equivalent::float from payroll_payments where payroll_run_id=$1 order by component",[run])).rows as any[];
+ expect(rows).toEqual([{component:'BCV_VES',usd_equivalent:30},{component:'HARD_USD',usd_equivalent:20}]);
+ expect(Number(await one("select payroll_employee_open_balance($1)::float",[employee]))).toBe(50);
 });
