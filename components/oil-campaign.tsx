@@ -42,21 +42,44 @@ export function OilCampaign(){
   },[retry]);
   const expired=!!asOf&&asOf>CAMPAIGN_END;
   const visible=useMemo(()=>contacts.filter(c=>(group==='all'||group==='first'&&c.first||group===c.kind)&&(!pending||c.status==='PENDING')&&`${c.name} ${c.phone} ${c.vehicle} ${c.plate||''}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())),[contacts,group,pending,search]);
-  async function setStatus(c:Contact,status:CampaignStatus){
-    setBusyId(c.id);setError('');setNotice('');
+  async function setStatus(contact:Contact,status:CampaignStatus){
+    if(busyId)return;
+    const previous=contact.status;
+    setBusyId(contact.id);setError('');setNotice('');
     try{
-      const session=await supabase.auth.getSession();if(!session.data.session)throw new Error('Tu sesión venció.');
-      const response=await fetch('/api/campaigns/oil-promo',{method:'PATCH',headers:{Authorization:`Bearer ${session.data.session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({contactId:c.id,status})});
-      const data=await response.json();if(!response.ok)throw new Error(data.error||'No se pudo guardar.');
-      setContacts(rows=>rows.map(x=>x.id===c.id?{...x,status,
-        sentAt:status==='SENT'?new Date().toISOString():x.sentAt,
-        respondedAt:['RESPONDED','SCHEDULED'].includes(status)?new Date().toISOString():x.respondedAt,
-        visitedAt:['VISITED','CONVERTED'].includes(status)?new Date().toISOString():x.visitedAt,
-        convertedAt:status==='CONVERTED'?new Date().toISOString():x.convertedAt
+      const session=await supabase.auth.getSession();
+      if(!session.data.session)throw new Error('Tu sesión venció. Inicia sesión nuevamente.');
+      const response=await fetch('/api/campaigns/oil-promo',{
+        method:'PATCH',
+        headers:{Authorization:`Bearer ${session.data.session.access_token}`,'Content-Type':'application/json'},
+        body:JSON.stringify({contactId:contact.id,status}),
+        cache:'no-store'
+      });
+      const text=await response.text();
+      let data:any={};
+      if(text){
+        try{data=JSON.parse(text);}catch{throw new Error('Lubricenter OS recibió una respuesta inválida. El estado no se cambió.');}
+      }
+      if(!response.ok||!data?.ok||!data?.contact)throw new Error(data?.error||'No se pudo confirmar el cambio. El estado anterior se mantiene.');
+      const saved=data.contact;
+      setContacts(rows=>rows.map(x=>x.id===contact.id?{
+        ...x,
+        status:saved.status as CampaignStatus,
+        sentAt:saved.sent_at??x.sentAt,
+        respondedAt:saved.responded_at??x.respondedAt,
+        scheduledFor:saved.scheduled_for??x.scheduledFor,
+        visitedAt:saved.visited_at??x.visitedAt,
+        convertedAt:saved.converted_at??x.convertedAt,
+        convertedOrderId:saved.converted_order_id??x.convertedOrderId,
+        note:saved.outcome_note??x.note
       }:x));
-      setNotice(`${c.name}: ${labels[status]} guardado en la nube.`);
-    }catch(e){setError(e instanceof Error?e.message:'No se pudo guardar el estado.');}
-    finally{setBusyId('');}
+      setNotice(`${contact.name}: ${labels[saved.status as CampaignStatus]} guardado en la nube.`);
+    }catch(e){
+      setContacts(rows=>rows.map(x=>x.id===contact.id?{...x,status:previous}:x));
+      setError(e instanceof Error?e.message:'No se pudo guardar el estado. La pantalla sigue disponible; intenta nuevamente.');
+    }finally{
+      setBusyId('');
+    }
   }
   const sentCount=contacts.filter(c=>c.status!=='PENDING').length;
   const convertedCount=contacts.filter(c=>c.status==='CONVERTED').length;
