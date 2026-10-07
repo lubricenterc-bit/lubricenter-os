@@ -63,9 +63,9 @@ export function OilCampaign(){
   return <main className="container campaign">
     <header className="campaign-card">
       <p className="campaign-eyebrow">CRM · CAMPAÑA ACTIVA</p>
-      <h1>Cambio de aceite + limpieza de inyectores</h1>
-      <p><strong>Solo hasta este sábado 10 de octubre de 2026.</strong></p>
-      <p>Abre el mensaje de cada cliente y envíalo manualmente por WhatsApp. Después registra el resultado para que quede sincronizado entre teléfono y computadora.</p>
+      <h1>Aceite + filtro + limpieza de inyectores gratis</h1>
+      <p><strong>Piloto Cabudare · vigente hasta este sábado 10 de octubre de 2026.</strong></p>
+      <p>Abre el mensaje de cada cliente y envíalo manualmente por WhatsApp. Después registra el resultado para que quede sincronizado entre teléfono y computadora.</p><p className="muted"><strong>Regla comercial:</strong> debe comprar aceite + filtro con nosotros. Internamente se cobran $5 por el servicio de cambio. No aplica Cashea. Lubricenter cubre los insumos normales; fallas o repuestos de inyectores van por cuenta del cliente. Vehículos complicados se cotizan aparte y mantienen la regla especial del 70% de descuento.</p>
       <p className="muted">Aplican condiciones según el vehículo. El envío sigue siendo manual; Lubricenter OS solo prepara el mensaje y registra el seguimiento.</p>
       {asOf&&<p className="muted">Consulta actualizada: {asOf.split('-').reverse().join('/')} · {contacts.length} contactos · {sentCount} gestionados · {convertedCount} compras registradas</p>}
       {expired&&<p className="error" role="alert">La promoción terminó. Los enlaces están desactivados para no enviar una fecha vencida.</p>}
