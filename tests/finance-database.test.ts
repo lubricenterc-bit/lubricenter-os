@@ -49,6 +49,7 @@ beforeAll(async()=>{
  await db.exec(readFileSync('supabase/migrations/20261001154229_exact_bcv_digital_checkout.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20261001153446_finance_followup.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20261007210757_finance_weekly_reconciliation_core.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20261007211631_finance_rules_resolve_outflows.sql','utf8'));
  await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now()),('${admin}','admin@example.test',now());
  insert into public.locations(code,name) values('TEST','Test location');
  insert into public.financial_accounts(id,code,name,currency,account_type) values('${bank}','BDV','Bank','VES','BANK'),('${usd}','CASH_USD','USD','USD','CASH'),('${ves}','CASH_VES','Bs','VES','CASH');
