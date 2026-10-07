@@ -346,6 +346,8 @@ as $$
     select payroll_run_id,sum(usd_equivalent) paid
     from public.payroll_payments group by payroll_run_id
   ) pp on pp.payroll_run_id=pr.id
-  where pr.employee_id=p_employee_id and pr.status='SETTLED'
-$$;
+  where pr.employee_id=p_employee_id
+    and pr.status='SETTLED'
+    and pr.payroll_version>=3
+$;
 grant execute on function public.payroll_employee_open_balance(uuid) to authenticated;
