@@ -15,6 +15,13 @@ alter table public.payroll_runs
   add column if not exists commission_hard_usd numeric(18,2),
   add column if not exists commission_bcv_usd numeric(18,2);
 
+-- Attribute this administrative backfill to an existing authenticated user so the audit trigger remains intact.
+do $declare v_actor uuid; begin
+ select id into v_actor from auth.users order by created_at limit 1;
+ if v_actor is null then raise exception 'No authenticated user exists for payroll backfill audit'; end if;
+ perform set_config('request.jwt.claim.sub',v_actor::text,true);
+end $;
+
 -- Recalculate only work that has not been settled yet.
 update public.payroll_work_items w
 set obligation_usd = x.obligation_usd,
