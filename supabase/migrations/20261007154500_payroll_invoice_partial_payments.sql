@@ -30,9 +30,26 @@ create table if not exists public.payroll_payments (
   reference text,
   note text,
   payment_mode text not null default 'ACTUAL' check (payment_mode in ('ACTUAL','HISTORICAL_MANUAL')),
+  component text check (component in ('HARD_USD','BCV_VES','MANUAL')),
   created_at timestamptz not null default now(),
   created_by uuid default auth.uid()
 );
+
+alter table public.payroll_payments add column if not exists component text;
+do $
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid='public.payroll_payments'::regclass
+      and conname='payroll_payments_component_check'
+  ) then
+    alter table public.payroll_payments
+      add constraint payroll_payments_component_check
+      check (component is null or component in ('HARD_USD','BCV_VES','MANUAL'));
+  end if;
+end $;
+update public.payroll_payments set component='MANUAL'
+where payment_mode='HISTORICAL_MANUAL' and component is null;
 
 create index if not exists payroll_payments_run_idx on public.payroll_payments(payroll_run_id,paid_on);
 alter table public.payroll_payments enable row level security;
@@ -211,7 +228,9 @@ set search_path=''
 as $$
 declare
   r public.payroll_runs; a public.financial_accounts; v_bcv public.exchange_rates; v_op public.exchange_rates;
-  v_usd numeric(18,2); v_paid numeric(18,2); v_outstanding numeric(18,2); v_value_ves numeric(18,2);
+  v_usd numeric(18,2); v_total_paid numeric(18,2); v_outstanding numeric(18,2); v_value_ves numeric(18,2);
+  v_hard_due numeric(18,2); v_bcv_due numeric(18,2); v_hard_paid numeric(18,2); v_bcv_paid numeric(18,2);
+  v_component text; v_component_outstanding numeric(18,2);
   v_movement uuid; v_id uuid; v_name text;
 begin
   perform lubricenter_private.require_order_admin();
@@ -232,11 +251,26 @@ begin
     raise exception 'Indica al menos los últimos 4 dígitos de la referencia bancaria';
   end if;
 
-  select coalesce(sum(usd_equivalent),0) into v_paid from public.payroll_payments where payroll_run_id=p_run_id;
-  v_outstanding:=round(r.total_ref-v_paid,2);
+  select
+    coalesce(sum(usd_equivalent),0),
+    coalesce(sum(usd_equivalent) filter(where component='HARD_USD'),0),
+    coalesce(sum(usd_equivalent) filter(where component='BCV_VES'),0)
+  into v_total_paid,v_hard_paid,v_bcv_paid
+  from public.payroll_payments
+  where payroll_run_id=p_run_id;
+
+  v_outstanding:=round(r.total_ref-v_total_paid,2);
   if v_outstanding<=0 then raise exception 'Esta liquidación ya está pagada'; end if;
 
+  v_hard_due:=round(least(coalesce(r.commission_hard_usd,0),r.total_ref),2);
+  v_bcv_due:=round(r.total_ref-v_hard_due,2);
+
   if a.currency='VES' then
+    v_component:='BCV_VES';
+    v_component_outstanding:=round(v_bcv_due-v_bcv_paid,2);
+    if v_component_outstanding<=0 then
+      raise exception 'La parte pagadera en Bs ya está saldada. Queda únicamente USD real';
+    end if;
     select * into v_bcv from public.exchange_rates
     where rate_type='BCV' and effective_at<((p_paid_on+1)::timestamp at time zone 'America/Caracas')
     order by effective_at desc limit 1;
@@ -244,6 +278,13 @@ begin
     v_usd:=round(p_amount_original/v_bcv.value,2);
     v_value_ves:=round(p_amount_original,2);
   else
+    if round(v_hard_due-v_hard_paid,2)>0 then
+      v_component:='HARD_USD';
+      v_component_outstanding:=round(v_hard_due-v_hard_paid,2);
+    else
+      v_component:='BCV_VES';
+      v_component_outstanding:=round(v_bcv_due-v_bcv_paid,2);
+    end if;
     v_usd:=round(p_amount_original,2);
     select * into v_op from public.exchange_rates
     where rate_type='OPERATIVE' and effective_at<((p_paid_on+1)::timestamp at time zone 'America/Caracas')
@@ -252,7 +293,13 @@ begin
     v_value_ves:=round(p_amount_original*v_op.value,2);
   end if;
 
-  if v_usd>v_outstanding+0.01 then raise exception 'El pago supera el saldo pendiente de $%',v_outstanding; end if;
+  if v_usd>v_component_outstanding+0.01 then
+    if v_component='HARD_USD' then
+      raise exception 'USD real pendiente: $%. Registra primero ese monto; luego puedes hacer otro pago para la parte BCV',v_component_outstanding;
+    end if;
+    raise exception 'El pago supera la parte BCV pendiente de $%',v_component_outstanding;
+  end if;
+
   select name into v_name from public.employees where id=r.employee_id;
 
   insert into public.account_movements(
@@ -265,19 +312,20 @@ begin
 
   insert into public.payroll_payments(
     payroll_run_id,account_id,account_movement_id,paid_on,currency,amount_original,usd_equivalent,
-    bcv_rate,bcv_effective_at,reference,note,payment_mode
+    bcv_rate,bcv_effective_at,reference,note,payment_mode,component
   ) values(
     r.id,a.id,v_movement,p_paid_on,a.currency,round(p_amount_original,2),v_usd,
     case when a.currency='VES' then v_bcv.value end,
     case when a.currency='VES' then v_bcv.effective_at end,
-    nullif(trim(p_reference),''),nullif(trim(p_note),''),'ACTUAL'
+    nullif(trim(p_reference),''),nullif(trim(p_note),''),'ACTUAL',v_component
   ) returning id into v_id;
 
   insert into public.audit_events(event_type,entity_type,entity_id,data)
   values('payroll.payment_recorded','payroll_payment',v_id,
     jsonb_build_object(
       'run_id',r.id,'movement_id',v_movement,'paid_on',p_paid_on,'currency',a.currency,
-      'amount_original',round(p_amount_original,2),'usd_equivalent',v_usd,'account_id',a.id,'actor',auth.uid()
+      'component',v_component,'amount_original',round(p_amount_original,2),
+      'usd_equivalent',v_usd,'account_id',a.id,'actor',auth.uid()
     ));
   return v_id;
 end
