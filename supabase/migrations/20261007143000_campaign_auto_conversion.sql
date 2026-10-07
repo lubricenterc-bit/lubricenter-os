@@ -9,13 +9,24 @@ declare
   v_order_customer_id uuid;
   v_order_vehicle_id uuid;
   v_location_code text;
+  v_order_business_at timestamptz;
 begin
   if new.order_id is null then
     return new;
   end if;
 
-  select o.status, o.customer_id, o.vehicle_id, l.code
-    into v_order_status, v_order_customer_id, v_order_vehicle_id, v_location_code
+  select
+    o.status,
+    o.customer_id,
+    o.vehicle_id,
+    l.code,
+    coalesce(o.business_at,o.closed_at,o.opened_at)
+  into
+    v_order_status,
+    v_order_customer_id,
+    v_order_vehicle_id,
+    v_location_code,
+    v_order_business_at
   from public.orders o
   left join public.locations l on l.id = o.location_id
   where o.id = new.order_id;
@@ -40,10 +51,14 @@ begin
   where c.id = cc.campaign_id
     and c.slug = 'aceite-inyectores-oct-2026'
     and cc.sent_at is not null
+    and v_order_business_at >= cc.sent_at
     and new.performed_at >= cc.sent_at
     and (
       c.ends_on is null
-      or new.performed_at < ((c.ends_on + 1)::timestamp at time zone 'America/Caracas')
+      or (
+        v_order_business_at < ((c.ends_on + 1)::timestamp at time zone 'America/Caracas')
+        and new.performed_at < ((c.ends_on + 1)::timestamp at time zone 'America/Caracas')
+      )
     )
     and (
       (cc.vehicle_id is not null and cc.vehicle_id = coalesce(new.vehicle_id, v_order_vehicle_id))
@@ -80,10 +95,14 @@ with first_match as (
   join public.locations l on l.id = o.location_id and l.code = 'CABUDARE'
   where c.slug = 'aceite-inyectores-oct-2026'
     and cc.sent_at is not null
+    and coalesce(o.business_at,o.closed_at,o.opened_at) >= cc.sent_at
     and sr.performed_at >= cc.sent_at
     and (
       c.ends_on is null
-      or sr.performed_at < ((c.ends_on + 1)::timestamp at time zone 'America/Caracas')
+      or (
+        coalesce(o.business_at,o.closed_at,o.opened_at) < ((c.ends_on + 1)::timestamp at time zone 'America/Caracas')
+        and sr.performed_at < ((c.ends_on + 1)::timestamp at time zone 'America/Caracas')
+      )
     )
   order by cc.id, sr.performed_at asc
 )
