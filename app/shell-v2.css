@@ -40,7 +40,7 @@
 }
 .os-sidebar-brand { height: 84px; display: flex; align-items: center; padding: 18px 20px; }
 .os-brand { display: flex; align-items: center; gap: 11px; min-width: 0; letter-spacing: -.045em; font-size: 17px; font-weight: 800; line-height: 1.08; }
-.os-brand img { width: 38px; height: 38px; border-radius: 10px; padding: 6px; background: #252a32; }
+.os-brand img { width: 40px; height: 40px; object-fit: contain; flex-shrink: 0; }
 .os-brand b { color: var(--os-orange); }
 .os-brand small { display: block; margin-top: 5px; font-size: 9px; letter-spacing: .21em; font-weight: 750; color: #91a0ae; }
 .os-location { display: flex; align-items: center; gap: 10px; margin: 0 13px 18px; padding: 12px; background: #1b222b; border: 1px solid #303947; border-radius: 10px; min-width: 0; }
@@ -162,4 +162,13 @@
   .os-sidebar, .os-topbar, .os-mobile-bottom, .os-sidebar-scrim, .os-command-scrim { display: none !important; }
   .os-workspace { margin: 0 !important; padding: 0 !important; }
   .os-layout { background: white !important; color: black !important; }
+}
+
+/* Keep the approved transparent mark clean on every interface surface. */
+.os-login-brand { display: flex; align-items: center; gap: 13px; font-size: 28px; font-weight: 850; letter-spacing: -.045em; }
+.os-login-brand img { width: 62px; height: 62px; object-fit: contain; }
+.os-login-brand b { color: #ff762a; }
+@media (max-width: 420px) {
+  .os-login-brand { font-size: 24px; }
+  .os-login-brand img { width: 54px; height: 54px; }
 }
