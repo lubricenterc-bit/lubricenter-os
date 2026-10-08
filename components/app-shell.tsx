@@ -118,7 +118,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <aside className={"os-sidebar" + (mobileMenu ? " is-open" : "")} aria-label="Panel de navegación">
           <div className="os-sidebar-brand">
             <Link href="/" className="os-brand" onClick={() => setMobileMenu(false)}>
-              <img src="/lubricenter-lc-isotipo.png" alt="" />
+              <img src="/api/brand/isotipo.png" alt="" />
               <span>Lubricenter <b>OS</b><small>WORKSPACE</small></span>
             </Link>
             <button className="os-sidebar-close" onClick={() => setMobileMenu(false)} aria-label="Cerrar menú"><OsIcon name="close"/></button>
