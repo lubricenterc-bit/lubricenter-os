@@ -85,7 +85,7 @@ export function OrderExtrasChecklist({value,onChange,disabled=false}:Props) {
       {!disabled && <small>Opcional. Esta nota también aparecerá en el resumen de WhatsApp del cliente.</small>}
     </label>
     <p className="oce-financial-note">
-      <OsIcon name="info" size={15}/> Estos servicios y cortesías no agregan cargos, ni modifican stock o pagos.
+      <OsIcon name="shield" size={15}/> Estos servicios y cortesías no agregan cargos, ni modifican stock o pagos.
     </p>
   </div>;
 }
