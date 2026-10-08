@@ -25,8 +25,8 @@ export default function LoginPage() {
     <main className="container" style={{ maxWidth: 480, paddingTop: 70 }}>
       <div className="card stack">
         <div>
-          <div className="brand" style={{ fontSize: 34 }}>Lubricenter<span>.</span> OS</div>
-          <p className="muted">Primer build · entorno de desarrollo</p>
+          <div className="os-login-brand"><img src="/api/brand/isotipo.png" alt="Isotipo Lubricenter" /><span>Lubricenter <b>OS</b></span></div>
+          <p className="muted">Acceso seguro al espacio de trabajo</p>
         </div>
         <form className="stack" onSubmit={submit}>
           <label><span className="label">Email</span><input className="input" type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>

@@ -1,5 +1,5 @@
-const CACHE = "lubricenter-os-v0.6-fetch-fallback";
-const SHELL = ["/", "/orders", "/orders/new", "/inventory", "/customers", "/reminders", "/payroll", "/settings", "/manifest.webmanifest"];
+const CACHE = "lubricenter-os-v0.7-approved-brand";
+const SHELL = ["/", "/orders", "/orders/new", "/inventory", "/customers", "/reminders", "/payroll", "/settings", "/manifest.webmanifest", "/api/brand/isotipo.png", "/pwa/icon-192.png", "/pwa/icon-512.png", "/pwa/icon-maskable-512.png"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).catch(() => undefined));

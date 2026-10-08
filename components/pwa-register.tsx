@@ -15,7 +15,7 @@ export function PwaRegister() {
     navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
 
     navigator.serviceWorker
-      .register("/sw.js?v=20261007-fetch-fallback", { updateViaCache: "none" })
+      .register("/sw.js?v=20261008-approved-brand", { updateViaCache: "none" })
       .then(registration => registration.update())
       .catch(console.error);
 
