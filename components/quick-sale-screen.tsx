@@ -10,6 +10,7 @@ import { D } from "@/lib/finance/money";
 import { referenceError } from "@/lib/finance/money";
 import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
+import { OsIcon } from "@/components/os-icon";
 import { QUOTE_HANDOFF_KEY, takeQuoteLines } from "@/lib/sales-quote";
 
 type InventoryProduct = {
@@ -93,7 +94,7 @@ export function QuickSaleScreen() {
 
   // Importa una cotización guardada al mismo carrito de venta rápida. Nunca registra ventas automáticamente.
   useEffect(() => {
-    if (loading || quoteImported.current) return;
+    if (loading || quoteImported.current || (!catalog.length && !inventory.length)) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("from") !== "quote") return;
     quoteImported.current = true;
@@ -231,7 +232,7 @@ export function QuickSaleScreen() {
 
   return <main className="container stack">
     <section className="brand-hero"><div><div className="eyebrow">MOSTRADOR · PRECIO → VENTA → COBRO</div><h1>Venta rápida</h1><p>Cotiza sin crear una orden. La OS nace solo cuando registras la venta o decides continuar como orden completa.</p></div><img src="/lubricenter-logo.png" alt="Lubricenter" /></section>
-    <div className="row-between"><span className="muted small">Venta directa o Cashea tradicional desde el mismo carrito.</span><Link className="btn btn-ghost" href="/cashea">Seguimiento Cashea</Link></div>
+    <div className="row-between"><span className="muted small">Venta directa o Cashea tradicional desde el mismo carrito.</span><div className="row"><Link className="btn btn-ghost" href="/quote"><OsIcon name="receipt" size={16}/> Cotizar productos</Link><Link className="btn btn-ghost" href="/cashea">Seguimiento Cashea</Link></div></div>
     {error && <div className="error" role="alert">{error}</div>}
     {quoteFlow && <section className="card stack" style={{borderColor:"rgba(255,128,47,.72)",background:"rgba(255,128,47,.08)"}}>
       <div className="row-between"><div><strong>{quoteFlow==="order"?"Continuar cotización como orden":"Cotización lista para cobrar"}</strong>
