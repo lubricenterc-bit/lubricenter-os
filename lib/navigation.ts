@@ -23,7 +23,8 @@ export const NAV_MODULES: readonly NavModule[] = [
   ] },
   { id: "sales", label: "Ventas", icon: "sale", defaultHref: "/quick-sale", links: [
     { href: "/quick-sale", label: "Venta rápida", description: "Cotizar y cobrar al mostrador", keywords: "facturar cobrar" },
-    { href: "/quote", label: "Cotizador de cambios de aceite", description: "Comparar todas las marcas por viscosidad, tipo y litros", keywords: "cotizar presupuesto aceite filtro mineral semisintetico sintetico galon" },
+    { href: "/quote", label: "Cotizador general", description: "Cotizar productos, servicios y compartir; pasar directo a venta u orden", keywords: "cotizar presupuesto aceite filtro productos cliente whatsapp" },
+    { href: "/quote/oil", label: "Comparador de aceites", description: "Cotizar varias marcas por viscosidad, tecnología y litros", keywords: "mineral semisintetico full sintetico galon aceite" },
     { href: "/orders", label: "Órdenes", description: "Consultar órdenes abiertas y cerradas" },
     { href: "/orders/new", label: "Nueva orden", description: "Crear una orden de servicio o cambio de aceite", keywords: "recibir vehículo" }
   ] },
