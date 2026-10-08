@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
 
@@ -187,7 +188,7 @@ export default function InventoryPage() {
 
   return <main className="container stack">
     <section className="brand-hero">
-      <div><div className="eyebrow">INVENTARIO + CATÁLOGO · CABUDARE</div><h1>Productos</h1><p>Existencia física desde el OS y precios comerciales vigentes desde Notion.</p></div>
+      <div><div className="eyebrow">INVENTARIO FÍSICO · CABUDARE</div><h1>Inventario</h1><p>Control de existencia física. Para consultar precios y fotografías, abre el catálogo visual de Notion.</p></div>
       <img src="/lubricenter-logo.png" alt="Lubricenter" />
     </section>
 
@@ -207,7 +208,7 @@ export default function InventoryPage() {
 
     <section className="row" style={{ gap: 10, flexWrap: "wrap" }}>
       <button className={`btn ${mode === "inventory" ? "btn-primary" : "btn-ghost"}`} onClick={() => switchMode("inventory")}>Inventario físico</button>
-      <button className={`btn ${mode === "catalog" ? "btn-primary" : "btn-ghost"}`} onClick={() => switchMode("catalog")}>Catálogo Notion</button>
+      <Link href="/catalog" className="btn btn-ghost">Abrir catálogo visual con fotos ↗</Link>
       <button className="btn btn-ghost" onClick={load} disabled={loading}>{loading ? "Cargando…" : "Recargar"}</button>
     </section>
 
