@@ -180,6 +180,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </button>
               <div className="os-pricing"><PricingStatus /></div>
               {owner && <Link href="/finance" className="os-icon-button os-notification-button" title="Avisos financieros" aria-label={"Avisos financieros, " + unread + " pendientes"}><OsIcon name="bell" size={19}/>{unread > 0 && <span className="os-notification-count">{unread > 9 ? "9+" : unread}</span>}</Link>}
+              <Link href="/quote" className="os-topbar-quote"><OsIcon name="receipt" size={18}/> Cotizar</Link>
               <Link href="/orders/new" className="os-topbar-secondary"><OsIcon name="car" size={18}/> Nueva orden</Link>
               <Link href="/quick-sale" className="os-topbar-primary"><OsIcon name="plus" size={18}/> Venta rápida</Link>
             </div>
@@ -189,8 +190,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <nav className="os-mobile-bottom" aria-label="Accesos principales">
           <Link href="/" aria-current={pathname === "/" ? "page" : undefined}><OsIcon name="home"/><span>Inicio</span></Link>
+          <Link href="/quote" aria-current={pathname.startsWith("/quote") ? "page" : undefined}><OsIcon name="receipt"/><span>Cotizar</span></Link>
           <Link href="/quick-sale" aria-current={pathname === "/quick-sale" ? "page" : undefined}><OsIcon name="sale"/><span>Vender</span></Link>
-          <Link href="/workshop" aria-current={currentModule.id === "workshop" ? "page" : undefined}><OsIcon name="workshop"/><span>Taller</span></Link>
           <Link href="/cash-close" aria-current={pathname.startsWith("/cash-close") ? "page" : undefined}><OsIcon name="cash"/><span>Caja</span></Link>
           <button onClick={() => setMobileMenu(true)} aria-label="Todos los módulos"><OsIcon name="menu"/><span>Menú</span></button>
         </nav>

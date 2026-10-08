@@ -1,374 +1,350 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { OsIcon } from "@/components/os-icon";
 import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
-import { OsIcon } from "@/components/os-icon";
 import {
-  catalogIsFresh, formatCatalogDate, normalizeCatalogProduct, normalizeCatalogSync,
+  normalizeCatalogProduct, normalizeCatalogSync, normalizeCatalogSearch, catalogIsFresh,
   type CatalogProduct, type CatalogSync
 } from "@/lib/catalog";
 import {
-  analyzeOil, availableViscosities, normalizeQuoteFilterProducts, quoteAllOils,
-  quoteWhatsAppText, validQuoteRequest, DEFAULT_QUOTE_SHARE_CURRENCIES,
-  type OilQuote, type OilTechnology, type QuoteRequest, type QuoteMoney, type QuoteShareCurrencies,
-} from "@/lib/oil-quote";
+  QUOTE_DRAFT_KEY, QUOTE_HANDOFF_KEY, OIL_TO_QUOTE_KEY, DEFAULT_SHARE_CURRENCIES,
+  peekQuoteLines, mergeQuoteLines, resolvedQuote, quoteCustomerMessage, takeQuoteLines,
+  storeQuoteLines, type SalesQuoteLine, type ShareCurrencies, type SalesQuoteMoney
+} from "@/lib/sales-quote";
 
-function currency(value: number | null, kind: "usd" | "ves") {
-  return value === null ? "—" : kind === "ves" ? fmtVes(value) : fmtRef(value);
-}
+const money = (value:number|null, type:"ves"|"usd") =>
+  value == null ? "—" : type === "ves" ? fmtVes(value) : fmtRef(value);
 
-function QuoteImage({ product }: { product: CatalogProduct }) {
+function ProductPhoto({ item, compact = false }: { item: CatalogProduct; compact?: boolean }) {
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [product.image_url]);
-  return <span className="oq-photo">
-    {product.image_url && !failed ?
-      <img src={product.image_url} alt={""} loading="lazy" decoding="async" onError={() => setFailed(true)}/> :
-      <OsIcon name="inventory" size={26}/>}
+  useEffect(()=>setFailed(false),[item.image_url]);
+  return <span className={"sq-photo" + (compact ? " is-small" : "")}>
+    {item.image_url && !failed
+      ? <img src={item.image_url} alt={""} loading="lazy" decoding="async" onError={()=>setFailed(true)}/>
+      : <span className="sq-no-photo"><OsIcon name="inventory" size={compact ? 22 : 30}/></span>}
   </span>;
 }
 
-const technologyChoices: { key: OilTechnology; label: string; short: string }[] = [
-  { key: "mineral", label: "Mineral", short: "Mineral" },
-  { key: "semi", label: "Semisintético", short: "Semi" },
-  { key: "full", label: "Full sintético", short: "Full" }
-];
-
-function QuoteFigure({ values }: { values: QuoteMoney }) {
-  return <div className="oq-result-money">
-    <span><small>DIVISAS</small><strong>{currency(values.divisas, "usd")}</strong></span>
-    <span><small>$ BCV</small><strong>{currency(values.bcv, "usd")}</strong></span>
-    <span><small>BOLÍVARES</small><strong>{currency(values.ves, "ves")}</strong></span>
+function QuoteMoneyDisplay({ value, prominent = false }: { value:SalesQuoteMoney; prominent?:boolean }) {
+  return <div className={"sq-money" + (prominent ? " is-prominent" : "")}>
+    <span><small>Bolívares</small><strong>{money(value.ves,"ves")}</strong></span>
+    <span><small>Dólares BCV</small><strong>{money(value.bcv,"usd")}</strong></span>
+    <span><small>Divisas</small><strong>{money(value.divisas,"usd")}</strong></span>
   </div>;
 }
 
-export default function OilQuotePage() {
-  const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
-  const [sync, setSync] = useState<CatalogSync | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [viscosity, setViscosity] = useState("20W50");
-  const [technology, setTechnology] = useState<OilTechnology>("semi");
-  const [liters, setLiters] = useState("4");
-  const [filterMode, setFilterMode] = useState("manual");
-  const [manualFilterUsd, setManualFilterUsd] = useState("5");
-  const [laborUsd, setLaborUsd] = useState("0");
-  const [freeLaborPromotion, setFreeLaborPromotion] = useState(false);
-  const [search, setSearch] = useState("");
-  // null = todas las alternativas, [] = ninguna, lista = selección del vendedor.
-  const [selectedIds, setSelectedIds] = useState<string[] | null>(null);
-  const [copyResult, setCopyResult] = useState<"idle" | "copied" | "error">("idle");
-  const [shareCurrencies, setShareCurrencies] = useState<QuoteShareCurrencies>({ ...DEFAULT_QUOTE_SHARE_CURRENCIES });
+export default function GeneralQuotePage() {
+  const router=useRouter();
+  const cartRef=useRef<HTMLElement>(null);
+  const initialized=useRef(false);
+  const [catalog,setCatalog]=useState<CatalogProduct[]>([]);
+  const [sync,setSync]=useState<CatalogSync|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [ready,setReady]=useState(false);
+  const [error,setError]=useState("");
+  const [notice,setNotice]=useState("");
+  const [query,setQuery]=useState("");
+  const [category,setCategory]=useState("TODAS");
+  const [lines,setLines]=useState<SalesQuoteLine[]>([]);
+  const [manualOpen,setManualOpen]=useState(false);
+  const [manualDescription,setManualDescription]=useState("");
+  const [manualPrice,setManualPrice]=useState("");
+  const [manualQuantity,setManualQuantity]=useState("1");
+  const [currencies,setCurrencies]=useState<ShareCurrencies>({...DEFAULT_SHARE_CURRENCIES});
+  const [copied,setCopied]=useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true); setError("");
-    const [productsRes, ratesRes] = await Promise.all([
+  const load=useCallback(async()=>{
+    setLoading(true);setError("");
+    const [catalogRes,rateRes]=await Promise.all([
       supabase.rpc("get_catalog_snapshot"),
       supabase.rpc("get_pricing_sync_status")
     ]);
-    if (productsRes.error || ratesRes.error) {
-      setError(productsRes.error?.message || ratesRes.error?.message || "No se pudo cargar Notion.");
+    if (catalogRes.error || rateRes.error) {
+      setError(catalogRes.error?.message || rateRes.error?.message || "No se pudo cargar el catálogo.");
       setLoading(false);
       return;
     }
-    const items: CatalogProduct[] = (productsRes.data || [])
-      .map((item: Record<string, unknown>) => normalizeCatalogProduct(item))
-      .filter((item: CatalogProduct) => item.id && item.name);
+    const items:CatalogProduct[]=(catalogRes.data||[])
+      .map((x:Record<string,unknown>)=>normalizeCatalogProduct(x))
+      .filter((x:CatalogProduct)=>x.id && x.name && x.active && x.available);
     setCatalog(items);
-    const row = Array.isArray(ratesRes.data) ? ratesRes.data[0] : ratesRes.data;
-    setSync(normalizeCatalogSync(row ?? null));
+    const entry=Array.isArray(rateRes.data)?rateRes.data[0]:rateRes.data;
+    setSync(normalizeCatalogSync(entry||null));
     setLoading(false);
-  }, []);
+  },[]);
 
-  useEffect(() => {
+  useEffect(()=>{
     void load();
-    const onPricingUpdated = () => void load();
-    window.addEventListener("lubricenter:pricing-updated", onPricingUpdated);
-    return () => window.removeEventListener("lubricenter:pricing-updated", onPricingUpdated);
-  }, [load]);
+    const onPricing=()=>void load();
+    window.addEventListener("lubricenter:pricing-updated",onPricing);
+    return ()=>window.removeEventListener("lubricenter:pricing-updated",onPricing);
+  },[load]);
 
-  const viscosities = useMemo(() => availableViscosities(catalog), [catalog]);
-  const filters = useMemo(() => normalizeQuoteFilterProducts(catalog), [catalog]);
-  const catalogFilter = filters.find(item => item.id === filterMode);
-
-  const quantity = liters.trim() === "" ? NaN : Number(liters);
-  const filterUsd = manualFilterUsd.trim() === "" ? NaN : Number(manualFilterUsd);
-  const labor = laborUsd.trim() === "" ? NaN : Number(laborUsd);
-  const filterChoice: QuoteRequest["filter"] = filterMode === "none" ? { mode:"none" }
-    : catalogFilter ? { mode:"catalog", product:catalogFilter }
-    : { mode:"manual", manualUsd:filterUsd };
-  const request: QuoteRequest = {
-    viscosity, technology, liters:quantity, filter:filterChoice, laborUsd:labor,
-    freeLaborPromotion, rates:sync
-  };
-  const valid = validQuoteRequest(request);
-  const quotes = useMemo(() => quoteAllOils(catalog, request), [
-    catalog, viscosity, technology, quantity, filterMode, catalogFilter,
-    filterUsd, labor, freeLaborPromotion, sync
-  ]);
-
-  const normalizedTerm = search.trim().toLocaleLowerCase("es-VE");
-  const displayed = quotes.filter(quote =>
-    !normalizedTerm || (quote.oil.brand + " " + quote.oil.product.name)
-      .toLocaleLowerCase("es-VE").includes(normalizedTerm));
-
-  const chosen = quotes.filter(quote => selectedIds === null || selectedIds.includes(quote.oil.product.id));
-  const selectedVisibleCount = displayed.filter(quote =>
-    selectedIds === null || selectedIds.includes(quote.oil.product.id)).length;
-
-  const unclassified = catalog.map(analyzeOil).filter(
-    (oil): oil is NonNullable<typeof oil> =>
-      Boolean(oil && oil.viscosity === viscosity && (!oil.technology || oil.volumeLiters === null))
-  );
-  const inconsistent = quotes.filter(quote => quote.oil.warnings.length > 0);
-  const fresh = catalogIsFresh(sync);
-  const syncedAt = formatCatalogDate(sync?.catalogSyncedAt ?? null);
-  const shareText = valid
-    ? quoteWhatsAppText(chosen, request, shareCurrencies)
-    : "";
-  const hasShareCurrency = Object.values(shareCurrencies).some(Boolean);
-  const selectedQuoteNeedsRate = hasShareCurrency && chosen.some(quote =>
-    (["ves", "bcv", "divisas"] as const).some(key => shareCurrencies[key] && quote.total[key] == null)
-  );
-
-  function toggleShareCurrency(currency: keyof QuoteShareCurrencies) {
-    setShareCurrencies(current => ({ ...current, [currency]: !current[currency] }));
-    setCopyResult("idle");
-  }
-
-  function updateQuoteOptions() {
-    setSelectedIds(null);
-    setCopyResult("idle");
-  }
-
-  function toggleQuote(id: string) {
-    setSelectedIds(current => {
-      const all = current === null ? quotes.map(item => item.oil.product.id) : current;
-      return all.includes(id) ? all.filter(x => x !== id) : [...all, id];
-    });
-    setCopyResult("idle");
-  }
-
-  async function copyQuote() {
-    if (!shareText) return;
-    try {
-      await navigator.clipboard.writeText(shareText);
-      setCopyResult("copied");
-    } catch {
-      setCopyResult("error");
+  useEffect(()=>{
+    if (loading || initialized.current || !catalog.length) return;
+    initialized.current=true;
+    const draft=peekQuoteLines(QUOTE_DRAFT_KEY);
+    const imported=takeQuoteLines(OIL_TO_QUOTE_KEY);
+    let next=mergeQuoteLines(draft,imported);
+    const url=new URL(window.location.href);
+    const productId=url.searchParams.get("add");
+    if (productId) {
+      const item=catalog.find(x=>x.id===productId);
+      if (item) {
+        next=mergeQuoteLines(next,[{kind:"CATALOG",id:item.id,productId:item.id,quantity:1}]);
+        setNotice("Agregamos "+item.name+" desde el catálogo.");
+      }
+      url.searchParams.delete("add");
+      window.history.replaceState(window.history.state,"",url.pathname+url.search+url.hash);
     }
+    if (imported.length) {
+      setNotice("Tu selección de aceites ya está en la cotización. Puedes añadir más productos.");
+      url.searchParams.delete("from");
+      window.history.replaceState(window.history.state,"",url.pathname+url.search+url.hash);
+    }
+    setLines(next);
+    setReady(true);
+  },[loading,catalog]);
+
+  useEffect(()=>{
+    if(ready)storeQuoteLines(QUOTE_DRAFT_KEY,lines);
+  },[lines,ready]);
+
+  const categories=useMemo(()=>[...new Set(catalog.map(x=>x.category||"Sin categoría"))]
+    .sort((a,b)=>a.localeCompare(b,"es-VE")), [catalog]);
+
+  const products=useMemo(()=>{
+    const term=normalizeCatalogSearch(query);
+    return catalog.filter(item=>
+      (category==="TODAS" || (item.category||"Sin categoría")===category) &&
+      (!term || normalizeCatalogSearch(item.name+" "+(item.category||"")).includes(term))
+    ).sort((a,b)=>a.name.localeCompare(b.name,"es-VE",{numeric:true}));
+  },[catalog,query,category]);
+
+  const quote=useMemo(()=>resolvedQuote(lines,catalog,sync),[lines,catalog,sync]);
+  const fresh=catalogIsFresh(sync);
+  const shareText=quote.missing.length===0 && ready
+    ?quoteCustomerMessage(quote.lines,quote.total,currencies):"";
+  const selectedCurrencies=Object.values(currencies).some(Boolean);
+  const allValid=ready && !loading && !error && quote.lines.length>0 && quote.missing.length===0
+    && quote.lines.length===lines.length
+    && quote.lines.every(row=>row.subtotal.bcv!=null && row.subtotal.ves!=null);
+
+  function addProduct(item:CatalogProduct) {
+    setLines(current=>mergeQuoteLines(current,[{kind:"CATALOG",id:item.id,productId:item.id,quantity:1}]));
+    setNotice("Agregado: "+item.name);
+    setCopied(false);
   }
 
-  const missingRateForManual = valid && filterChoice.mode === "manual" && filterUsd > 0 &&
-    (!sync?.operative || !sync?.bcv);
+  function removeLine(id:string) {
+    setLines(current=>current.filter(x=>x.id!==id));
+    setCopied(false);
+  }
 
-  return <main className="container oq">
-    <div className="oq-heading">
+  function updateQuantity(id:string, quantity:number) {
+    if(!Number.isFinite(quantity)||quantity<=0||quantity>1000)return;
+    setLines(current=>current.map(item=>item.id===id ? {...item,quantity} : item));
+    setCopied(false);
+  }
+
+  function addManual() {
+    const description=manualDescription.trim();
+    const unitRef=Number(manualPrice);
+    const quantity=Number(manualQuantity);
+    if(!description || description.length>200 || !Number.isFinite(unitRef) ||
+      unitRef<=0 || unitRef>100000 || !Number.isFinite(quantity) || quantity<=0 || quantity>1000){
+      setError("Indica la descripción, un precio unitario BCV válido y una cantidad mayor a cero.");
+      return;
+    }
+    setError("");
+    setLines(current=>mergeQuoteLines(current,[{
+      kind:"MANUAL",id:crypto.randomUUID(),description,quantity,unitRef
+    }]));
+    setManualDescription("");setManualPrice("");setManualQuantity("1");setManualOpen(false);
+    setNotice("Servicio o concepto añadido a la cotización.");
+  }
+
+  function goToCheckout(flow:"sale"|"order") {
+    if(!allValid){setError("Revisa los productos y precios antes de continuar.");return;}
+    if(!storeQuoteLines(QUOTE_HANDOFF_KEY,lines)){
+      setError("Tu navegador bloqueó el carrito temporal; no pudimos transferir la cotización.");
+      return;
+    }
+    // Venta rápida es el único módulo autorizado para validar stock, cobros y crear órdenes.
+    router.push("/quick-sale?from=quote&flow="+flow);
+  }
+
+  async function copyMessage() {
+    if(!shareText)return;
+    try{await navigator.clipboard.writeText(shareText);setCopied(true);}
+    catch{setError("No se pudo copiar el mensaje; puedes enviarlo por WhatsApp.");}
+  }
+
+  return <main className="container sq">
+    <header className="sq-heading">
       <div>
-        <p className="oq-kicker"><OsIcon name="receipt" size={15}/> VENTAS / HERRAMIENTAS</p>
-        <h1>Cotizador de cambios de aceite</h1>
-        <p>Una sola búsqueda, todas las marcas compatibles. Precios de Notion con filtro y mano de obra separados.</p>
+        <div className="sq-kicker"><OsIcon name="receipt" size={17}/> VENTAS / COTIZACIONES</div>
+        <h1>Cotiza cualquier producto, en segundos.</h1>
+        <p>Busca en tu catálogo, combina artículos o servicios y continúa directamente a la venta u orden.</p>
       </div>
-      <button className="oq-button oq-reload" onClick={() => void load()} disabled={loading}>
-        <OsIcon name="refresh" size={17}/>{loading ? "Actualizando…" : "Actualizar precios"}
-      </button>
-    </div>
-
-    <div className={"oq-status" + (fresh ? " is-fresh" : " is-stale")} role="status">
-      <OsIcon name={fresh ? "check" : "alert"} size={17}/>
-      <div>
-        <strong>{fresh ? "Precios sincronizados con Notion" : "Verifica las tasas antes de enviar una cotización"}</strong>
-        <small>{syncedAt} · BCV {sync?.bcv ? fmtVes(sync.bcv) : "—"} · Operativa {sync?.operative ? fmtVes(sync.operative) : "—"}</small>
+      <div className="sq-heading-actions">
+        <Link href="/quote/oil" className="sq-button sq-oil-shortcut"><OsIcon name="car" size={18}/> Comparar aceites</Link>
+        <Link href="/catalog" className="sq-button"><OsIcon name="inventory" size={18}/> Catálogo</Link>
       </div>
-      <Link href="/catalog">Ver catálogo <OsIcon name="arrow" size={15}/></Link>
-    </div>
+    </header>
 
-    {error && <div className="error" role="alert">No pudimos cargar los productos: {error} <button onClick={() => void load()} className="oq-inline-action">Reintentar</button></div>}
+    <section className="sq-flow" aria-label="Pasos de atención">
+      <span className="is-current"><b>1</b> Buscar y agregar</span><OsIcon name="right" size={16}/>
+      <span><b>2</b> Cotizar o compartir</span><OsIcon name="right" size={16}/>
+      <span><b>3</b> Cobrar o crear orden</span>
+    </section>
 
-    <div className="oq-layout">
-      <section className="oq-form" aria-label="Parámetros de cotización">
-        <div className="oq-form-title">
-          <span className="oq-form-icon"><OsIcon name="car" size={21}/></span>
-          <div><strong>Datos del vehículo</strong><small>Configura una vez y compara todas las marcas</small></div>
-        </div>
-        <label className="oq-field">
-          <span>Viscosidad del aceite</span>
-          <select value={viscosity} onChange={e => { setViscosity(e.target.value); updateQuoteOptions(); }}>
-            {viscosities.length ? viscosities.map(name => <option key={name} value={name}>{name}</option>)
-              : <option value="20W50">20W50</option>}
-          </select>
-        </label>
-        <fieldset className="oq-type-fieldset">
-          <legend>Tecnología</legend>
-          <div className="oq-type-segments">
-            {technologyChoices.map(option => <button key={option.key} type="button"
-              aria-pressed={technology === option.key}
-              className={technology === option.key ? "is-active" : ""}
-              onClick={() => {setTechnology(option.key);updateQuoteOptions();}}>
-              {option.label}</button>)}
-          </div>
-        </fieldset>
-        <label className="oq-field">
-          <span>Cantidad necesaria · litros</span>
-          <input type="number" min="0.5" max="30" step="0.5" inputMode="decimal" value={liters}
-            onChange={e=>{setLiters(e.target.value);updateQuoteOptions();}}/>
-          <small>Un galón se calcula como 4 litros; los demás aceites por litro.</small>
-        </label>
-        <div className="oq-field-divider"/>
-        <div className="oq-form-subtitle"><OsIcon name="inventory" size={17}/> Filtro de aceite</div>
-        <label className="oq-field">
-          <span>Precio del filtro</span>
-          <select value={filterMode} onChange={e=>{setFilterMode(e.target.value);updateQuoteOptions();}}>
-            <option value="manual">Importe manual · estimado</option>
-            <option value="none">Sin filtro</option>
-            {filters.map(filter => <option key={filter.id} value={filter.id}>{filter.name} · {currency(filter.cash_usd_base_price,"usd")}</option>)}
-          </select>
-        </label>
-        {filterChoice.mode === "manual" && <label className="oq-field">
-          <span>Importe estimado del filtro · divisas</span>
-          <div className="oq-money-input"><span>$</span><input type="number" min="0" max="1000" step="0.5"
-            inputMode="decimal" value={manualFilterUsd} onChange={e=>{setManualFilterUsd(e.target.value);updateQuoteOptions();}} /></div>
-          <small>Ajusta el precio según el filtro compatible con el vehículo; $5 es solo un valor inicial editable.</small>
-        </label>}
-        <div className="oq-field-divider"/>
-        <div className="oq-form-subtitle"><OsIcon name="cash" size={17}/> Mano de obra</div>
-        <label className="oq-field">
-          <span>Costo de mano de obra · divisas</span>
-          <div className="oq-money-input"><span>$</span><input type="number" min="0" max="1000" step="0.5"
-            inputMode="decimal" value={laborUsd} onChange={e=>{setLaborUsd(e.target.value);updateQuoteOptions();}} /></div>
-          <small>Sin cargo por defecto. Se cotiza por separado cuando corresponda.</small>
-        </label>
-        <label className="oq-promo">
-          <input type="checkbox" checked={freeLaborPromotion} onChange={e=>{setFreeLaborPromotion(e.target.checked);updateQuoteOptions();}}/>
-          <span><strong>Promoción: mano de obra gratis</strong><small>Si asignaste un importe, se descuenta completo.</small></span>
-        </label>
-        {!valid && <div className="oq-field-error" role="alert">Ingresa una cantidad entre 0,5 y 30 litros, y costos entre $0 y $1.000.</div>}
-        {missingRateForManual && <div className="oq-field-error" role="alert">Faltan tasas para convertir importes manuales a bolívares y $ BCV.</div>}
-        <div className="oq-form-end">
-          <OsIcon name="shield" size={17}/> Cotización orientativa. Verificar stock y compatibilidad del filtro antes de vender.
-        </div>
-      </section>
+    {error && <div className="error" role="alert">{error} <button className="sq-text-button" onClick={()=>{setError("");void load();}}>Reintentar</button></div>}
+    {notice && <div className="sq-notice" role="status"><OsIcon name="check" size={17}/>{notice}<button aria-label="Cerrar aviso" onClick={()=>setNotice("")}><OsIcon name="close" size={16}/></button></div>}
 
-      <section className="oq-results" aria-label="Resultados de comparación">
-        <div className="oq-results-heading">
-          <div>
-            <p className="oq-kicker">COMPARACIÓN INMEDIATA</p>
-            <h2>{viscosity} · {technologyChoices.find(t=>t.key===technology)?.label}</h2>
-            <span>{loading && !catalog.length ? "Cargando…" :
-              quotes.length + " opciones de aceite " + (quotes.length ? "ordenadas por menor precio" : "compatibles")}</span>
-          </div>
-          <div className="oq-results-pill"><OsIcon name="clock" size={15}/> Precios de Notion</div>
+    <div className="sq-layout">
+      <section className="sq-products" aria-label="Buscar productos">
+        <div className="sq-section-heading">
+          <div><h2>Productos del catálogo</h2><p>{loading?"Cargando precios…":products.length+" opciones para cotizar"}</p></div>
+          <button className="sq-refresh" disabled={loading} onClick={()=>void load()}><OsIcon name="refresh" size={16}/> Actualizar</button>
         </div>
-        <div className="oq-results-tools">
-          <label className="oq-results-search"><OsIcon name="search" size={17}/>
-            <input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Filtrar por marca…" aria-label="Filtrar por marca"/>
+        <div className="sq-search-section">
+          <label className="sq-search"><OsIcon name="search" size={20}/>
+            <input type="search" autoComplete="off" value={query}
+              onChange={e=>setQuery(e.target.value)}
+              placeholder="Busca marca, aceite, filtro, repuesto, servicio…"
+              aria-label="Buscar en el catálogo"/>
           </label>
-          <button onClick={()=>{setSelectedIds(null);setCopyResult("idle");}} className="oq-mini-action">Todas</button>
-          <button onClick={()=>{setSelectedIds(quotes.slice(0,3).map(q=>q.oil.product.id));setCopyResult("idle");}} className="oq-mini-action">3 económicas</button>
+          <label className="sq-category-select"><span>Categoría</span>
+            <select value={category} onChange={e=>setCategory(e.target.value)}>
+              <option value="TODAS">Todas</option>
+              {categories.map(c=><option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="sq-category-pills" aria-label="Categorías rápidas">
+          <button className={category==="TODAS"?"is-active":""} onClick={()=>setCategory("TODAS")}>Todos</button>
+          {categories.slice(0,7).map(c=><button key={c} className={category===c?"is-active":""}
+            onClick={()=>setCategory(c)}>{c}</button>)}
         </div>
 
-        {loading && !catalog.length && <div className="oq-empty"><OsIcon name="refresh" size={25}/><strong>Buscando productos en Notion…</strong></div>}
-
-        {!loading && valid && quotes.length===0 && <div className="oq-empty">
+        {loading && !catalog.length && <div className="sq-loading">Consultando el catálogo y las tasas de venta…</div>}
+        {!loading && products.length===0 && <div className="sq-empty">
           <OsIcon name="search" size={30}/>
-          <strong>No hay opciones con esta combinación</strong>
-          <p>Prueba otra viscosidad o tecnología. Solo cotizamos automáticamente aceites cuya clasificación y precios están claros en Notion.</p>
+          <strong>No encontramos productos</strong>
+          <p>Prueba otra categoría o término. También puedes añadir un trabajo o servicio manual a tu cotización.</p>
         </div>}
-
-        {quotes.length > 0 && displayed.length===0 && <div className="oq-empty"><strong>No encontramos esa marca</strong><p>Intenta otra búsqueda.</p></div>}
-
-        {displayed.length > 0 && <div className="oq-list">
-          <div className="oq-list-head">
-            <span>ACEITE Y MARCA</span><span>TOTAL DIVISAS</span><span>TOTAL $ BCV</span><span>TOTAL BOLÍVARES</span>
-          </div>
-          {displayed.map((quote,index) => {
-            const p = quote.oil.product;
-            const checked = selectedIds === null || selectedIds.includes(p.id);
-            return <article className={"oq-option" + (checked ? " is-chosen" : "")} key={p.id}>
-              <label className="oq-option-select" title="Incluir esta marca en la cotización">
-                <input type="checkbox" checked={checked} onChange={()=>toggleQuote(p.id)}
-                  aria-label={"Incluir " + p.name}/>
-              </label>
-              <QuoteImage product={p}/>
-              <div className="oq-option-main">
-                <div className="oq-option-sub"><span className="oq-brand">{quote.oil.brand}</span>
-                  {index === 0 && !search && <span className="oq-cheapest">MENOR PRECIO</span>}
-                  {quote.oil.volumeLiters === 4 && <span className="oq-presentation">Galón = 4 L</span>}
-                  {quote.oil.warnings.length > 0 && <span className="oq-review" title={quote.oil.warnings.join(" ")}>Revisar categoría</span>}
+        <div className="sq-product-grid">
+          {products.map(product=>{
+            const already=lines.some(line=>line.kind==="CATALOG"&&line.productId===product.id);
+            return <article className={"sq-product-card"+(already?" is-added":"")} key={product.id}>
+              <ProductPhoto item={product}/>
+              <div className="sq-product-info">
+                <span className="sq-product-category">{product.category||"Sin categoría"}</span>
+                <h3>{product.name}</h3>
+                <div className="sq-product-price">
+                  <strong>{money(product.current_ref_bcv,"usd")} <small>BCV</small></strong>
+                  <span>{money(product.current_price_ves,"ves")}</span>
                 </div>
-                <strong>{p.name}</strong>
-                <small>Aceite: {currency(quote.oilSubtotal.divisas,"usd")} · Filtro: {currency(quote.filterSubtotal.divisas,"usd")} · Mano de obra: {currency(quote.laborSubtotal.divisas,"usd")}</small>
+                <button type="button" className="sq-add-button" onClick={()=>addProduct(product)}
+                  disabled={product.current_ref_bcv==null || product.current_price_ves==null || product.cash_usd_base_price==null}>
+                  <OsIcon name={already?"plus":"plus"} size={17}/>
+                  {already?"Agregar otra unidad":"Agregar a la cotización"}
+                </button>
               </div>
-              <QuoteFigure values={quote.total}/>
-              <details className="oq-breakdown">
-                <summary>Ver desglose de precios</summary>
-                <div className="oq-breakdown-table">
-                  <span>Concepto</span><span>Divisas</span><span>$ BCV</span><span>Bs</span>
-                  {[["Aceite · " + quantity + " L",quote.oilSubtotal],["Filtro",quote.filterSubtotal],["Mano de obra" + (freeLaborPromotion ? " (promoción)" : ""),quote.laborSubtotal],["Total",quote.total]].map(([label, money]) => {
-                    const m = money as QuoteMoney;
-                    return <div key={label as string} className="oq-breakdown-line">
-                      <span>{label as string}</span><span>{currency(m.divisas,"usd")}</span>
-                      <span>{currency(m.bcv,"usd")}</span><span>{currency(m.ves,"ves")}</span>
-                    </div>;
-                  })}
-                </div>
-              </details>
             </article>;
           })}
-        </div>}
-
-        {unclassified.length>0 && <details className="oq-catalog-attention">
-          <summary><OsIcon name="alert" size={16}/> {unclassified.length} productos {viscosity} requieren clasificar la tecnología</summary>
-          <p>No los mezclamos con mineral, semi o full para evitar errores. Corrige sus nombres en Notion si deben aparecer.</p>
-          <ul>{unclassified.map(item => <li key={item.product.id}>{item.product.name}</li>)}</ul>
-        </details>}
-        {inconsistent.length>0 && <p className="oq-small-warning"><OsIcon name="alert" size={14}/>
-          {inconsistent.length} opciones tienen categoría contradictoria en Notion. Para ellas se usa la viscosidad escrita en el nombre; revísalas antes de vender.
-        </p>}
-
-        {quotes.length>0 && <aside className="oq-share">
-          <div className="oq-share-heading">
-            <div><p className="oq-kicker">LISTO PARA ENVIAR</p><strong>Comparativa para el cliente</strong><span>{chosen.length} de {quotes.length} alternativas seleccionadas {selectedVisibleCount<displayed.length ? "· ajusta con las casillas" : ""}</span></div>
-            <OsIcon name="receipt" size={25}/>
-          </div>
-          <fieldset className="oq-share-currencies">
-            <legend>¿Qué precios quieres incluir en el mensaje?</legend>
-            <div className="oq-share-currency-options">
-              <label><input type="checkbox" checked={shareCurrencies.ves}
-                onChange={() => toggleShareCurrency("ves")}/> <span>Bolívares (Bs)</span></label>
-              <label><input type="checkbox" checked={shareCurrencies.bcv}
-                onChange={() => toggleShareCurrency("bcv")}/> <span>Dólares BCV</span></label>
-              <label><input type="checkbox" checked={shareCurrencies.divisas}
-                onChange={() => toggleShareCurrency("divisas")}/> <span>Divisas (USD)</span></label>
-            </div>
-            <small>Por defecto enviamos Bs y $ BCV. Las divisas solo se incluyen si las activas.</small>
-          </fieldset>
-          {!hasShareCurrency && <div className="oq-field-error" role="alert">Selecciona al menos una moneda para compartir.</div>}
-          {selectedQuoteNeedsRate && <div className="oq-field-error" role="alert">Falta el valor de una moneda seleccionada. Revisa las tasas o elige otra moneda antes de enviar.</div>}
-          <div className="oq-share-preview">
-            <div className="oq-share-preview-label"><OsIcon name="receipt" size={16}/> Vista previa para el cliente</div>
-            <pre aria-live="polite">{shareText || "Selecciona una o más opciones y al menos una moneda para preparar tu mensaje."}</pre>
-          </div>
-          <div className="oq-share-actions">
-            <button className="oq-button is-primary" disabled={!valid || !chosen.length || !shareText}
-              onClick={()=>void copyQuote()}><OsIcon name={copyResult==="copied"?"check":"receipt"} size={17}/>
-              {copyResult==="copied"?"Cotización copiada":"Copiar cotización"}</button>
-            <a className={"oq-button oq-whatsapp" + (!shareText ? " is-disabled" : "")}
-              href={shareText ? "https://wa.me/?text=" + encodeURIComponent(shareText) : undefined}
-              target="_blank" rel="noopener noreferrer" aria-disabled={!shareText}
-              onClick={event=>{if(!shareText)event.preventDefault();}}>
-              <OsIcon name="arrow" size={17}/> Compartir por WhatsApp
-            </a>
-            <Link href="/quick-sale" className="oq-button oq-open-sale">Ir a venta rápida <OsIcon name="right" size={16}/></Link>
-          </div>
-          {copyResult==="error" && <p role="alert" className="oq-small-warning">Tu navegador bloqueó la copia; usa el botón de WhatsApp o los precios en pantalla.</p>}
-          <p>El cliente recibe un mensaje breve y cordial con las opciones y los precios que marques arriba.
-            No incluimos datos internos del catálogo, inventario ni tasas de sincronización.
-            La venta rápida se abre por separado; todavía no importa automáticamente la cotización.
-          </p>
-        </aside>}
+        </div>
+        <div className="sq-manual">
+          <button type="button" aria-expanded={manualOpen} className="sq-manual-trigger"
+            onClick={()=>setManualOpen(v=>!v)}>
+            <OsIcon name="plus" size={19}/> Agregar un servicio o concepto manual
+            <OsIcon name="down" size={17}/>
+          </button>
+          {manualOpen&&<div className="sq-manual-fields">
+            <label>Descripción<input value={manualDescription} onChange={e=>setManualDescription(e.target.value)}
+              placeholder="Ej. Servicio de mantenimiento"/></label>
+            <label>Precio unitario ($ BCV)<input type="number" min="0.01" step="0.01" value={manualPrice}
+              onChange={e=>setManualPrice(e.target.value)} placeholder="0,00"/></label>
+            <label>Cantidad<input type="number" min="0.01" step="0.01" value={manualQuantity}
+              onChange={e=>setManualQuantity(e.target.value)}/></label>
+            <button className="sq-button is-primary" type="button" onClick={addManual}>Agregar concepto</button>
+          </div>}
+        </div>
       </section>
+
+      <aside className="sq-basket" aria-label="Cotización actual" ref={cartRef}>
+        <div className="sq-basket-heading">
+          <div><span className="sq-kicker">MOSTRADOR / CLIENTE</span><h2>Cotización actual</h2></div>
+          <span className="sq-count">{lines.length} {lines.length===1?"artículo":"artículos"}</span>
+        </div>
+        {!ready || !lines.length ? <div className="sq-basket-empty">
+          <OsIcon name="inventory" size={36}/><strong>Tu cotización comienza aquí</strong>
+          <p>Selecciona productos del catálogo. Se agregarán con sus precios y podrás compartirlos o cobrarlos.</p>
+        </div> : <div className="sq-basket-lines">
+          {quote.lines.map(row=><div className="sq-basket-line" key={row.item.id}>
+            <div className="sq-basket-line-title">
+              <strong>{row.name}</strong>
+              <button title={"Eliminar "+row.name} aria-label={"Eliminar "+row.name}
+                onClick={()=>removeLine(row.item.id)}><OsIcon name="close" size={16}/></button>
+            </div>
+            <div className="sq-basket-line-controls">
+              <div className="sq-quantity">
+                <button onClick={()=>row.item.quantity<=1?removeLine(row.item.id):
+                  updateQuantity(row.item.id,Number((row.item.quantity-1).toFixed(2)))}
+                  aria-label={"Restar unidad de "+row.name}>−</button>
+                <input aria-label={"Cantidad de "+row.name} type="number" min="0.01" max="1000" step="0.01"
+                  value={row.item.quantity} onChange={e=>updateQuantity(row.item.id,Number(e.target.value))}/>
+                <button onClick={()=>updateQuantity(row.item.id,Number((row.item.quantity+1).toFixed(2)))}
+                  aria-label={"Agregar unidad de "+row.name}>+</button>
+              </div>
+              <strong>{money(row.subtotal.bcv,"usd")} <small>BCV</small></strong>
+            </div>
+          </div>)}
+          {quote.missing.length>0 && <div className="sq-warning" role="alert">{quote.missing.join(" ")}</div>}
+        </div>}
+        <div className="sq-basket-totals">
+          <span>Total estimado</span>
+          <QuoteMoneyDisplay value={quote.total} prominent/>
+          {!fresh && <small>Las tasas o precios pueden estar desactualizados. Confirma la actualización antes de cobrar.</small>}
+        </div>
+        <div className="sq-checkout-actions">
+          <button className="sq-button is-primary" disabled={!allValid} onClick={()=>goToCheckout("sale")}>
+            <OsIcon name="sale" size={18}/> Pasar a venta rápida <OsIcon name="right" size={16}/>
+          </button>
+          <button className="sq-button" disabled={!allValid} onClick={()=>goToCheckout("order")}>
+            <OsIcon name="car" size={18}/> Continuar como orden <OsIcon name="right" size={16}/>
+          </button>
+          <p>Los artículos y cantidades pasarán al carrito. El cobro o creación de la orden se confirmará allí, sin registrar nada automáticamente.</p>
+        </div>
+        <div className="sq-share">
+          <h3>Compartir con el cliente</h3>
+          <div className="sq-share-options">
+            {([["ves","Bolívares"],["bcv","Dólares BCV"],["divisas","Divisas"]] as const).map(([key,label])=>
+              <label key={key}><input type="checkbox" checked={currencies[key]}
+                onChange={()=>{setCurrencies(v=>({...v,[key]:!v[key]}));setCopied(false);}}/>{label}</label>)}
+          </div>
+          <div className="sq-share-preview"><pre aria-live="polite">{shareText||"Agrega productos y selecciona una moneda para generar un mensaje."}</pre></div>
+          <div className="sq-share-actions">
+            <button className="sq-button" onClick={()=>void copyMessage()} disabled={!shareText}>
+              <OsIcon name={copied?"check":"receipt"} size={17}/>{copied?"Copiado":"Copiar mensaje"}
+            </button>
+            <a href={shareText?"https://wa.me/?text="+encodeURIComponent(shareText):undefined}
+              aria-disabled={!shareText} onClick={e=>{if(!shareText)e.preventDefault();}}
+              target="_blank" rel="noopener noreferrer" className={"sq-button is-whatsapp"+(shareText?"":" is-disabled")}>
+              <OsIcon name="arrow" size={17}/> WhatsApp
+            </a>
+          </div>
+        </div>
+      </aside>
     </div>
+    {lines.length>0 && <button className="sq-mobile-cart" onClick={()=>cartRef.current?.scrollIntoView({behavior:"smooth",block:"start"})}>
+      <OsIcon name="receipt" size={19}/> Ver cotización · {lines.length} {lines.length===1?"producto":"productos"}
+      <strong>{money(quote.total.bcv,"usd")} BCV</strong>
+    </button>}
   </main>;
 }

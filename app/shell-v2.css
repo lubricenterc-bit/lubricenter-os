@@ -172,3 +172,11 @@
   .os-login-brand { font-size: 24px; }
   .os-login-brand img { width: 54px; height: 54px; }
 }
+
+/* Acceso inmediato al cotizador desde el mostrador en escritorio. */
+.os-topbar-quote { display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:37px;
+ padding:8px 12px;border:1px solid #a36541;border-radius:8px;color:#ffc29e;
+ background:#42322b;font-size:12px;font-weight:770;white-space:nowrap; }
+.os-topbar-quote:hover {background:#5a3c2d;border-color:#e48b51;}
+@media(max-width:1200px){ .os-topbar-quote {font-size:0;width:37px;padding:7px;} .os-topbar-quote svg{width:19px;height:19px;} }
+@media(max-width:630px){ .os-topbar-quote {font-size:0;width:35px;height:35px;min-height:0;padding:0;} }

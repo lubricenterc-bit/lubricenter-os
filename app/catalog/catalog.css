@@ -160,3 +160,71 @@
   .lc-catalog-card { transition: none; }
   .lc-catalog-card:hover { transform: none; }
 }
+
+
+/* Ajuste editorial: fotos completas, tarjetas consistentes y acceso directo al cotizador. */
+.lc-catalog-grid { grid-template-columns:repeat(3,minmax(0,1fr));gap:16px; }
+.lc-catalog-card { display:flex;flex-direction:column;justify-content:space-between; }
+.lc-catalog-card-detail { display:flex;flex:1;flex-direction:column;min-width:0;width:100%;
+ padding:0;color:inherit;background:transparent;border:0;text-align:left; }
+.lc-catalog-card-detail:hover { background:#25313d; }
+.lc-catalog-photo { aspect-ratio:1/1;background:#f2f3f4;padding:13px; }
+.lc-catalog-photo img { display:block;width:100%;height:100%;max-height:285px;object-fit:contain;
+ object-position:center;background:transparent; }
+.lc-catalog-card-body { padding:15px;gap:10px; }
+.lc-catalog-card h2 {font-size:14px;line-height:1.4;min-height:40px;font-weight:750;}
+.lc-catalog-price span {font-size:10px;}
+.lc-catalog-price strong {font-size:15px;}
+.lc-catalog-price.is-prominent strong {font-size:17px;}
+.lc-catalog-card-open {font-size:12px;}
+.lc-catalog-quote-link {min-height:42px;margin:0 13px 13px;padding:10px 12px;
+ display:flex;justify-content:center;align-items:center;gap:8px;border:1px solid #82593d;
+ border-radius:9px;color:#ffc09b;background:#40332d;font-size:12px;font-weight:780;text-decoration:none;}
+.lc-catalog-quote-link:hover {background:#583b2f;border-color:#e99a64;}
+.lc-catalog-list-head {grid-template-columns:minmax(220px,2fr) repeat(3,minmax(103px,.83fr)) 90px;}
+.lc-catalog-list-entry {display:grid;grid-template-columns:minmax(0,1fr) 93px;
+ align-items:center;gap:9px;padding-right:14px;border-bottom:1px solid #35414f;}
+.lc-catalog-list-entry:last-child {border-bottom:0;}
+.lc-catalog-list-row {border-bottom:0;grid-template-columns:minmax(220px,2fr) repeat(3,minmax(103px,.83fr));
+ gap:14px;min-width:0;}
+.lc-catalog-list-name > .lc-catalog-photo {width:74px;height:74px;flex-basis:74px;aspect-ratio:1;
+ padding:6px;}
+.lc-catalog-list-name strong {font-size:13px;line-height:1.4;}
+.lc-catalog-list-price {font-size:14px;}
+.lc-catalog-list-quote {display:inline-flex;justify-content:center;align-items:center;gap:4px;
+ border:1px solid #805a43;border-radius:8px;padding:9px 6px;min-height:40px;
+ background:#48352a;color:#ffbd8e;font-size:11px;font-weight:750;}
+.lc-catalog-list-quote:hover {background:#5b4031;}
+.lc-catalog-dialog {grid-template-columns:minmax(280px,1fr) minmax(320px,1.1fr);max-width:950px;}
+.lc-catalog-dialog > .lc-catalog-photo {min-height:430px;height:auto;aspect-ratio:auto;padding:30px;}
+.lc-catalog-dialog > .lc-catalog-photo img {max-height:min(70vh,610px);}
+.lc-catalog-dialog-content {padding:31px 28px;}
+.lc-catalog-heading-actions {flex-wrap:wrap;}
+@media(max-width:1200px) {
+ .lc-catalog-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
+ .lc-catalog-list-head {display:none;}
+ .lc-catalog-list-entry {grid-template-columns:minmax(0,1fr) 94px;}
+ .lc-catalog-list-row {grid-template-columns:minmax(0,1.6fr) repeat(3,minmax(78px,.7fr));gap:8px;}
+}
+@media(max-width:720px) {
+ .lc-catalog-grid {gap:10px;}
+ .lc-catalog-photo {aspect-ratio:1/1;padding:8px;}
+ .lc-catalog-photo img {max-height:220px;}
+ .lc-catalog-card-body {padding:11px;gap:8px;}
+ .lc-catalog-card h2 {font-size:12px;min-height:36px;}
+ .lc-catalog-price strong,.lc-catalog-price.is-prominent strong,
+ .lc-catalog-price:last-child strong {font-size:13px;}
+ .lc-catalog-quote-link {margin:0 8px 9px;padding:9px 5px;font-size:10px;min-height:41px;}
+ .lc-catalog-list-entry {display:grid;grid-template-columns:minmax(0,1fr);padding:0 11px 11px;gap:4px;}
+ .lc-catalog-list-row {grid-template-columns:repeat(3,minmax(0,1fr));padding:12px 0;}
+ .lc-catalog-list-name > .lc-catalog-photo {width:67px;height:67px;flex-basis:67px;}
+ .lc-catalog-list-quote {width:100%;min-height:39px;}
+ .lc-catalog-dialog {grid-template-columns:minmax(0,1fr);}
+ .lc-catalog-dialog > .lc-catalog-photo {height:280px;min-height:0;padding:15px;}
+ .lc-catalog-heading-actions .lc-catalog-button {flex:1;min-width:0;}
+}
+@media(max-width:410px) {
+ .lc-catalog-grid {grid-template-columns:1fr;}
+ .lc-catalog-card-body {padding:13px;}
+ .lc-catalog-photo {aspect-ratio:6/5;}
+}
