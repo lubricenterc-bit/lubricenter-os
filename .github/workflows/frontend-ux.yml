@@ -12,7 +12,7 @@ on:
       - 'lib/navigation.ts'
       - 'tests/navigation.test.ts'
       - 'tests/brand-assets.test.ts'
-      - 'lib/brand-image.tsx'
+      - 'lib/brand-image.ts'
       - 'public/lubricenter-brand.svg'
       - 'public/manifest.webmanifest'
       - 'app/icon.tsx'
