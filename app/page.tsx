@@ -194,10 +194,12 @@ export default function HomePage() {
             { href: "/finance/reconcile", icon: "shield" as OsIconName, title: "Conciliación semanal", note: "BDV y movimientos por verificar" },
             { href: "/finance/inbox", icon: "alert" as OsIconName, title: "Casos financieros", note: "Incidencias y reportes pendientes" },
             { href: "/expenses", icon: "inventory" as OsIconName, title: "Compras y proveedores", note: "Facturas, abonos y cuentas por pagar" },
+            { href: "/quote", icon: "receipt" as OsIconName, title: "Cotizador de aceite", note: "Comparar marcas y precios en segundos" },
           ] : [
             { href: "/receivables", icon: "credit" as OsIconName, title: "Crédito LC", note: "Cobrar abonos pendientes" },
             { href: "/customers", icon: "customers" as OsIconName, title: "Buscar cliente", note: "Historial y vehículos" },
             { href: "/cash", icon: "cash" as OsIconName, title: "Movimientos de caja", note: "Egresos y transferencias" },
+            { href: "/quote", icon: "receipt" as OsIconName, title: "Cotizador de aceite", note: "Comparar marcas y precios en segundos" },
           ]).map(tool => <Link href={tool.href} key={tool.href} className="os-home-tool">
             <span className="os-home-tool-icon"><OsIcon name={tool.icon} size={19}/></span>
             <span><strong>{tool.title}</strong><small>{tool.note}</small></span><OsIcon name="right" size={16}/>
