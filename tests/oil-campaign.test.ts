@@ -114,7 +114,7 @@ describe('acceso privado y estado cloud de campañas',()=>{
       return thenable([]);
     });
     const response=await PATCH(new Request('https://test.invalid/api/campaigns/oil-promo',{method:'PATCH',headers:{Authorization:'Bearer test','Content-Type':'application/json'},body:JSON.stringify({contactId:storedContact.id,status:'RESPONDED'})}));
-    expect(response.status).toBe(200);expect(updated?.status).toBe('RESPONDED');expect(updated?.responded_at).toBeTruthy();
+    expect(response.status).toBe(200);expect((updated as Record<string, unknown> | null)?.status).toBe('RESPONDED');expect((updated as Record<string, unknown> | null)?.responded_at).toBeTruthy();
   });
   it('cambia PENDING a SENT, persiste sent_at y responde de forma estable',async()=>{
     authMock.rpc.mockResolvedValue({data:'OWNER',error:null});
@@ -136,7 +136,7 @@ describe('acceso privado y estado cloud de campañas',()=>{
     expect(response.status).toBe(200);
     const body=await response.json();
     expect(body.ok).toBe(true);expect(body.contact.status).toBe('SENT');expect(body.contact.sent_at).toBeTruthy();
-    expect(updated?.status).toBe('SENT');expect(updated?.sent_at).toBeTruthy();
+    expect((updated as Record<string, unknown> | null)?.status).toBe('SENT');expect((updated as Record<string, unknown> | null)?.sent_at).toBeTruthy();
   });
   it('si no puede confirmar el update devuelve conflicto en vez de una respuesta corrupta',async()=>{
     authMock.rpc.mockResolvedValue({data:'OWNER',error:null});
