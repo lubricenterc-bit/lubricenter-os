@@ -100,7 +100,8 @@ function ProductDetail({ item, onClose }: { item: CatalogProduct; onClose: () =>
             <OsIcon name={copyState === "done" ? "check" : "receipt"} size={17}/>
             {copyState === "done" ? "Precios copiados" : "Copiar precios"}
           </button>
-          <button className="lc-catalog-button" onClick={onClose}>Volver al catálogo</button>
+          <Link className="lc-catalog-button" href={"/quote?add="+encodeURIComponent(item.id)}><OsIcon name="plus" size={16}/> Cotizar producto</Link>
+          <button className="lc-catalog-button" onClick={onClose}>Volver</button>
         </div>
         {copyState === "error" && <p className="lc-catalog-copy-error" role="alert">Tu navegador impidió copiar. Puedes seleccionar los precios de esta ficha.</p>}
         <div className="lc-catalog-dialog-footer">Última sincronización del producto: {formatCatalogDate(item.catalog_synced_at)}</div>
@@ -168,6 +169,7 @@ export default function CatalogPage() {
         <p>Consulta productos, fotografías y los tres precios de venta sin salir de Lubricenter OS.</p>
       </div>
       <div className="lc-catalog-heading-actions">
+        <Link href="/quote" className="lc-catalog-button is-primary"><OsIcon name="receipt" size={17}/> Abrir cotizador</Link>
         <a href={NOTION_CATALOG_URL} target="_blank" rel="noopener noreferrer" className="lc-catalog-button">
           Ver en Notion <OsIcon name="arrow" size={16}/>
         </a>
@@ -259,26 +261,37 @@ export default function CatalogPage() {
     </div>}
 
     {filtered.length > 0 && view === "gallery" && <section className="lc-catalog-grid" aria-label="Productos en galería">
-      {filtered.map(item => <button type="button" className="lc-catalog-card" key={item.id} onClick={() => setSelectedId(item.id)}>
-        <Photo url={item.image_url} name={item.name}/>
-        <div className="lc-catalog-card-body">
-          <span className="lc-catalog-category">{item.category || "Sin categoría"}</span>
-          <h2>{item.name}</h2>
-          <PriceSet item={item}/>
-          <span className="lc-catalog-card-open">Ver detalles <OsIcon name="right" size={15}/></span>
-        </div>
-      </button>)}
+      {filtered.map(item => <article className="lc-catalog-card" key={item.id}>
+        <button type="button" className="lc-catalog-card-detail" onClick={() => setSelectedId(item.id)}
+          aria-label={"Ver detalles de "+item.name}>
+          <Photo url={item.image_url} name={item.name}/>
+          <div className="lc-catalog-card-body">
+            <span className="lc-catalog-category">{item.category || "Sin categoría"}</span>
+            <h2>{item.name}</h2>
+            <PriceSet item={item}/>
+            <span className="lc-catalog-card-open">Ver detalles <OsIcon name="right" size={15}/></span>
+          </div>
+        </button>
+        <Link className="lc-catalog-quote-link" href={"/quote?add="+encodeURIComponent(item.id)}>
+          <OsIcon name="plus" size={16}/> Agregar a cotización
+        </Link>
+      </article>)}
     </section>}
 
     {filtered.length > 0 && view === "list" && <section className="lc-catalog-list" aria-label="Productos en lista">
-      <div className="lc-catalog-list-head"><span>Producto</span><span>Divisas</span><span>Dólares BCV</span><span>Bolívares</span></div>
-      {filtered.map(item => <button type="button" key={item.id} className="lc-catalog-list-row" onClick={() => setSelectedId(item.id)}>
-        <span className="lc-catalog-list-name"><Photo url={item.image_url} name={item.name}/>
-          <span><strong>{item.name}</strong><small>{item.category || "Sin categoría"}</small></span></span>
-        <span className="lc-catalog-list-price"><small>Divisas</small>{item.cash_usd_base_price === null ? "—" : fmtRef(item.cash_usd_base_price)}</span>
-        <span className="lc-catalog-list-price"><small>Dólares BCV</small>{item.current_ref_bcv === null ? "—" : fmtRef(item.current_ref_bcv)}</span>
-        <span className="lc-catalog-list-price"><small>Bolívares</small>{item.current_price_ves === null ? "—" : fmtVes(item.current_price_ves)}</span>
-      </button>)}
+      <div className="lc-catalog-list-head"><span>Producto</span><span>Divisas</span><span>Dólares BCV</span><span>Bolívares</span><span>Acción</span></div>
+      {filtered.map(item => <div key={item.id} className="lc-catalog-list-entry">
+        <button type="button" className="lc-catalog-list-row" onClick={() => setSelectedId(item.id)}>
+          <span className="lc-catalog-list-name"><Photo url={item.image_url} name={item.name}/>
+            <span><strong>{item.name}</strong><small>{item.category || "Sin categoría"}</small></span></span>
+          <span className="lc-catalog-list-price"><small>Divisas</small>{item.cash_usd_base_price === null ? "—" : fmtRef(item.cash_usd_base_price)}</span>
+          <span className="lc-catalog-list-price"><small>Dólares BCV</small>{item.current_ref_bcv === null ? "—" : fmtRef(item.current_ref_bcv)}</span>
+          <span className="lc-catalog-list-price"><small>Bolívares</small>{item.current_price_ves === null ? "—" : fmtVes(item.current_price_ves)}</span>
+        </button>
+        <Link href={"/quote?add="+encodeURIComponent(item.id)} className="lc-catalog-list-quote">
+          <OsIcon name="plus" size={15}/> Cotizar
+        </Link>
+      </div>)}
     </section>}
 
     <p className="lc-catalog-disclaimer">Los precios se actualizan mediante la integración existente de Notion. Este módulo es de consulta y no modifica los precios maestros ni el inventario físico.</p>
