@@ -33,6 +33,7 @@ create table if not exists public.finance_cash_close_alerts (
   id uuid primary key default gen_random_uuid(),
   location_id uuid not null references public.locations(id),
   cash_closing_id uuid not null references public.cash_closings(id),
+  business_date date not null,
   recipient_id uuid not null references auth.users(id),
   actor_id uuid references auth.users(id),
   revision_id uuid references public.finance_cash_close_revisions(id),
@@ -66,9 +67,11 @@ create or replace function lubricenter_private.finance_cash_notify_owners(
 ) returns void language plpgsql security definer set search_path = '' as $fn$
 begin
  insert into public.finance_cash_close_alerts
-  (location_id,cash_closing_id,recipient_id,actor_id,revision_id,event_type,message)
- select p_location_id,p_closing_id,o.user_id,auth.uid(),p_revision_id,p_event,p_message
- from public.finance_cash_owner_locations o where o.location_id=p_location_id;
+  (location_id,cash_closing_id,business_date,recipient_id,actor_id,revision_id,event_type,message)
+ select p_location_id,p_closing_id,c.business_date,o.user_id,auth.uid(),p_revision_id,p_event,p_message
+ from public.finance_cash_owner_locations o
+ join public.cash_closings c on c.id=p_closing_id and c.location_id=o.location_id
+ where o.location_id=p_location_id;
 end $fn$;
 
 -- A late cash movement can change a closed day into REVIEW without touching the
@@ -87,6 +90,21 @@ end $fn$;
 drop trigger if exists finance_cash_status_alert on public.cash_closings;
 create trigger finance_cash_status_alert after update of status on public.cash_closings
  for each row execute function lubricenter_private.finance_cash_status_alert();
+
+-- Only the owner assigned to this location may re-approve a reviewed day.
+create or replace function lubricenter_private.finance_cash_review_owner_guard()
+ returns trigger language plpgsql security definer set search_path = '' as $fn$
+begin
+ if old.status in ('REVIEW','REOPENED') and new.status='CLOSED'
+    and not exists (select 1 from public.finance_cash_owner_locations m
+      where m.location_id=new.location_id and m.user_id=auth.uid()) then
+   raise exception 'Solo el propietario asignado a esta sucursal puede aprobar la revisión';
+ end if;
+ return new;
+end $fn$;
+drop trigger if exists finance_cash_review_owner_guard on public.cash_closings;
+create trigger finance_cash_review_owner_guard before update of status on public.cash_closings
+ for each row execute function lubricenter_private.finance_cash_review_owner_guard();
 
 -- Changes are always backed by an actual counted amount, never by artificial
 -- cash movements. This cannot edit a closed reconciliation period.
@@ -217,6 +235,7 @@ begin
  select coalesce(jsonb_agg(to_jsonb(q) order by q.created_at desc),'[]'::jsonb) into v_result
  from (
   select r.id,r.revision_type,r.reason,r.actor_id,r.account_id,r.created_at,
+   coalesce((select split_part(u.email,'@',1) from auth.users u where u.id=r.actor_id),left(r.actor_id::text,8)) as actor_label,
    r.before_snapshot->>'actual_native' as before_actual,
    r.after_snapshot->>'actual_native' as after_actual
   from public.finance_cash_close_revisions r where r.cash_closing_id=v_close
@@ -234,8 +253,11 @@ create or replace function public.reopen_cash_day(p_business_date date,p_reason 
 declare v_location uuid; v_id uuid;
 begin
  perform public.require_auth();
- if not lubricenter_private.is_order_admin() then
-   raise exception 'Solo el propietario puede reabrir este cierre'; end if;
+ if not exists(select 1 from public.finance_cash_owner_locations o
+   join public.locations l on l.id=o.location_id
+   where o.user_id=auth.uid() and l.active
+     and o.location_id=(select id from public.locations where active order by created_at limit 1)) then
+   raise exception 'Solo el propietario de esta sucursal puede reabrir este cierre'; end if;
  if length(trim(coalesce(p_reason,''))) < 8 then raise exception 'Indica el motivo de reapertura'; end if;
  select id into v_location from public.locations where active order by created_at limit 1;
  if exists (
