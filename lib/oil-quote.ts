@@ -182,28 +182,72 @@ export function normalizeQuoteFilterProducts(catalog: CatalogProduct[]): Catalog
     .sort((a,b) => a.name.localeCompare(b.name, "es-VE"));
 }
 
-export function quoteWhatsAppText(quotes: OilQuote[], request: QuoteRequest, filterLabel: string, dated: string, fresh: boolean) {
-  if (!quotes.length) return "";
-  const money = (value:number|null, prefix:string) => value === null
-    ? "No disponible" : prefix + value.toLocaleString("es-VE", { minimumFractionDigits:2, maximumFractionDigits:2 });
-  const techLabel = request.technology === "mineral" ? "Mineral" : request.technology === "semi" ? "Semisintético" : "Full sintético";
-  const options = quotes.map((quote,i) =>
-    String(i+1) + ". " + quote.oil.product.name + "\n   Divisas: " +
-    money(quote.total.divisas, "$") + " · $ BCV: " + money(quote.total.bcv,"$") +
-    " · Bs: " + money(quote.total.ves,"Bs. "));
+export type QuoteShareCurrencies = Readonly<{
+  ves: boolean;
+  bcv: boolean;
+  divisas: boolean;
+}>;
+
+/** Lo que el cliente ve por defecto; el cotizador interno sigue mostrando las tres monedas. */
+export const DEFAULT_QUOTE_SHARE_CURRENCIES: QuoteShareCurrencies = {
+  ves: true,
+  bcv: true,
+  divisas: false,
+};
+
+function formatClientMoney(value: number, currency: keyof QuoteShareCurrencies) {
+  const number = value.toLocaleString("es-VE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  if (currency === "ves") return "Bs. " + number;
+  if (currency === "bcv") return "$" + number + " BCV";
+  return "$" + number + " divisas";
+}
+
+/**
+ * Texto comercial listo para pegar en WhatsApp.
+ * No filtra datos internos de catálogo, stock ni vigencia.
+ * Si algún precio solicitado no está disponible, evita producir cotizaciones parciales.
+ */
+export function quoteWhatsAppText(
+  quotes: OilQuote[],
+  request: QuoteRequest,
+  currencies: QuoteShareCurrencies = DEFAULT_QUOTE_SHARE_CURRENCIES,
+) {
+  const selected: (keyof QuoteShareCurrencies)[] = (["ves", "bcv", "divisas"] as const)
+    .filter(currency => currencies[currency]);
+  if (!quotes.length || !selected.length) return "";
+  if (quotes.some(quote => selected.some(currency => quote.total[currency] == null))) return "";
+
+  const typeLabel = request.technology === "mineral" ? "mineral"
+    : request.technology === "semi" ? "semisintético" : "full sintético";
+  const liters = request.liters.toLocaleString("es-VE", { maximumFractionDigits: 2 });
+
+  const options = quotes.flatMap((quote, index) => [
+    String(index + 1) + ". *" + quote.oil.product.name + "*",
+    "   " + selected
+      .map(currency => formatClientMoney(quote.total[currency]!, currency))
+      .join("  ·  "),
+  ]);
+
+  const included = ["aceite", ...(request.filter.mode === "none" ? [] : ["filtro de aceite"]), "servicio de cambio de aceite"];
+  const promo = request.freeLaborPromotion && request.laborUsd > 0
+    ? ["🎁 *Promoción:* mano de obra sin costo adicional.", ""] : [];
+
   return [
-    "LUBRICENTER CABUDARE",
-    "COTIZACIÓN · CAMBIO DE ACEITE",
-    request.viscosity + " " + techLabel + " · " + request.liters.toLocaleString("es-VE") + " L",
-    "Filtro: " + filterLabel + " (verificar compatibilidad)",
-    "Mano de obra: " + money(request.freeLaborPromotion ? 0 : request.laborUsd,"$") +
-      (request.freeLaborPromotion ? " (sin cargo por promoción)" : ""),
+    "¡Hola! 👋🧡",
+    "¡Gracias por escribir a *Lubricenter Cabudare*! Te compartimos con gusto las opciones para tu cambio de aceite.",
     "",
+    "🛢️ *" + request.viscosity + " " + typeLabel + " · " + liters + " litros*",
+    "",
+    "*Opciones y precios:*",
     ...options,
     "",
-    "Catálogo: " + dated,
-    !fresh ? "PRECIOS POR CONFIRMAR: tasas o catálogo requieren actualización." :
-      "Precios sujetos a verificación al momento de pagar.",
-    "Cotización informativa; verificar disponibilidad, presentación y filtro antes de vender.",
+    "✅ *Incluye:* " + included.join(", ") + ".",
+    "",
+    ...promo,
+    "¿Cuál opción prefieres? ¡Con gusto coordinamos tu visita! 🚗",
+    "*Lubricenter Cabudare* 🧡",
   ].join("\n");
 }
