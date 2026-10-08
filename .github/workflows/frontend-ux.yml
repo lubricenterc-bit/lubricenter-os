@@ -6,6 +6,13 @@ on:
       - 'app/quote/**'
       - 'lib/sales-quote.ts'
       - 'tests/sales-quote.test.ts'
+      - 'app/orders/**/oil-change/**'
+      - 'app/order-extras.css'
+      - 'lib/order-extras.ts'
+      - 'components/order-extras-checklist.tsx'
+      - 'components/order-additional-services.tsx'
+      - 'components/order-workspace.tsx'
+      - 'tests/order-extras.test.ts'
       - 'components/quick-sale-screen.tsx'
       - 'lib/oil-quote.ts'
       - 'tests/oil-quote.test.ts'
@@ -44,7 +51,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - run: npx vitest run tests/navigation.test.ts tests/brand-assets.test.ts tests/catalog.test.ts tests/oil-quote.test.ts tests/sales-quote.test.ts
+      - run: npx vitest run tests/navigation.test.ts tests/brand-assets.test.ts tests/catalog.test.ts tests/oil-quote.test.ts tests/sales-quote.test.ts tests/order-extras.test.ts
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co

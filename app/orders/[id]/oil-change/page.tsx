@@ -6,6 +6,9 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
+import { OrderExtrasChecklist } from "@/components/order-extras-checklist";
+import { EMPTY_ORDER_EXTRAS, normalizeOrderExtras, orderExtrasRpcParams,
+  validateOrderExtras, type OrderExtras } from "@/lib/order-extras";
 
 type Order = { id: string; order_number: string; status: string; customer_id: string | null; vehicle_id: string | null };
 type Vehicle = { id: string; plate: string | null; make: string | null; model: string | null; year: number | null; current_odometer: number | null };
@@ -60,6 +63,7 @@ export default function OilChangePage() {
   const [sync, setSync] = useState<PricingSync>({ catalogSyncedAt: null, bcvEffectiveAt: null, operativeEffectiveAt: null });
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [extras, setExtras] = useState<OrderExtras>({...EMPTY_ORDER_EXTRAS});
 
   const [description, setDescription] = useState("Cambio de aceite");
   const [serviceBaseRef, setServiceBaseRef] = useState("0");
@@ -96,7 +100,7 @@ export default function OilChangePage() {
     setError("");
     setWarning("");
     const [orderRes, ratesRes, invRes, catalogRes, syncRes] = await Promise.all([
-      supabase.from("orders").select("id,order_number,status,customer_id,vehicle_id").eq("id", orderId).single(),
+      supabase.from("orders").select("id,order_number,status,customer_id,vehicle_id,crm_additional_services,crm_bonuses,crm_observations").eq("id", orderId).single(),
       supabase.rpc("get_current_rates"),
       supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,needs_review").eq("location_code", "CABUDARE").order("sku").limit(1000),
       supabase.from("product_catalog_current").select("id,name,category,filter_code,current_price_ves,current_ref_bcv").eq("available", true).eq("active", true).order("name").limit(1000),
@@ -123,6 +127,7 @@ export default function OilChangePage() {
     }
 
     setOrder(ord);
+    setExtras(normalizeOrderExtras(orderRes.data));
     const rateRow = Array.isArray(ratesRes.data) ? ratesRes.data[0] : ratesRes.data;
     setRates({ bcv: Number(rateRow?.bcv_rate ?? 0), operative: Number(rateRow?.operative_rate ?? 0) });
 
@@ -227,9 +232,22 @@ export default function OilChangePage() {
     if (filter && (!Number.isFinite(Number(filterUnits)) || Number(filterUnits) <= 0)) return setError("La cantidad de filtros debe ser mayor que cero.");
     if (filter?.source === "MANUAL" && !manualFilterName.trim()) return setError("Escribe el nombre del filtro utilizado.");
     if (filter && (!Number.isFinite(filterUnitRef) || filterUnitRef <= 0)) return setError("Indica el precio REF a cobrar por el filtro.");
+    const extrasValidation=validateOrderExtras(extras);
+    if(extrasValidation)return setError(extrasValidation);
 
     setBusy(true);
     setError("");
+    // Guardar primero las selecciones en el CRM existente evita crear un paquete duplicado
+    // cuando el guardado de las cortesías falla.
+    const { error: extrasError } = await supabase.rpc(
+      "set_order_crm_extras", orderExtrasRpcParams(order.id,extras)
+    );
+    if (extrasError) {
+      setBusy(false);
+      setError("No pudimos guardar los servicios y notas: "+extrasError.message+
+        ". El cambio de aceite todavía no se agregó.");
+      return;
+    }
     const { error } = await supabase.rpc("add_oil_change_package_flexible", {
       p_order_id: order.id,
       p_odometer: Number(odometer),
@@ -256,7 +274,8 @@ export default function OilChangePage() {
       p_next_months: nextMonths ? Number(nextMonths) : 0,
     });
     setBusy(false);
-    if (error) return setError(error.message);
+    if (error) return setError("Servicios y notas guardados, pero el cambio de aceite no se agregó: "+
+      error.message+". Corrige y vuelve a intentarlo una sola vez.");
     router.push(`/orders/${order.id}`);
     router.refresh();
   }
@@ -336,6 +355,14 @@ export default function OilChangePage() {
         <label><span className="label">Próximo cambio · meses</span><input className="input" type="number" min="0" step="1" value={nextMonths} onChange={e => setNextMonths(e.target.value)} /></label>
       </div>
       {nextOdometer != null && <div className="muted small">Próximo kilometraje estimado: {nextOdometer.toLocaleString("es-VE")} km</div>}
+    </section>
+
+    <section className="card stack oce-oil-step">
+      <div>
+        <h2 className="section-title">4. Servicios adicionales y notas</h2>
+        <p className="muted small">Marca los servicios realizados y las cortesías. Todo se guarda junto con la orden y aparecerá en el mensaje post-servicio.</p>
+      </div>
+      <OrderExtrasChecklist value={extras} onChange={setExtras} disabled={busy||loading}/>
     </section>
 
     <section className="card stack">

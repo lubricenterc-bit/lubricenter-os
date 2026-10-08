@@ -6,6 +6,7 @@ import "./home-v2.css";
 import "./catalog/catalog.css";
 import "./quote/quote.css";
 import "./quote/general.css";
+import "./order-extras.css";
 import "./receipt.css";
 import { AuthGuard } from "@/components/auth-guard";
 import { AppShell } from "@/components/app-shell";

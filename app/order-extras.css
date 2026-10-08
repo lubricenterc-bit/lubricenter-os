@@ -1,0 +1,65 @@
+/* Servicios complementarios de cambio de aceite: visibles y de selección rápida. */
+.oce {display:grid;gap:17px;min-width:0;}
+.oce-header-copy {display:grid;gap:5px;color:#eaf1f7;}
+.oce-header-copy strong {font-size:13px;font-weight:780;}
+.oce-header-copy span {font-size:11px;line-height:1.55;color:#aebdc9;}
+.oce-groups {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start;}
+.oce-group {background:#1d2833;border:1px solid #415060;border-radius:12px;padding:14px;display:grid;gap:12px;min-width:0;}
+.oce-group-heading {display:grid;gap:4px;}
+.oce-group-heading strong {font-size:13px;font-weight:790;color:#f1f5f9;}
+.oce-group-heading small {font-size:10px;line-height:1.5;color:#aab9c8;}
+.oce-options {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.oce-choice {display:flex;align-items:center;gap:8px;min-height:48px;padding:10px;
+ color:#bfccd7;background:#263441;border:1px solid #4d5c6c;border-radius:9px;
+ font-size:11px;font-weight:690;line-height:1.4;cursor:pointer;transition:border-color .15s,background .15s;}
+.oce-choice:hover {border-color:#ffaf79;}
+.oce-choice.is-checked {background:#47342b;border-color:#fa9859;color:#ffd7b9;}
+.oce-choice input {width:18px;height:18px;accent-color:#ff914d;flex-shrink:0;cursor:pointer;}
+.oce-choice > span {flex:1;min-width:0;}
+.oce-choice svg {flex-shrink:0;color:#ffa46b;}
+.oce-choice:has(input:disabled) {opacity:.86;cursor:default;}
+.oce-add-custom {display:flex;gap:7px;min-width:0;}
+.oce-add-custom input {flex:1;min-width:0;background:#121d26;border:1px solid #4b5d6f;border-radius:8px;
+ padding:10px 11px;font-size:11px;color:#eff4f7;}
+.oce-add-custom input::placeholder {color:#91a4b5;}
+.oce-add-custom button {display:inline-flex;align-items:center;justify-content:center;gap:5px;
+ padding:9px 11px;background:#384553;color:#e8f0f6;font-weight:780;font-size:11px;
+ border:1px solid #68798a;border-radius:8px;white-space:nowrap;}
+.oce-add-custom button:hover {background:#4a5868;}
+.oce-add-custom button:disabled {opacity:.55;cursor:default;}
+.oce-manual-list {display:flex;gap:6px;flex-wrap:wrap;}
+.oce-custom-pill {display:inline-flex;align-items:center;gap:5px;border-radius:16px;padding:6px 9px;
+ background:#3b342f;border:1px solid #9b714d;color:#fbd1b0;font-size:11px;overflow-wrap:anywhere;min-width:0;}
+.oce-custom-pill button {display:grid;place-items:center;border:0;background:transparent;color:#ffd0a7;padding:1px;}
+.oce-notes {display:grid;gap:9px;}
+.oce-notes > span {display:inline-flex;gap:8px;align-items:center;font-size:12px;font-weight:800;color:#f1f5f8;}
+.oce-notes textarea {width:100%;min-height:94px;resize:vertical;background:#17222d;color:#f6f8fa;border:1px solid #526273;
+ border-radius:9px;padding:11px 12px;font-family:inherit;font-size:12px;line-height:1.6;}
+.oce-notes textarea::placeholder {color:#9aaebf;}
+.oce-notes small {color:#a7b8c6;font-size:10px;line-height:1.5;}
+.oce-financial-note {display:flex;align-items:center;gap:7px;margin:0;color:#abbcc9;font-size:10px;line-height:1.5;}
+.oce-financial-note svg {flex-shrink:0;}
+.oce-oil-step .section-title {margin-bottom:6px;}
+.oce-oil-step > div:first-child p {margin:0;}
+.oce-order-panel {border-color:#6a4f3c;background:linear-gradient(125deg,#292e35,#1c2936);}
+.oce-order-header {align-items:flex-start;}
+.oce-order-header > div:first-child {max-width:690px;}
+.oce-order-actions {display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+.oce-unsaved {display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#fbc69b;}
+.oce :is(button,input,textarea):focus-visible {outline:3px solid #ff9e68;outline-offset:2px;}
+@media(max-width:1400px){
+  .oce-options {grid-template-columns:minmax(0,1fr);}
+}
+@media(max-width:850px){
+  .oce-groups {grid-template-columns:minmax(0,1fr);}
+  .oce-options {grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-width:590px){
+  .oce-group {padding:11px;}
+  .oce-options {grid-template-columns:minmax(0,1fr);gap:7px;}
+  .oce-choice {min-height:45px;}
+  .oce-add-custom {flex-wrap:wrap;}
+  .oce-add-custom button {min-height:40px;}
+  .oce-order-actions .btn {width:100%;}
+}
+@media(prefers-reduced-motion:reduce){.oce-choice{transition:none;}}
