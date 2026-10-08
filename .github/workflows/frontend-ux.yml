@@ -11,6 +11,15 @@ on:
       - 'components/app-session-context.tsx'
       - 'lib/navigation.ts'
       - 'tests/navigation.test.ts'
+      - 'tests/brand-assets.test.ts'
+      - 'lib/brand-image.tsx'
+      - 'public/lubricenter-brand.svg'
+      - 'public/manifest.webmanifest'
+      - 'app/icon.tsx'
+      - 'app/apple-icon.tsx'
+      - 'app/pwa/**'
+      - 'app/api/brand/**'
+      - 'app/login/page.tsx'
       - '.github/workflows/frontend-ux.yml'
 jobs:
   validate:
@@ -25,7 +34,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - run: npx vitest run tests/navigation.test.ts
+      - run: npx vitest run tests/navigation.test.ts tests/brand-assets.test.ts
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
