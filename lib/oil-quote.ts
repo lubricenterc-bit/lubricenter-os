@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { normalizeCatalogSearch, type CatalogProduct, type CatalogSync } from "@/lib/catalog";
+import { normalizeCatalogSearch, type CatalogProduct, type CatalogSync } from "./catalog";
 
 export type OilTechnology = "mineral" | "semi" | "full";
 export type QuoteMoney = { divisas: number | null; bcv: number | null; ves: number | null };
