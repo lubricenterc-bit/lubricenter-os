@@ -164,3 +164,88 @@
  .oq-share-actions .oq-button { flex: 1 1 100%; }
 }
 @media(prefers-reduced-motion:reduce) { .oq-button { transition: none; } }
+
+/* Opciones de moneda para mensajes orientados al cliente. */
+.oq-share-currencies {
+  display: grid;
+  gap: 11px;
+  min-width: 0;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid #4c5966;
+  border-radius: 10px;
+  background: #222c37;
+}
+.oq-share-currencies legend {
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 780;
+  color: #f0f4f8;
+}
+.oq-share-currency-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+.oq-share-currency-options label {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 11px;
+  background: #2d3b48;
+  border: 1px solid #4d5c6b;
+  border-radius: 8px;
+  color: #d5e0ec;
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.oq-share-currency-options label:has(input:checked) {
+  border-color: #ff965d;
+  background: #49372d;
+  color: #ffd0ac;
+}
+.oq-share-currency-options input {
+  width: 17px;
+  height: 17px;
+  accent-color: #ff8b40;
+  flex-shrink: 0;
+}
+.oq-share-currencies > small {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #adbdca;
+}
+.oq-share-preview {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+.oq-share-preview-label {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #e7eff6;
+}
+.oq-share-preview pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 330px;
+  overflow-y: auto;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid #506071;
+  border-radius: 10px;
+  background: #1b252f;
+  color: #eef3f7;
+}
+@media (max-width: 680px) {
+  .oq-share-currency-options { grid-template-columns: minmax(0, 1fr); }
+}

@@ -11,8 +11,8 @@ import {
 } from "@/lib/catalog";
 import {
   analyzeOil, availableViscosities, normalizeQuoteFilterProducts, quoteAllOils,
-  quoteWhatsAppText, validQuoteRequest,
-  type OilQuote, type OilTechnology, type QuoteRequest, type QuoteMoney,
+  quoteWhatsAppText, validQuoteRequest, DEFAULT_QUOTE_SHARE_CURRENCIES,
+  type OilQuote, type OilTechnology, type QuoteRequest, type QuoteMoney, type QuoteShareCurrencies,
 } from "@/lib/oil-quote";
 
 function currency(value: number | null, kind: "usd" | "ves") {
@@ -59,6 +59,7 @@ export default function OilQuotePage() {
   // null = todas las alternativas, [] = ninguna, lista = selección del vendedor.
   const [selectedIds, setSelectedIds] = useState<string[] | null>(null);
   const [copyResult, setCopyResult] = useState<"idle" | "copied" | "error">("idle");
+  const [shareCurrencies, setShareCurrencies] = useState<QuoteShareCurrencies>({ ...DEFAULT_QUOTE_SHARE_CURRENCIES });
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -123,13 +124,18 @@ export default function OilQuotePage() {
   const inconsistent = quotes.filter(quote => quote.oil.warnings.length > 0);
   const fresh = catalogIsFresh(sync);
   const syncedAt = formatCatalogDate(sync?.catalogSyncedAt ?? null);
-  const chosenFilter = filterChoice.mode === "none" ? "Sin filtro"
-    : filterChoice.mode === "catalog" ? filterChoice.product.name
-    : "Precio de filtro estimado · " + (Number.isFinite(filterUsd) ? fmtRef(filterUsd) : "por definir");
-
   const shareText = valid
-    ? quoteWhatsAppText(chosen, request, chosenFilter, syncedAt, fresh)
+    ? quoteWhatsAppText(chosen, request, shareCurrencies)
     : "";
+  const hasShareCurrency = Object.values(shareCurrencies).some(Boolean);
+  const selectedQuoteNeedsRate = hasShareCurrency && chosen.some(quote =>
+    (["ves", "bcv", "divisas"] as const).some(key => shareCurrencies[key] && quote.total[key] == null)
+  );
+
+  function toggleShareCurrency(currency: keyof QuoteShareCurrencies) {
+    setShareCurrencies(current => ({ ...current, [currency]: !current[currency] }));
+    setCopyResult("idle");
+  }
 
   function updateQuoteOptions() {
     setSelectedIds(null);
@@ -326,6 +332,24 @@ export default function OilQuotePage() {
             <div><p className="oq-kicker">LISTO PARA ENVIAR</p><strong>Comparativa para el cliente</strong><span>{chosen.length} de {quotes.length} alternativas seleccionadas {selectedVisibleCount<displayed.length ? "· ajusta con las casillas" : ""}</span></div>
             <OsIcon name="receipt" size={25}/>
           </div>
+          <fieldset className="oq-share-currencies">
+            <legend>¿Qué precios quieres incluir en el mensaje?</legend>
+            <div className="oq-share-currency-options">
+              <label><input type="checkbox" checked={shareCurrencies.ves}
+                onChange={() => toggleShareCurrency("ves")}/> <span>Bolívares (Bs)</span></label>
+              <label><input type="checkbox" checked={shareCurrencies.bcv}
+                onChange={() => toggleShareCurrency("bcv")}/> <span>Dólares BCV</span></label>
+              <label><input type="checkbox" checked={shareCurrencies.divisas}
+                onChange={() => toggleShareCurrency("divisas")}/> <span>Divisas (USD)</span></label>
+            </div>
+            <small>Por defecto enviamos Bs y $ BCV. Las divisas solo se incluyen si las activas.</small>
+          </fieldset>
+          {!hasShareCurrency && <div className="oq-field-error" role="alert">Selecciona al menos una moneda para compartir.</div>}
+          {selectedQuoteNeedsRate && <div className="oq-field-error" role="alert">Falta el valor de una moneda seleccionada. Revisa las tasas o elige otra moneda antes de enviar.</div>}
+          <div className="oq-share-preview">
+            <div className="oq-share-preview-label"><OsIcon name="receipt" size={16}/> Vista previa para el cliente</div>
+            <pre aria-live="polite">{shareText || "Selecciona una o más opciones y al menos una moneda para preparar tu mensaje."}</pre>
+          </div>
           <div className="oq-share-actions">
             <button className="oq-button is-primary" disabled={!valid || !chosen.length || !shareText}
               onClick={()=>void copyQuote()}><OsIcon name={copyResult==="copied"?"check":"receipt"} size={17}/>
@@ -339,9 +363,9 @@ export default function OilQuotePage() {
             <Link href="/quick-sale" className="oq-button oq-open-sale">Ir a venta rápida <OsIcon name="right" size={16}/></Link>
           </div>
           {copyResult==="error" && <p role="alert" className="oq-small-warning">Tu navegador bloqueó la copia; usa el botón de WhatsApp o los precios en pantalla.</p>}
-          <p>El mensaje incluye viscosidad, litros, filtro, mano de obra y precios en las tres monedas.
-            {fresh ? " Confirma existencia antes de cobrar." : " Como las tasas pueden estar vencidas, el mensaje llevará una advertencia de precios por confirmar."}
-            {" "}La venta rápida se abre por separado: todavía no importa automáticamente la cotización.
+          <p>El cliente recibe un mensaje breve y cordial con las opciones y los precios que marques arriba.
+            No incluimos datos internos del catálogo, inventario ni tasas de sincronización.
+            La venta rápida se abre por separado; todavía no importa automáticamente la cotización.
           </p>
         </aside>}
       </section>
