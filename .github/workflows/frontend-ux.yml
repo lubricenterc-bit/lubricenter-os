@@ -4,6 +4,9 @@ on:
     paths:
       - 'app/page.tsx'
       - 'app/quote/**'
+      - 'lib/sales-quote.ts'
+      - 'tests/sales-quote.test.ts'
+      - 'components/quick-sale-screen.tsx'
       - 'lib/oil-quote.ts'
       - 'tests/oil-quote.test.ts'
       - 'app/catalog/**'
@@ -41,7 +44,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - run: npx vitest run tests/navigation.test.ts tests/brand-assets.test.ts tests/catalog.test.ts tests/oil-quote.test.ts
+      - run: npx vitest run tests/navigation.test.ts tests/brand-assets.test.ts tests/catalog.test.ts tests/oil-quote.test.ts tests/sales-quote.test.ts
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
