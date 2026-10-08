@@ -3,6 +3,7 @@ import { normalizeCatalogProduct, type CatalogProduct, type CatalogSync } from "
 import {
   analyzeOil, availableViscosities, classifyOilTechnology, moneyFromManualUsd,
   normalizeQuoteFilterProducts, oilBrandFromName, quoteAllOils, quoteWhatsAppText,
+  DEFAULT_QUOTE_SHARE_CURRENCIES,
   validQuoteRequest, viscosityFromName, volumeFromOilName,
   type QuoteRequest
 } from "../lib/oil-quote";
@@ -133,16 +134,64 @@ describe("Cotizador de cambio de aceite",()=>{
     expect(validQuoteRequest({...request,filter:{mode:"manual",manualUsd:-5}})).toBe(false);
     expect(quoteAllOils(products,{...request,liters:-1})).toEqual([]);
   });
-  it("el mensaje para el cliente incluye los tres precios y advierte si las tasas vencieron",()=>{
+  it("por defecto comparte Bs y dólares BCV, pero nunca divisas",()=>{
     const quote=quoteAllOils(products,request)[0];
-    const msg=quoteWhatsAppText([quote],request,"Filtro estimado $5","08 oct 2026",false);
-    expect(msg).toContain("20W50 Semisintético · 4 L");
+    expect(DEFAULT_QUOTE_SHARE_CURRENCIES).toEqual({ves:true,bcv:true,divisas:false});
+    const msg=quoteWhatsAppText([quote],request);
+    expect(msg).toContain("¡Hola! 👋🧡");
+    expect(msg).toContain("Gracias por escribir a *Lubricenter Cabudare*");
+    expect(msg).toContain("20W50 semisintético · 4 litros");
     expect(msg).toContain("VOLTEX");
-    expect(msg).toContain("Divisas: $35,00");
-    expect(msg).toContain("$ BCV: $42,00");
-    expect(msg).toContain("Bs: Bs. 4.200,00");
-    expect(msg).toContain("PRECIOS POR CONFIRMAR");
-    expect(msg).toContain("verificar disponibilidad");
+    expect(msg).toContain("Bs. 4.200,00");
+    expect(msg).toContain("$42,00 BCV");
+    expect(msg).not.toContain("$35,00 divisas");
+    expect(msg).not.toMatch(/Notion|Catálogo:|verificar compatibilidad|verificar disponibilidad|PRECIOS POR CONFIRMAR|sincronizad|stock|inventario|tasas vencid/i);
+    expect(msg).toContain("¿Cuál opción prefieres?");
+  });
+  it("las casillas permiten elegir una, dos o las tres monedas en el mensaje",()=>{
+    const quote=quoteAllOils(products,request)[0];
+    const onlyBs=quoteWhatsAppText([quote],request,{ves:true,bcv:false,divisas:false});
+    expect(onlyBs).toContain("Bs. 4.200,00");
+    expect(onlyBs).not.toContain("BCV");
+    expect(onlyBs).not.toContain("divisas");
+    const onlyDivisas=quoteWhatsAppText([quote],request,{ves:false,bcv:false,divisas:true});
+    expect(onlyDivisas).toContain("$35,00 divisas");
+    expect(onlyDivisas).not.toContain("BCV");
+    expect(onlyDivisas).not.toContain("Bs.");
+    const all=quoteWhatsAppText([quote],request,{ves:true,bcv:true,divisas:true});
+    expect(all).toContain("Bs. 4.200,00");
+    expect(all).toContain("$42,00 BCV");
+    expect(all).toContain("$35,00 divisas");
+    expect(quoteWhatsAppText([quote],request,{ves:false,bcv:false,divisas:false})).toBe("");
+  });
+  it("mantiene el texto breve e incluye solo conceptos relevantes para el cliente",()=>{
+    const quotes=quoteAllOils(products,request);
+    const selected=[quotes[0],quotes[1],quotes[2]];
+    const msg=quoteWhatsAppText(selected,request);
+    expect(msg).toContain("filtro de aceite");
+    expect(msg).toContain("servicio de cambio de aceite");
+    expect(msg).toContain("coordinamos tu visita");
+    expect(msg).toContain("1. *VOLTEX");
+    expect(msg).toContain("2. *BRAVA");
+    expect(msg).toContain("3. *VOLTEX");
+    expect(msg).not.toContain("Precio de filtro estimado");
+    expect(msg).not.toContain("Fuente");
+    expect(quoteWhatsAppText(selected,{...request,filter:{mode:"none"}})).not.toContain("filtro de aceite");
+    expect(quoteWhatsAppText([] ,request)).toBe("");
+  });
+  it("muestra el regalo de mano de obra solo al aplicar promoción",()=>{
+    const quoted=quoteAllOils(products,{...request,laborUsd:7,freeLaborPromotion:true});
+    const msg=quoteWhatsAppText([quoted[0]],{...request,laborUsd:7,freeLaborPromotion:true});
+    expect(msg).toContain("🎁 *Promoción:* mano de obra sin costo adicional.");
+    expect(msg).toContain("Bs. 4.200,00");
+    expect(quoteWhatsAppText([quoteAllOils(products,request)[0]],request)).not.toContain("Promoción:");
+  });
+  it("evita compartir importes incompletos si falta una tasa elegida",()=>{
+    const missing=quoteAllOils(products,{...request,rates:null})[0];
+    expect(quoteWhatsAppText([missing],{...request,rates:null})).toBe("");
+    const onlyDivisas=quoteWhatsAppText([missing],{...request,rates:null},{ves:false,bcv:false,divisas:true});
+    expect(onlyDivisas).toContain("$35,00 divisas");
+    expect(onlyDivisas).not.toContain("No disponible");
   });
   it("se integra como herramienta Ventas sin duplicar rutas",()=>{
     expect(moduleForPath("/quote").id).toBe("sales");
