@@ -10,6 +10,7 @@ import { D } from "@/lib/finance/money";
 import { referenceError } from "@/lib/finance/money";
 import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
+import { QUOTE_HANDOFF_KEY, takeQuoteLines } from "@/lib/sales-quote";
 
 type InventoryProduct = {
   id: string; sku: string; brand: string | null; description: string; category: string | null;
@@ -42,6 +43,9 @@ function roundToStep(value: number, step = 10) { return Number.isFinite(value) &
 export function QuickSaleScreen() {
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const quoteImported = useRef(false);
+  const [quoteFlow,setQuoteFlow] = useState<"sale" | "order" | null>(null);
+  const [quoteTransferNotice,setQuoteTransferNotice] = useState("");
   const [tenderOpen,setTenderOpen] = useState(false);
   const [inventory, setInventory] = useState<InventoryProduct[]>([]);
   const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
@@ -87,6 +91,72 @@ export function QuickSaleScreen() {
     return () => window.removeEventListener("lubricenter:pricing-updated", refreshPricing);
   }, []);
 
+  // Importa una cotización guardada al mismo carrito de venta rápida. Nunca registra ventas automáticamente.
+  useEffect(() => {
+    if (loading || quoteImported.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("from") !== "quote") return;
+    quoteImported.current = true;
+    const transfer = takeQuoteLines(QUOTE_HANDOFF_KEY);
+    if (!transfer.length) {
+      setWarning(previous => [previous,"No se encontró una cotización pendiente. Vuelve al cotizador."].filter(Boolean).join(" · "));
+      return;
+    }
+    const imported: CartLine[] = [];
+    const skipped: string[] = [];
+    for (const line of transfer) {
+      if (line.kind === "MANUAL") {
+        imported.push({
+          key: "MANUAL:QUOTE:"+line.id,
+          kind: "MANUAL", description:line.description, quantity:line.quantity,
+          unit_ref:line.unitRef, source_label:"Desde cotización · importe editable"
+        });
+        continue;
+      }
+      const stock = inventory.find(item=>item.product_id===line.productId && item.quantity_on_hand>=line.quantity && (item.current_ref_bcv??0)>0);
+      if (stock) {
+        imported.push({
+          key:"STOCK:"+stock.id,kind:"STOCK",inventory_item_id:stock.id,
+          product_id:stock.product_id??undefined,
+          description:[stock.brand,stock.sku,stock.description].filter(Boolean).join(" · "),
+          quantity:line.quantity,unit_ref:Number(stock.current_ref_bcv),
+          source_label:"Desde cotización · stock disponible",stock:stock.quantity_on_hand
+        });
+        continue;
+      }
+      const item=catalog.find(product=>product.id===line.productId && (product.current_ref_bcv??0)>0);
+      if (!item) {
+        skipped.push("Un producto de la cotización ya no está disponible.");
+        continue;
+      }
+      imported.push({
+        key:"CATALOG:"+item.id,kind:"CATALOG",product_id:item.id,description:item.name,
+        quantity:line.quantity,unit_ref:Number(item.current_ref_bcv),
+        source_label:"Desde cotización · precio actualizado; sin descontar stock"
+      });
+    }
+    if (imported.length) {
+      setCart(previous => {
+        const merged = [...previous];
+        for (const line of imported) {
+          const index=merged.findIndex(item=>item.key===line.key);
+          if (index < 0) merged.push(line);
+          else if (merged[index].kind !== "STOCK" ||
+            merged[index].quantity + line.quantity <= (merged[index].stock??0))
+            merged[index]={...merged[index],quantity:merged[index].quantity+line.quantity};
+          else skipped.push("Un artículo supera la existencia disponible.");
+        }
+        return merged;
+      });
+      setQuoteFlow(params.get("flow")==="order"?"order":"sale");
+      setQuoteTransferNotice(imported.length+" concepto(s) cargados desde la cotización. Revisa los precios y confirma "+(params.get("flow")==="order"?"la creación de la orden":"el cobro")+".");
+    }
+    if (skipped.length) setWarning(previous=>[previous,...skipped].filter(Boolean).join(" · "));
+    const url=new URL(window.location.href);
+    url.searchParams.delete("from");url.searchParams.delete("flow");
+    window.history.replaceState(window.history.state,"",url.pathname+url.search+url.hash);
+  }, [loading,catalog,inventory]);
+
   const positiveCatalogIds = useMemo(() => new Set(inventory.map(i => i.product_id).filter(Boolean) as string[]), [inventory]);
   const results = useMemo<SearchResult[]>(() => {
     const q = normalize(search.trim());
@@ -124,7 +194,7 @@ export function QuickSaleScreen() {
   const casheaValid = cartValid && totalRef >= CASHEA_MIN_REF && casheaPct > 0 && casheaPct <= 100;
 
   function payload(): QuickPayloadLine[] { return cart.map(line => ({ kind: line.kind, inventory_item_id: line.inventory_item_id ?? null, product_id: line.product_id ?? null, description: line.description, quantity: line.quantity, unit_ref: Number(line.unit_ref) })); }
-  function resetAfterSale() { setSaleDate("");setReceived(false); setCart([]); setReference(""); setCasheaPaymentReference(""); setCasheaReference(""); setSearch(""); setCheckoutMode("DIRECT"); setSelectedPayment("TRANSFER_BDV"); setCasheaInitialPercent("40"); setCasheaInitialMethod("TRANSFER_BDV"); }
+  function resetAfterSale() { setQuoteFlow(null);setQuoteTransferNotice("");setSaleDate("");setReceived(false); setCart([]); setReference(""); setCasheaPaymentReference(""); setCasheaReference(""); setSearch(""); setCheckoutMode("DIRECT"); setSelectedPayment("TRANSFER_BDV"); setCasheaInitialPercent("40"); setCasheaInitialMethod("TRANSFER_BDV"); }
 
   async function completeDirect() {
     if (!cartValid || busy) return;
@@ -163,6 +233,24 @@ export function QuickSaleScreen() {
     <section className="brand-hero"><div><div className="eyebrow">MOSTRADOR · PRECIO → VENTA → COBRO</div><h1>Venta rápida</h1><p>Cotiza sin crear una orden. La OS nace solo cuando registras la venta o decides continuar como orden completa.</p></div><img src="/lubricenter-logo.png" alt="Lubricenter" /></section>
     <div className="row-between"><span className="muted small">Venta directa o Cashea tradicional desde el mismo carrito.</span><Link className="btn btn-ghost" href="/cashea">Seguimiento Cashea</Link></div>
     {error && <div className="error" role="alert">{error}</div>}
+    {quoteFlow && <section className="card stack" style={{borderColor:"rgba(255,128,47,.72)",background:"rgba(255,128,47,.08)"}}>
+      <div className="row-between"><div><strong>{quoteFlow==="order"?"Continuar cotización como orden":"Cotización lista para cobrar"}</strong>
+        <div className="muted small">{quoteTransferNotice}</div></div><Link className="btn btn-ghost" href="/quote">Volver al cotizador</Link></div>
+      <div className="row" style={{flexWrap:"wrap"}}>
+        {quoteFlow==="order"
+          ? <button className="btn btn-primary" disabled={!cartValid||busy} onClick={()=>void continueAsOrder()}>
+              {busy?"Creando orden…":"Confirmar y crear orden"}
+            </button>
+          : <button className="btn btn-primary" disabled={!cartValid} onClick={()=>
+              document.getElementById("quick-sale-checkout")?.scrollIntoView({behavior:"smooth",block:"start"})}>
+              Ir a cobrar
+            </button>}
+        <button className="btn btn-ghost" onClick={()=>setQuoteFlow(v=>v==="order"?"sale":"order")}>
+          {quoteFlow==="order"?"Cambiar a venta rápida":"Cambiar a orden"}
+        </button>
+      </div>
+      <div className="muted small">Los importes se toman de los precios actuales del catálogo. Nada se registra hasta que confirmes aquí.</div>
+    </section>}
     {warning && <div className="card" style={{ borderColor: "rgba(255,93,21,.45)" }}><strong>Modo degradado disponible</strong><div className="muted small">{warning}. La venta manual sigue disponible si catálogo o inventario no cargan.</div></div>}
 
     {completed && <section className="card stack" style={{ borderColor: "rgba(63,190,115,.55)" }}>
@@ -191,7 +279,7 @@ export function QuickSaleScreen() {
       {!cart.length && <div className="muted">Agrega productos para armar la cotización. Todavía no se crea ninguna OS.</div>}
     </section>
 
-    <section className="card stack" style={{ borderColor: cart.length ? "rgba(255,93,21,.42)" : undefined }}>
+    <section id="quick-sale-checkout" className="card stack" style={{ borderColor: cart.length ? "rgba(255,93,21,.42)" : undefined, scrollMarginTop: 80 }}>
       <div><div className="eyebrow">3. FINALIZAR VENTA</div><h2 style={{ margin: "4px 0 0" }}>Registrar y cobrar</h2></div>
       <div className="row-between"><div><div className="muted small">TOTAL A COBRAR</div><div className="money-lg">{fmtRef(totalRef)}</div></div><div style={{ textAlign: "right" }}><strong>{fmtVes(totalVes)}</strong><div className="muted small">USD físico aprox. {cashUsd.toFixed(2)}</div></div></div>
       <div className="segmented"><button type="button" className={`btn ${checkoutMode === "DIRECT" ? "btn-primary" : "btn-ghost"}`} onClick={() => setCheckoutMode("DIRECT")}>Cobro directo</button><button type="button" className={`btn ${checkoutMode === "CASHEA" ? "btn-primary" : "btn-ghost"}`} onClick={() => setCheckoutMode("CASHEA")}>Cashea tradicional</button></div>
