@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ExpenseSheet, type ExpenseAccount } from "@/components/expense-sheet";
+import { FinanceCashAlerts } from "@/components/finance-cash-alerts";
 import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
 
@@ -68,6 +69,7 @@ export default function FinancePage() {
     <section className="brand-hero"><div><div className="eyebrow">FINANZAS · CONTROL DEL NEGOCIO</div><h1>Central financiera</h1><p>Separa lo vendido, lo cobrado, lo pendiente y lo gastado para saber qué ocurrió realmente con el dinero.</p></div><img src="/lubricenter-logo.png" alt="Lubricenter" /></section>
     <Link href="/finance/reconcile" className="card brand-card"><h2 className="section-title">Cuadre semanal</h2><p>Importa bancos, explica salidas pendientes y no cierres la semana hasta que el dinero cuadre.</p></Link>
     {error && <div className="error">{error}</div>}
+    {financeRole === "OWNER" && <FinanceCashAlerts />}
 
     <section className="card stack">
       <div className="finance-presets">{(["WEEK","MONTH","30D","CUSTOM"] as Preset[]).map(x => <button key={x} className={`btn ${preset === x ? "btn-primary" : "btn-ghost"}`} onClick={() => choose(x)}>{x === "WEEK" ? "Esta semana" : x === "MONTH" ? "Este mes" : x === "30D" ? "Últimos 30 días" : "Personalizado"}</button>)}</div>
