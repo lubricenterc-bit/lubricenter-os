@@ -20,7 +20,7 @@ create table if not exists public.finance_cash_close_revisions (
   cash_closing_id uuid not null references public.cash_closings(id),
   account_id uuid references public.financial_accounts(id),
   actor_id uuid not null references auth.users(id),
-  revision_type text not null check (revision_type in ('COUNT_CORRECTION', 'REOPEN_REQUEST')),
+  revision_type text not null check (revision_type in ('COUNT_CORRECTION', 'COUNT_DRAFT_CORRECTION', 'REOPEN_REQUEST')),
   reason text not null check (char_length(trim(reason)) >= 8),
   before_snapshot jsonb,
   after_snapshot jsonb,
@@ -90,6 +90,37 @@ end $fn$;
 drop trigger if exists finance_cash_status_alert on public.cash_closings;
 create trigger finance_cash_status_alert after update of status on public.cash_closings
  for each row execute function lubricenter_private.finance_cash_status_alert();
+
+-- Even BEFORE the operator closes a day, replacing an existing count is audited.
+-- The first count is not a correction. The explanation serves as the reason.
+create or replace function lubricenter_private.finance_cash_open_recount_audit()
+ returns trigger language plpgsql security definer set search_path = '' as $fn$
+declare v_close public.cash_closings; v_revision uuid;
+begin
+ if old.actual_native is null or
+    (old.actual_native is not distinct from new.actual_native
+     and old.explanation is not distinct from new.explanation) then
+   return new;
+ end if;
+ select * into v_close from public.cash_closings where id=new.cash_closing_id;
+ if v_close.finance_version is distinct from 22 or v_close.status not in ('OPEN','REOPENED')
+ then return new; end if;
+ if length(trim(coalesce(new.explanation,'')))<8 then
+   raise exception 'Explica por qué se modificó un conteo anterior (mínimo 8 caracteres)';
+ end if;
+ insert into public.finance_cash_close_revisions
+   (cash_closing_id,account_id,actor_id,revision_type,reason,before_snapshot,after_snapshot)
+ values(new.cash_closing_id,new.account_id,auth.uid(),'COUNT_DRAFT_CORRECTION',
+        trim(new.explanation),to_jsonb(old),to_jsonb(new)) returning id into v_revision;
+ perform lubricenter_private.finance_cash_notify_owners(
+   v_close.location_id,v_close.id,'COUNT_DRAFT_CORRECTION',
+   'Se corrigió un conteo del '||v_close.business_date::text||
+    ' antes de finalizar el cierre: '||left(trim(new.explanation),120),v_revision);
+ return new;
+end $fn$;
+drop trigger if exists finance_cash_open_recount_audit on public.cash_closing_accounts;
+create trigger finance_cash_open_recount_audit after update on public.cash_closing_accounts
+ for each row execute function lubricenter_private.finance_cash_open_recount_audit();
 
 -- Only the owner assigned to this location may re-approve a reviewed day.
 create or replace function lubricenter_private.finance_cash_review_owner_guard()
