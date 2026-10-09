@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { VehicleOilForecastCard } from "@/components/vehicle-oil-forecast-card";
-import { canMentionUsageForecast, type VehicleOilForecast } from "@/lib/oil-forecast";
+import { MaintenanceJourneyScreen } from "@/components/maintenance-journey-screen";
+import type { CrmVehicleReminder } from "@/lib/crm-retention";
 
 type Followup = {
   id: string;
@@ -25,7 +25,7 @@ type Followup = {
   year: number | null;
 };
 
-type Reminder = VehicleOilForecast & {
+type Reminder = CrmVehicleReminder & {
   service_record_id: string;
   vehicle_id: string;
   customer_id: string | null;
@@ -59,33 +59,6 @@ function cleanWhatsapp(value: string | null) {
   if (digits.startsWith("0")) return `58${digits.slice(1)}`;
   if (digits.startsWith("4") && digits.length === 10) return `58${digits}`;
   return digits;
-}
-
-function reminderMessage(r: Reminder) {
-  const name=(r.customer_name||"").trim()||"amigo";
-  const vehicle=[r.make,r.model].filter(Boolean).join(" ")||"tu vehículo";
-  const plate=r.plate?`\n🔢 *Placa:* ${r.plate}`:"";
-  const km=r.next_service_odometer!=null?
-    `\n🔧 *Kilometraje de referencia:* ${r.next_service_odometer.toLocaleString("es-VE")} km`:"";
-  const usage=canMentionUsageForecast(r)&&r.due_reason==="KM_USAGE";
-  const reason=usage?
-    "Según el uso estimado de este carro entre sus cambios anteriores, se acerca el momento de revisar el aceite.":
-    r.due_reason==="VISIT_PATTERN"?
-      "Según la frecuencia con la que has hecho sus cambios de aceite, puede ser buen momento para revisar el mantenimiento.":
-      "Por la fecha de mantenimiento registrada, queremos ayudarte a planificar su próximo cambio de aceite.";
-  const date=r.next_service_date?
-    `\n🗓️ *Fecha de referencia:* ${formatDate(r.next_service_date)}`:"";
-  return `¡Hola, *${name}*! 👋🧡
-
-Te saludamos de *Lubricenter*. Queríamos ayudarte a mantener tu vehículo al día.
-
-🚗 *Vehículo:* ${vehicle}${plate}${km}${date}
-
-${reason}
-
-*La fecha es orientativa*, así que podemos confirmar el kilometraje actual contigo antes de coordinar.
-
-¿Te gustaría agendar tu visita? ¡Será un gusto atenderte! 🚗`;
 }
 
 function formatDate(value: string | null) {
@@ -128,12 +101,6 @@ export default function CrmPage() {
     if (filter === "ACTION") return f.status === "PENDING" || (f.status === "SNOOZED" && (!f.snoozed_until || f.snoozed_until <= new Date().toISOString().slice(0,10)));
     return true;
   }), [followups, filter]);
-
-  const visibleReminders = useMemo(() => reminders.filter(r => {
-    if (filter === "SENT") return r.urgency === "SENT";
-    if (filter === "ACTION") return ["DUE", "SOON"].includes(r.urgency);
-    return true;
-  }), [reminders, filter]);
 
   const postPending = followups.filter(f => f.status === "PENDING").length;
   const due = reminders.filter(r => r.urgency === "DUE").length;
@@ -183,26 +150,13 @@ export default function CrmPage() {
     await load();
   }
 
-  async function setReminderStatus(r: Reminder, status: "PENDING" | "SENT" | "SNOOZED", snoozedUntil?: string) {
-    setBusyId(r.service_record_id); setError(""); setNotice("");
-    const { error } = await supabase.rpc("set_maintenance_reminder_status", {
-      p_service_record_id: r.service_record_id,
-      p_status: status,
-      p_snoozed_until: status === "SNOOZED" ? snoozedUntil : null,
-    });
-    setBusyId(null);
-    if (error) return setError(error.message);
-    setNotice(status === "SENT" ? "Recordatorio marcado como enviado." : status === "SNOOZED" ? "Recordatorio pospuesto 7 días." : "Recordatorio reactivado.");
-    await load();
-  }
-
   function snoozeDate(days: number) {
     const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10);
   }
 
   return <main className="container stack">
     <section className="brand-hero">
-      <div><div className="eyebrow">CRM · EXPERIENCIA DEL CLIENTE</div><h1>Seguimiento</h1><p>El mensaje post-servicio es editable. El mantenimiento queda separado para contactar al cliente cuando corresponda.</p><div className="row" style={{marginTop:12}}><Link href="/campaigns" className="btn btn-primary">Campañas</Link></div></div>
+      <div><div className="eyebrow">CRM · EXPERIENCIA DEL CLIENTE</div><h1>Seguimiento</h1><p>Mensajes post-servicio y fidelización por vehículo: fechas predictivas, contacto responsable y recuperación personalizada.</p><div className="row" style={{marginTop:12}}><Link href="/campaigns" className="btn btn-primary">Campañas</Link></div></div>
       <img src="/lubricenter-logo.png" alt="Lubricenter" />
     </section>
 
@@ -218,13 +172,13 @@ export default function CrmPage() {
     <section className="card stack">
       <div className="segmented">
         <button className={`btn ${tab === "POST_SERVICE" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("POST_SERVICE")}>Post-servicio · {postPending}</button>
-        <button className={`btn ${tab === "MAINTENANCE" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("MAINTENANCE")}>Mantenimiento · {due + soon}</button>
+        <button className={`btn ${tab === "MAINTENANCE" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("MAINTENANCE")}>Fidelización y mantenimiento · {due + soon}</button>
       </div>
-      <div className="segmented">
+      {tab === "POST_SERVICE" && <div className="segmented">
         <button className={`btn ${filter === "ACTION" ? "btn-primary" : "btn-ghost"}`} onClick={() => setFilter("ACTION")}>Por atender</button>
         <button className={`btn ${filter === "ALL" ? "btn-primary" : "btn-ghost"}`} onClick={() => setFilter("ALL")}>Todos</button>
         <button className={`btn ${filter === "SENT" ? "btn-primary" : "btn-ghost"}`} onClick={() => setFilter("SENT")}>Enviados</button>
-      </div>
+      </div>}
     </section>
 
     {tab === "POST_SERVICE" ? <section className="stack">
@@ -254,31 +208,6 @@ export default function CrmPage() {
         </article>;
       })}
       {!visibleFollowups.length && <div className="card muted">No hay mensajes post-servicio pendientes en esta vista. Cada orden cerrada con cliente genera uno automáticamente.</div>}
-    </section> : <section className="stack">
-      {visibleReminders.map(r => {
-        const phoneOk = !!cleanWhatsapp(r.customer_phone);
-        const vehicle = [r.make, r.model, r.year].filter(Boolean).join(" · ");
-        const msg = reminderMessage(r);
-        return <article className="card stack" key={r.service_record_id}>
-          <div className="row-between">
-            <div><div className="row"><strong>{r.customer_name || "Cliente sin nombre"}</strong><span className={`pill ${r.urgency === "DUE" ? "warn" : r.urgency === "SENT" ? "ok" : ""}`}>{r.urgency === "DUE" ? "VENCIDO" : r.urgency === "SOON" ? "PRÓXIMO" : r.urgency === "SENT" ? "ENVIADO" : r.urgency === "SNOOZED" ? "POSPUESTO" : "PROGRAMADO"}</span></div><div>{[r.plate, vehicle].filter(Boolean).join(" · ") || "Vehículo"}</div><div className="muted small">{r.customer_phone || "Sin teléfono"}</div></div>
-            <div style={{ textAlign: "right" }}><div className="label">PRÓXIMO</div><strong>{formatDate(r.next_service_date)}</strong>{r.next_service_odometer != null && <div className="muted small">{r.next_service_odometer.toLocaleString("es-VE")} km</div>}</div>
-          </div>
-          <details className="card"><summary><strong>Ver mensaje</strong></summary><div style={{ whiteSpace: "pre-wrap", marginTop: 12 }} className="small">{msg}</div></details>
-          <VehicleOilForecastCard compact forecast={{...r,recommended_due_date:r.next_service_date}}/>
-          <div className="row" style={{gap:8,flexWrap:"wrap"}}>
-            <Link className="btn btn-ghost" href={`/vehicles/${r.vehicle_id}`}>Historial de este carro</Link>
-            {r.customer_id&&<Link className="btn btn-ghost" href={`/customers/${r.customer_id}`}>Ficha del cliente</Link>}
-          </div>
-          {r.urgency !== "SENT" ? <div className="grid grid-2">
-            <button className="btn btn-primary" disabled={!phoneOk || busyId === r.service_record_id} onClick={() => openWhatsapp(r.customer_phone, msg)}>Abrir WhatsApp</button>
-            <button className="btn" disabled={busyId === r.service_record_id} onClick={() => setReminderStatus(r, "SENT")}>{busyId === r.service_record_id ? "Guardando…" : "Marcar enviado"}</button>
-            <button className="btn btn-ghost" disabled={busyId === r.service_record_id} onClick={() => setReminderStatus(r, "SNOOZED", snoozeDate(7))}>Posponer 7 días</button>
-          </div> : <button className="btn btn-ghost" disabled={busyId === r.service_record_id} onClick={() => setReminderStatus(r, "PENDING")}>Reabrir recordatorio</button>}
-          {!phoneOk && <div className="error">Falta un teléfono válido en el cliente. Corrígelo en Clientes para habilitar WhatsApp.</div>}
-        </article>;
-      })}
-      {!visibleReminders.length && <div className="card muted">No hay recordatorios de mantenimiento en esta vista.</div>}
-    </section>}
+    </section> : <MaintenanceJourneyScreen reminders={reminders} onRefresh={()=>void load()}/>}
   </main>;
 }
