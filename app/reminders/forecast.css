@@ -1,0 +1,35 @@
+/* Estadística transparente del mantenimiento por vehículo. */
+.vof{--vof-line:#475769;display:grid;gap:13px;padding:16px;
+  border:1px solid #765640;background:linear-gradient(125deg,#292d36 0%,#192a37 100%);
+  border-radius:13px;color:#eef2f6;}
+.vof-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.vof-title{display:flex;align-items:center;gap:8px;color:#ffb07d;font-size:13px;font-weight:800}
+.vof-confidence{border:1px solid #586372;background:#303946;border-radius:20px;
+  padding:6px 10px;font-size:10px;color:#b8c6d4;font-weight:770;white-space:nowrap;}
+.vof-confidence.is-high{border-color:#438266;background:#244337;color:#a9e3c5}
+.vof-confidence.is-medium{border-color:#8a7545;background:#463a28;color:#e9d49a}
+.vof-confidence.is-low{border-color:#785b44;background:#42332c;color:#f2c097}
+.vof-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.vof-metrics>div{min-width:0;display:grid;gap:5px;padding:10px;
+ background:#20303c;border:1px solid #3d5162;border-radius:9px}
+.vof-metrics small{font-size:10px;line-height:1.4;color:#a5b6c4}
+.vof-metrics strong{font-size:15px;line-height:1.35;color:#f1f5f8;letter-spacing:-.018em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.vof-recommendation{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap;
+ border:1px solid #885d3c;background:#443227;border-radius:9px;padding:13px}
+.vof-recommendation>div{display:grid;gap:6px}
+.vof-recommendation small{font-size:10px;color:#eac5aa}
+.vof-recommendation strong{font-size:19px;font-weight:830;color:#ffcb9f;letter-spacing:-.02em}
+.vof-recommendation>span{font-size:11px;color:#ffd4b3;font-weight:760}
+.vof-projections{display:flex;gap:6px;flex-wrap:wrap}
+.vof-projections span{border-radius:7px;border:1px solid #495766;background:#27343f;padding:8px;
+ font-size:10px;line-height:1.5;color:#b8c8d6}
+.vof-projections strong{color:#f1f4f7;font-weight:720}
+.vof-explanation{margin:0;display:flex;align-items:flex-start;gap:7px;color:#9fb4c5;
+ font-size:10px;line-height:1.6}
+.vof-explanation svg{flex-shrink:0;margin-top:1px}
+.vof.is-compact{padding:12px;gap:10px}
+.vof.is-compact .vof-metrics strong{font-size:13px}
+.vof.is-compact .vof-recommendation{padding:10px}
+.vof.is-compact .vof-recommendation strong{font-size:16px}
+@media(max-width:1100px){.vof-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.vof{padding:12px}.vof-metrics small{font-size:9px}.vof-metrics>div{padding:9px}.vof-metrics strong{font-size:13px}}
