@@ -149,6 +149,7 @@ export function MaintenanceJourneyScreen({
     setBusy(null);
     if(err){setError(err.message);return;}
     setOpened(prev=>({...prev,[key]:false}));
+    setDrafts(prev=>{const next={...prev};delete next[key];return next;});
     const labels:Record<CrmEventType,string>={
       SENT:"Envío confirmado en la bitácora. El próximo contacto respetará el período de espera.",
       REPLIED:"Respuesta registrada. El caso sale de la secuencia automática de recordatorios.",
@@ -159,6 +160,23 @@ export function MaintenanceJourneyScreen({
     };
     setNotice(labels[eventType]);
     await loadAudit();onRefresh();
+  }
+
+  async function snoozeReminder(row:WithJourney,restore:boolean){
+    const id=row.reminder.service_record_id;
+    const date=new Date();
+    date.setDate(date.getDate()+7);
+    const until=caracasDay(date);
+    setBusy(id);setError("");setNotice("");
+    const {error:err}=await supabase.rpc("set_maintenance_reminder_status",{
+      p_service_record_id:id,p_status:restore?"PENDING":"SNOOZED",
+      p_snoozed_until:restore?null:until
+    });
+    setBusy(null);
+    if(err){setError(err.message);return;}
+    setNotice(restore?"El seguimiento vuelve a estar disponible, respetando los límites de contacto.":
+      "Seguimiento pospuesto siete días. No se enviará ningún mensaje automáticamente.");
+    onRefresh();await loadAudit();
   }
 
   function openWhatsapp(row:WithJourney){
@@ -316,6 +334,11 @@ export function MaintenanceJourneyScreen({
                 <Link href={"/vehicles/"+r.vehicle_id}>Ver carro <OsIcon name="right" size={15}/></Link>
                 {r.customer_id&&<Link href={"/customers/"+r.customer_id}>Ficha cliente <OsIcon name="right" size={15}/></Link>}
               </div>
+              {!["ARCHIVED","OPTED_OUT","BOOKED","DECLINED","CLOSED_NO_REPLY"].includes(j.status)&&
+                <button className="btn btn-ghost" disabled={isBusy}
+                  onClick={()=>void snoozeReminder(row,j.status==="SNOOZED")}>
+                    {j.status==="SNOOZED"?"Reactivar recordatorio":"Posponer 7 días"}
+                </button>}
               {permission==="OPT_IN"&&r.customer_id&&
                 <button className="crmj-optout" disabled={isBusy}
                   onClick={()=>void changePermission(r.customer_id!,"OPT_OUT")}>No contactar a este cliente</button>}
