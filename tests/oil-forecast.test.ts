@@ -65,9 +65,7 @@ describe("Predicción matemática por vehículo",()=>{
       const c=await pg.query<Record<string,unknown>>("SELECT * FROM vehicle_oil_usage_forecasts WHERE vehicle_id=$1",[u(103)]);
       expect(c.rows[0].service_count).toBe(1); // Dueño anterior NO cuenta.
       expect(c.rows[0].confidence).toBe("INSUFFICIENT");
-      const reminders=await pg.query<Record<string,unknown>>("SELECT vehicle_id,customer_id,confidence, forecast_confidence, next_service_date FROM maintenance_reminders_current WHERE vehicle_id=$1",[u(101)]).catch(async()=>{
-        return pg.query<Record<string,unknown>>("SELECT vehicle_id,customer_id,forecast_confidence,next_service_date FROM maintenance_reminders_current WHERE vehicle_id=$1",[u(101)]);
-      });
+      const reminders=await pg.query<Record<string,unknown>>("SELECT vehicle_id,customer_id,forecast_confidence,next_service_date FROM maintenance_reminders_current WHERE vehicle_id=$1",[u(101)]);
       expect(reminders.rows[0].customer_id).toBe(u(1));
       expect(reminders.rows[0].forecast_confidence).toBe("LOW");
     } finally {await pg.close();}
