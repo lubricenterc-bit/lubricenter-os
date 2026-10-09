@@ -3,6 +3,12 @@ on:
   pull_request:
     paths:
       - 'app/page.tsx'
+      - 'app/service-history/**'
+      - 'lib/maintenance-history.ts'
+      - 'tests/maintenance-history.test.ts'
+      - 'app/customers/**'
+      - 'app/vehicles/**'
+      - 'app/orders/page.tsx'
       - 'app/quote/**'
       - 'lib/sales-quote.ts'
       - 'tests/sales-quote.test.ts'
@@ -51,7 +57,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - run: npx vitest run tests/navigation.test.ts tests/brand-assets.test.ts tests/catalog.test.ts tests/oil-quote.test.ts tests/sales-quote.test.ts tests/order-extras.test.ts
+      - run: npx vitest run tests/navigation.test.ts tests/brand-assets.test.ts tests/catalog.test.ts tests/oil-quote.test.ts tests/sales-quote.test.ts tests/order-extras.test.ts tests/maintenance-history.test.ts
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
