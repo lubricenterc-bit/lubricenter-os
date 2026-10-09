@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { PricingStatus } from "@/components/pricing-status";
 import { OsIcon } from "@/components/os-icon";
+import { MesaDock, MesaHeader } from "@/components/mesa-navigation";
 import { AppSessionProvider } from "@/components/app-session-context";
 import {
   NAV_MODULES, linksForModule, moduleForPath, navigationSearch, pageLabelForPath,
@@ -14,6 +15,7 @@ import {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const publicDesignLab = pathname === "/design-lab" && process.env.NEXT_PUBLIC_DESIGN_LAB_PUBLIC === "1";
   const router = useRouter();
   const currentModule = moduleForPath(pathname);
   const currentPage = pageLabelForPath(pathname);
@@ -27,10 +29,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [search, setSearch] = useState("");
   const [unread, setUnread] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const commandRef = useRef<HTMLElement>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
   const owner = role === "OWNER" || role === "ADMIN";
   const results = useMemo(() => navigationSearch(search, role), [search, role]);
 
   useEffect(() => {
+    if (publicDesignLab) return;
     let active = true;
     async function loadIdentity() {
       const [member, locations] = await Promise.all([
@@ -48,17 +54,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
     void loadIdentity();
     return () => { active = false; };
-  }, []);
+  }, [publicDesignLab]);
 
   useEffect(() => {
+    if (publicDesignLab) return;
     setExpanded(moduleForPath(pathname).id);
     setMobileMenu(false);
     setSearchOpen(false);
     setSearch("");
-  }, [pathname]);
+  }, [pathname, publicDesignLab]);
 
   useEffect(() => {
-    if (!owner || pathname === "/login") return;
+    if (publicDesignLab || !owner || pathname === "/login") return;
     let active = true;
     async function refresh() {
       const { count, error } = await supabase.from("finance_cash_close_alerts")
@@ -68,23 +75,57 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     void refresh();
     const timer = window.setInterval(refresh, 60000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [owner, pathname]);
+  }, [owner, pathname, publicDesignLab]);
 
   useEffect(() => {
+    if (publicDesignLab) return;
     function onKey(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        setMobileMenu(false);
         setSearchOpen(value => !value);
       }
       if (event.key === "Escape") { setSearchOpen(false); setMobileMenu(false); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [publicDesignLab]);
 
   useEffect(() => {
-    if (searchOpen) searchRef.current?.focus();
-  }, [searchOpen]);
+    if (publicDesignLab || (!mobileMenu && !searchOpen)) return;
+    const dialog = searchOpen ? commandRef.current : drawerRef.current;
+    if (!dialog) return;
+    const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const workspace = workspaceRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    workspace?.setAttribute("inert", "");
+    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]'
+    )).filter(element => element.getClientRects().length > 0);
+    (searchOpen ? searchRef.current : focusable()[0])?.focus();
+    function trapFocus(event: KeyboardEvent) {
+      if (event.key !== "Tab") return;
+      const targets = focusable();
+      if (!targets.length) { event.preventDefault(); dialog?.focus(); return; }
+      const first = targets[0];
+      const last = targets[targets.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialog?.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog?.contains(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
+    }
+    document.addEventListener("keydown", trapFocus);
+    return () => {
+      document.removeEventListener("keydown", trapFocus);
+      document.body.style.overflow = previousOverflow;
+      workspace?.removeAttribute("inert");
+      if (returnFocus?.isConnected) returnFocus.focus();
+    };
+  }, [mobileMenu, searchOpen, publicDesignLab]);
+
+  if (publicDesignLab) return <>{children}</>;
 
   async function signOut() {
     try {
@@ -113,91 +154,68 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AppSessionProvider value={{ role, roleLoaded, locationName }}>
-      <div className="shell os-layout">
-        {mobileMenu && <button className="os-sidebar-scrim" aria-label="Cerrar menú" onClick={() => setMobileMenu(false)} />}
-        <aside className={"os-sidebar" + (mobileMenu ? " is-open" : "")} aria-label="Panel de navegación">
-          <div className="os-sidebar-brand">
-            <Link href="/" className="os-brand" onClick={() => setMobileMenu(false)}>
-              <img src="/api/brand/isotipo.png" alt="" />
-              <span>Lubricenter <b>OS</b><small>WORKSPACE</small></span>
-            </Link>
-            <button className="os-sidebar-close" onClick={() => setMobileMenu(false)} aria-label="Cerrar menú"><OsIcon name="close"/></button>
+      <div className="shell mesa-theme mesa-shell">
+        <div ref={workspaceRef} className="mesa-workspace">
+          <a className="mesa-skip-link" href="#mesa-main">Ir al contenido</a>
+          <MesaHeader pathname={pathname} onSearch={() => setSearchOpen(true)} onMenu={() => setMobileMenu(true)}
+            role={role} roleLoaded={roleLoaded} locationName={locationName} unread={unread} menuOpen={mobileMenu}>
+            <PricingStatus />
+          </MesaHeader>
+          <div id="mesa-main" className="mesa-workspace-content" tabIndex={-1}>
+            {pathname !== "/" && <div className="mesa-page-path"><Link href="/">Mesa LC</Link><OsIcon name="right" size={13}/><span>{currentModule.label}</span>{currentPage !== currentModule.label && <><OsIcon name="right" size={13}/><strong>{currentPage}</strong></>}</div>}
+            {children}
           </div>
-          <div className="os-location" title={otherLocations ? "El cambio de sucursal se habilitará cuando sus datos estén aislados." : "Sucursal operativa actual"}>
-            <span className="os-location-mark"><OsIcon name="layers" size={17}/></span>
-            <span><small>SUCURSAL ACTUAL</small><strong>{locationName}</strong></span>
-            {otherLocations && <span className="os-location-lock" aria-label="Cambio de sucursal no disponible"><OsIcon name="shield" size={15}/></span>}
-          </div>
-          <nav className="os-navigation" aria-label="Módulos">
-            <div className="os-nav-heading">ESPACIO DE TRABAJO</div>
+          <MesaDock pathname={pathname} onSearch={() => setSearchOpen(true)} onMenu={() => setMobileMenu(true)} menuOpen={mobileMenu} />
+        </div>
+
+        {mobileMenu && <div className="mesa-drawer-scrim" onMouseDown={event => { if (event.target === event.currentTarget) setMobileMenu(false); }}>
+          <section ref={drawerRef} className="mesa-drawer" id="mesa-modules" role="dialog" aria-modal="true" aria-labelledby="mesa-modules-title" tabIndex={-1}>
+            <div className="mesa-drawer-heading">
+              <div><span className="mesa-drawer-eyebrow">LUBRICENTER OS</span><h2 id="mesa-modules-title">Tu espacio de trabajo.</h2></div>
+              <button type="button" className="mesa-close" onClick={() => setMobileMenu(false)} aria-label="Cerrar menú"><OsIcon name="close"/></button>
+            </div>
+            <div className="mesa-location" title={otherLocations ? "El cambio de sucursal se habilitará cuando sus datos estén aislados." : "Sucursal operativa actual"}>
+              <OsIcon name="layers" size={19}/><span><small>SUCURSAL ACTUAL</small><strong>{locationName}</strong></span>
+              {otherLocations && <OsIcon name="shield" size={17} aria-label="Cambio de sucursal no disponible"/>}
+            </div>
+            <nav className="mesa-navigation" aria-label="Todos los módulos">
             {NAV_MODULES.map(module => {
               const links = linksForModule(module, role);
               if (!links.length) return null;
               const isExpanded = expanded === module.id;
               const isCurrent = currentModule.id === module.id;
-              return <div className="os-nav-group" key={module.id}>
-                <button className={"os-nav-parent" + (isCurrent ? " is-current" : "")}
+              return <div className="mesa-nav-group" key={module.id}>
+                <button type="button" className={"mesa-nav-parent" + (isCurrent ? " is-current" : "")}
                   onClick={() => {
                     if (module.id === "home") { router.push("/"); setMobileMenu(false); }
                     else setExpanded(isExpanded ? "" : module.id);
                   }}
                   aria-expanded={module.id === "home" ? undefined : isExpanded}
-                  aria-controls={module.id === "home" ? undefined : "os-nav-" + module.id}>
+                  aria-controls={module.id === "home" ? undefined : "mesa-nav-" + module.id}>
                   <OsIcon name={module.icon} size={19}/>
                   <span>{module.label}</span>
-                  {module.id !== "home" && <OsIcon name="down" size={15} className={"os-nav-arrow" + (isExpanded ? " is-open" : "")}/>}
+                  {module.id !== "home" && <OsIcon name="down" size={15} className={"mesa-nav-arrow" + (isExpanded ? " is-open" : "")}/>}
                 </button>
-                {module.id !== "home" && isExpanded && <div className="os-nav-children" id={"os-nav-" + module.id}>
+                {module.id !== "home" && isExpanded && <div className="mesa-nav-children" id={"mesa-nav-" + module.id}>
                   {links.map(link => <Link key={link.href} href={link.href}
                     aria-current={linkActive(link.href) ? "page" : undefined}
-                    className={"os-nav-child" + (linkActive(link.href) ? " is-active" : "")}
+                    className={"mesa-nav-child" + (linkActive(link.href) ? " is-active" : "")}
                     title={link.description} onClick={() => setMobileMenu(false)}>
-                    {link.label}
+                    <span>{link.label}<small>{link.description}</small></span><OsIcon name="arrow" size={16}/>
                   </Link>)}
                 </div>}
               </div>;
             })}
-          </nav>
-          <div className="os-sidebar-footer">
-            <div className="os-sidebar-person">
-              <span className="os-avatar"><OsIcon name="user" size={18}/></span>
-              <span><strong>{!roleLoaded ? "Cargando..." : owner ? "Administración" : "Operación"}</strong>
-                <small>{locationName}</small></span>
+            </nav>
+            <div className="mesa-drawer-footer">
+              <div className="mesa-drawer-person"><span className="mesa-profile-avatar">{owner ? "AD" : "OP"}</span><span><strong>{!roleLoaded ? "Cargando..." : owner ? "Administración" : "Operación"}</strong><small>{locationName}</small></span></div>
+              <button type="button" className="mesa-logout" onClick={signOut}><OsIcon name="logout" size={17}/> Salir</button>
             </div>
-            <button className="os-logout" onClick={signOut} title="Cerrar sesión"><OsIcon name="logout" size={17}/> Salir</button>
-          </div>
-        </aside>
-
-        <div className="os-workspace">
-          <header className="os-topbar">
-            <div className="os-topbar-leading">
-              <button className="os-icon-button os-mobile-menu" onClick={() => setMobileMenu(true)} aria-label="Abrir menú de módulos"><OsIcon name="menu"/></button>
-              <div className="os-breadcrumb"><span>{currentModule.label}</span><OsIcon name="right" size={14}/><strong>{currentPage}</strong></div>
-            </div>
-            <div className="os-topbar-actions">
-              <button className="os-search-trigger" onClick={() => setSearchOpen(true)} aria-label="Buscar una sección">
-                <OsIcon name="search" size={18}/><span>Buscar función...</span><kbd>Ctrl K</kbd>
-              </button>
-              <div className="os-pricing"><PricingStatus /></div>
-              {owner && <Link href="/finance" className="os-icon-button os-notification-button" title="Avisos financieros" aria-label={"Avisos financieros, " + unread + " pendientes"}><OsIcon name="bell" size={19}/>{unread > 0 && <span className="os-notification-count">{unread > 9 ? "9+" : unread}</span>}</Link>}
-              <Link href="/quote" className="os-topbar-quote"><OsIcon name="receipt" size={18}/> Cotizar</Link>
-              <Link href="/orders/new" className="os-topbar-secondary"><OsIcon name="car" size={18}/> Nueva orden</Link>
-              <Link href="/quick-sale" className="os-topbar-primary"><OsIcon name="plus" size={18}/> Venta rápida</Link>
-            </div>
-          </header>
-          <div className="os-workspace-content">{children}</div>
-        </div>
-
-        <nav className="os-mobile-bottom" aria-label="Accesos principales">
-          <Link href="/" aria-current={pathname === "/" ? "page" : undefined}><OsIcon name="home"/><span>Inicio</span></Link>
-          <Link href="/quote" aria-current={pathname.startsWith("/quote") ? "page" : undefined}><OsIcon name="receipt"/><span>Cotizar</span></Link>
-          <Link href="/quick-sale" aria-current={pathname === "/quick-sale" ? "page" : undefined}><OsIcon name="sale"/><span>Vender</span></Link>
-          <Link href="/cash-close" aria-current={pathname.startsWith("/cash-close") ? "page" : undefined}><OsIcon name="cash"/><span>Caja</span></Link>
-          <button onClick={() => setMobileMenu(true)} aria-label="Todos los módulos"><OsIcon name="menu"/><span>Menú</span></button>
-        </nav>
+          </section>
+        </div>}
 
         {searchOpen && <div className="os-command-scrim" onMouseDown={e => { if (e.target === e.currentTarget) setSearchOpen(false); }}>
-          <section className="os-command" role="dialog" aria-modal="true" aria-label="Buscar función">
+          <section ref={commandRef} className="os-command" role="dialog" aria-modal="true" aria-label="Buscar función" tabIndex={-1}>
             <div className="os-command-input"><OsIcon name="search"/><input ref={searchRef} value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar módulo o herramienta..." aria-label="Buscar módulo o herramienta"

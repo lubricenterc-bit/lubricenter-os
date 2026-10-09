@@ -1,0 +1,353 @@
+/* Mesa LC — shared production surfaces. Screen-only keeps thermal receipts intact.
+   The class is mounted by the app shell, never by the independent design lab. */
+@media screen {
+  .mesa-theme {
+    --bg: #f2f0e8;
+    --panel: #fffefa;
+    --panel-2: #eeece4;
+    --line: #d9d6cc;
+    --border: #d9d6cc;
+    --text: #171715;
+    --muted: #65645f;
+    --accent: #fd5408;
+    --accent-soft: #fff0e7;
+    --danger: #a32928;
+    --ok: #25643e;
+    --mesa-paper: #fffefa;
+    --mesa-ink: #171715;
+    --mesa-line: #d9d6cc;
+    --mesa-subtle: #eeece4;
+    --mesa-shadow: 0 5px 24px rgb(34 31 20 / 3%);
+    --os-canvas: var(--bg);
+    --os-card: var(--panel);
+    --os-border: var(--line);
+    --os-muted: var(--muted);
+    --os-orange: var(--accent);
+    --os-orange-hover: #e74600;
+    color-scheme: light;
+    color: var(--text);
+    background: var(--bg);
+    font-size: 15px;
+    line-height: 1.5;
+    accent-color: var(--accent);
+  }
+
+  .mesa-theme .container { width: min(100%, 1510px); padding: 28px 30px 50px; }
+  .mesa-theme .container.stack { gap: 20px; }
+  .mesa-theme :is(.card, .sheet, .finance-account) { min-width: 0; }
+  .mesa-theme .card {
+    background: var(--mesa-paper);
+    border: 1px solid var(--mesa-line);
+    border-radius: 16px;
+    padding: 23px;
+    color: var(--mesa-ink);
+    box-shadow: var(--mesa-shadow);
+  }
+  .mesa-theme .card .card { background: #f6f4ee; box-shadow: none; border-radius: 12px; padding: 18px; }
+  .mesa-theme .stack { gap: 14px; }
+  .mesa-theme .grid { gap: 18px; }
+  .mesa-theme :is(.row, .row-between) { gap: 12px; }
+  .mesa-theme .muted { color: var(--muted); }
+  .mesa-theme .small { font-size: 13px; line-height: 1.55; }
+  .mesa-theme .label { color: #57564f; font-size: 11px; line-height: 1.5; letter-spacing: .12em; font-weight: 750; }
+  .mesa-theme .eyebrow { color: #9d360d; font-size: 11px; line-height: 1.5; letter-spacing: .2em; font-weight: 750; }
+  .mesa-theme .section-title { margin: 0 0 10px; font-size: 22px; line-height: 1.2; font-weight: 760; letter-spacing: -.045em; }
+  .mesa-theme .card > h2:not(.section-title),
+  .mesa-theme .card > h3:not(.section-title) { letter-spacing: -.045em; line-height: 1.2; }
+  .mesa-theme .kpi,
+  .mesa-theme .money-lg { font-variant-numeric: tabular-nums; color: inherit; letter-spacing: -.045em; }
+  .mesa-theme .kpi { margin: 8px 0 4px; font-family: var(--mesa-display, Impact), sans-serif; font-size: clamp(35px, 3.2vw, 52px); line-height: 1.05; font-weight: 600; }
+  .mesa-theme .money-lg { font-size: clamp(27px, 2.5vw, 38px); line-height: 1.2; font-weight: 850; }
+  .mesa-theme .divider { background: var(--mesa-line); margin: 12px 0; }
+
+  /* Open editorial headers leave the working document as the dominant surface. */
+  .mesa-theme .brand-hero {
+    background: transparent;
+    color: var(--mesa-ink);
+    border: 0;
+    border-bottom: 1px solid var(--mesa-line);
+    border-radius: 0;
+    padding: 14px 0 25px;
+    gap: 28px;
+    overflow: visible;
+  }
+  .mesa-theme .brand-hero h1,
+  .mesa-theme .container > h1,
+  .mesa-theme .container > div:not([class]) > h1,
+  .mesa-theme .container > .row-between > h1 {
+    font-family: var(--mesa-display, Impact), sans-serif;
+    font-weight: 600;
+    font-size: clamp(40px, 5.1vw, 76px);
+    letter-spacing: -.025em;
+    line-height: .99;
+    margin: 10px 0 13px;
+    text-wrap: balance;
+  }
+  .mesa-theme .brand-hero p { max-width: 780px; color: var(--muted); font-size: 14px; line-height: 1.65; }
+  .mesa-theme .brand-hero img { width: 66px; height: 66px; padding: 11px; border-radius: 16px; background: #191917; }
+  .mesa-theme .brand-card { border-color: #e9c0a5; background: #fff3e9; }
+  .mesa-theme a.card { transition: border-color 160ms ease, box-shadow 160ms ease; }
+  .mesa-theme a.card:hover { border-color: #a09b8e; box-shadow: 0 8px 24px rgb(34 31 20 / 6%); }
+
+  /* Black secondary actions and the orange pill are the two action anchors. */
+  .mesa-theme .btn {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 11px 18px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: #20201d;
+    color: #fffefa;
+    font-size: 14px;
+    font-weight: 720;
+    line-height: 1.35;
+    text-align: center;
+    box-shadow: none;
+    transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+  }
+  .mesa-theme .btn:hover { background: #383831; filter: none; }
+  .mesa-theme .btn:has(> div) { display: block; }
+  .mesa-theme .btn:active:not(:disabled) { transform: translateY(1px); }
+  .mesa-theme .btn-primary { background: var(--accent); color: #171715; }
+  .mesa-theme .btn-primary:hover { background: #ef4b03; color: #10100e; }
+  .mesa-theme .btn-ghost { background: transparent; color: #282823; border-color: #ccc9bf; }
+  .mesa-theme .btn-ghost:hover { background: #eeece5; border-color: #aaa598; }
+  .mesa-theme .btn-danger { background: #fbece6; border-color: #eac1b9; color: #9a2725; }
+  .mesa-theme .btn-danger:hover { background: #f6dcd4; color: #7c1e1c; }
+  .mesa-theme .btn[style*="background: rgba(255"],
+  .mesa-theme .btn[style*="background:rgba(255"] { color: #80310e; }
+  .mesa-theme .btn[style*="color: rgb(255, 139, 139)"],
+  .mesa-theme .btn[style*="color:rgb(255, 139, 139)"] { color: #9a2725 !important; }
+  .mesa-theme :is(button, input, select, textarea):disabled { opacity: .56; cursor: not-allowed; }
+  .mesa-theme .btn-block { width: 100%; }
+  .mesa-theme .segmented { background: #eeece4; padding: 5px; border: 1px solid var(--mesa-line); border-radius: 16px; gap: 5px; }
+  .mesa-theme .segmented .btn { border-radius: 11px; min-height: 43px; padding: 10px 12px; }
+  .mesa-theme .segmented .btn-ghost { border-color: transparent; }
+  .mesa-theme .segmented .btn-primary { background: #fffefa; color: #171715; border-color: #d3cfc4; box-shadow: 0 2px 4px #28220c09; }
+
+  .mesa-theme :is(.input, .select, .textarea) {
+    min-height: 46px;
+    padding: 12px 14px;
+    background: #fbfaf6;
+    color: var(--mesa-ink);
+    border: 1px solid #c8c5bb;
+    border-radius: 11px;
+    font-size: 15px;
+    line-height: 1.45;
+    box-shadow: none;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  .mesa-theme :is(.input, .textarea)::placeholder { color: #77756d; opacity: 1; }
+  .mesa-theme :is(.input, .select, .textarea):focus { border-color: #ae4217; box-shadow: 0 0 0 3px #fd540815; outline: none; }
+  .mesa-theme :is(.input, .select, .textarea):read-only { background: #eeece4; }
+  .mesa-theme :is(input[type="checkbox"], input[type="radio"]) { width: 18px; height: 18px; flex-shrink: 0; accent-color: #c44310; }
+  .mesa-theme .textarea { resize: vertical; }
+  .mesa-theme .select option { background: #fffefa; color: #171715; }
+  .mesa-theme :is(button, a, input, select, textarea, summary):focus-visible { outline: 3px solid #a93d0c; outline-offset: 3px; }
+  .mesa-theme :is(.sheet, .card) label:not(.row):not(.oce-choice) > :is(.input, .select, .textarea) { margin-top: 6px; }
+
+  .mesa-theme .pill { min-height: 28px; padding: 5px 10px; color: #56554d; border-color: #d6d2c7; background: #f1efe8; font-size: 12px; font-weight: 650; line-height: 1.3; }
+  .mesa-theme .pill.ok { color: #215a36; background: #eaf1e4; border-color: #c4d4ba; }
+  .mesa-theme .pill.warn { color: #66500b; background: #fcf0ba; border-color: #e5d58e; }
+  .mesa-theme .error { background: #fff0eb; border-color: #e5b1a5; color: #8e2923; padding: 13px 15px; line-height: 1.6; }
+  .mesa-theme .success { background: #eef5e9; border-color: #bfcfb3; color: #285735; padding: 13px 15px; line-height: 1.6; }
+  .mesa-theme .card.success { background: #eef5e9; border-color: #bfcfb3; color: #285735; }
+  .mesa-theme :is(.success, .error) .muted { color: inherit; }
+
+  .mesa-theme .table { font-variant-numeric: tabular-nums; }
+  .mesa-theme .table th,
+  .mesa-theme .table td { padding: 15px 12px; border-bottom: 1px solid var(--mesa-line); font-size: 14px; line-height: 1.5; vertical-align: middle; }
+  .mesa-theme .table th { padding-block: 13px; font-size: 10px; letter-spacing: .15em; color: #5c5a51; font-weight: 720; }
+  .mesa-theme .table tbody tr:hover { background: #f6f4ed; }
+  .mesa-theme .table tr:last-child td { border-bottom: 0; }
+  .mesa-theme .sales-actions .btn { min-height: 36px; padding: 8px 12px; font-size: 12px; }
+  .mesa-theme .order-item { padding: 19px 0; gap: 8px; border-bottom-color: var(--mesa-line); }
+  .mesa-theme .order-item strong { font-weight: 750; }
+  .mesa-theme .order-item > .row-between:first-child > div:first-child > strong { font-size: 17px; letter-spacing: -.035em; }
+
+  /* Search results remain quiet, with an unequivocal selected state. */
+  .mesa-theme .directory-list { max-height: 340px; scrollbar-width: thin; scrollbar-color: #aaa597 #edeae1; }
+  .mesa-theme .directory-option { min-height: 62px; border-color: #d6d2c7; background: #fffefa; color: #22221e; padding: 13px 15px; gap: 5px; border-radius: 11px; }
+  .mesa-theme .directory-option span { color: var(--muted); font-size: 13px; }
+  .mesa-theme .directory-option:hover { border-color: #9d988a; background: #f5f2e9; }
+  .mesa-theme .directory-option.selected { background: #fff0e5; border-color: #c95120; box-shadow: inset 3px 0 0 var(--accent); }
+  .mesa-theme .customer-card-active { border-color: #cb521f; box-shadow: 0 0 0 2px #fd540815; }
+  .mesa-theme .vehicle-line { padding-top: 16px; border-color: var(--mesa-line); }
+  .mesa-theme .crm-customer-row { grid-template-columns: minmax(0, 1.4fr) minmax(420px, 1fr); padding: 24px; }
+  .mesa-theme .crm-customer-row:hover { border-color: #a09b8e; transform: none; }
+  .mesa-theme .crm-customer-main > .row > strong { font-size: 22px; letter-spacing: -.045em; line-height: 1.2; }
+  .mesa-theme .crm-customer-stats { gap: 20px; }
+  .mesa-theme .crm-customer-stats > div > .small { font-size: 10px; letter-spacing: .12em; }
+  .mesa-theme .crm-customer-stats > div > strong { font-size: 15px; }
+  .mesa-theme .crm-tabs { padding: 6px; background: #e9e6dd; border-color: #d7d2c6; }
+  .mesa-theme .crm-tabs .btn-primary { background: #fffefa; border-color: #d7d2c6; color: #171715; }
+  .mesa-theme .crm-tabs .btn-ghost { border-color: transparent; }
+
+  .mesa-theme .overlay { z-index: 100; padding: 18px; background: rgb(25 24 20 / 48%); backdrop-filter: blur(7px); }
+  .mesa-theme .sheet {
+    color: #171715;
+    background: #fffefa;
+    border: 1px solid #d7d2c6;
+    padding: 28px;
+    border-radius: 22px;
+    box-shadow: 0 30px 100px #12120b36;
+    scrollbar-width: thin;
+    scrollbar-color: #b7b09e #f2efe5;
+  }
+  .mesa-theme .sheet h2 { font-family: var(--mesa-display, Impact), sans-serif; font-size: 36px; line-height: 1.1; letter-spacing: -.02em; font-weight: 600; }
+  .mesa-theme .sheet > .btn:last-child { box-shadow: 0 0 0 6px #fffefa; }
+  .mesa-theme .sheet .row { flex-wrap: wrap; }
+  .mesa-theme details.card { border-style: dashed; background: transparent; box-shadow: none; }
+  .mesa-theme details.card[open] { background: #fffefa; border-style: solid; }
+  .mesa-theme summary { padding: 10px 0; line-height: 1.5; color: #38372f; }
+
+  /* Order workbench uses the same document / action hierarchy as the selected Mesa. */
+  .mesa-theme .order-steps { display: flex; gap: 0; padding: 0 0 13px; border-bottom: 1px solid var(--mesa-line); font-size: 12px; letter-spacing: .04em; }
+  .mesa-theme .order-steps span { border-radius: 0; padding: 7px 20px; background: transparent; border-left: 1px solid var(--mesa-line); }
+  .mesa-theme .order-steps span:first-child { padding-left: 0; border-left: 0; color: #a83b0e; }
+  .mesa-theme .mesa-order-workspace { gap: 18px; }
+  .mesa-theme .mesa-order-workspace > .brand-card:first-child { padding: 22px 26px; border-color: #dedacf; background: #eae7de; }
+  .mesa-theme .mesa-order-party { background: #eeece4; }
+  .mesa-theme .mesa-order-party strong { font-size: 22px; line-height: 1.2; letter-spacing: -.04em; }
+  .mesa-theme .mesa-order-lines { min-height: 230px; }
+  .mesa-theme .mesa-order-add .btn { min-height: 54px; border-radius: 12px; }
+  .mesa-theme .mesa-order-total { padding: 27px; background: #20201d; border-color: #20201d; color: #fffefa; }
+  .mesa-theme .mesa-order-total .muted { color: #c2c0b7; }
+  .mesa-theme .mesa-order-total .money-lg { font-family: var(--mesa-display, Impact), sans-serif; font-size: 45px; font-weight: 600; }
+  .mesa-theme .mesa-order-total .divider { background: #4d4c43; }
+  .mesa-theme .mesa-order-total .btn { background: #f2efe4; color: #22221e; }
+  .mesa-theme .mesa-order-checkout { gap: 12px; }
+  .mesa-theme .mesa-order-checkout > .btn-primary { min-height: 56px; font-size: 16px; }
+
+  /* Fast sale echoes the orange poster; payment remains in normal document flow. */
+  .mesa-theme .mesa-quick-sale > .brand-hero { background: var(--accent); border: 0; border-radius: 18px; padding: 30px; }
+  .mesa-theme .mesa-quick-sale > .brand-hero h1 { font-size: clamp(52px, 7vw, 104px); }
+  .mesa-theme .mesa-quick-sale > .brand-hero :is(.eyebrow, p) { color: #26170d; }
+  .mesa-theme .mesa-sale-cart .order-item { grid-template-columns: minmax(0, 1fr) minmax(120px, .45fr); align-items: center; }
+  .mesa-theme #quick-sale-checkout { position: static; background: #20201d; color: #fffefa; border-color: #20201d; padding: 28px; }
+  .mesa-theme #quick-sale-checkout .muted { color: #c4c1b8; }
+  .mesa-theme #quick-sale-checkout .divider { background: #515047; }
+  .mesa-theme #quick-sale-checkout > .row-between .money-lg { font-family: var(--mesa-display, Impact), sans-serif; font-size: 48px; font-weight: 600; }
+  .mesa-theme #quick-sale-checkout .btn:not(.btn-primary):not(.btn-danger) { background: #f2f0e8; border-color: #f2f0e8; color: #22221e; }
+  .mesa-theme #quick-sale-checkout .label { color: #d1cfc4; }
+  .mesa-theme #quick-sale-checkout .card { color: #171715; }
+  .mesa-theme #quick-sale-checkout .card .muted { color: #65645f; }
+
+  /* Additional services remain visible, tactile, and separate from charge lines. */
+  .mesa-theme .oce { gap: 20px; }
+  .mesa-theme .oce-header-copy { color: #282721; gap: 7px; }
+  .mesa-theme .oce-header-copy strong { font-size: 14px; }
+  .mesa-theme .oce-header-copy span { font-size: 13px; color: #69665c; }
+  .mesa-theme .oce-groups { gap: 18px; }
+  .mesa-theme .oce-group { background: #f5f2e9; border: 1px solid #d8d3c4; border-radius: 13px; padding: 18px; gap: 15px; }
+  .mesa-theme .oce-group-heading strong { font-size: 16px; color: #24231e; letter-spacing: -.02em; }
+  .mesa-theme .oce-group-heading small { font-size: 12px; color: #68645b; }
+  .mesa-theme .oce-options { gap: 9px; }
+  .mesa-theme .oce-choice { min-height: 53px; padding: 12px; background: #fffefa; border-color: #d3cfc3; border-radius: 10px; color: #4b4840; font-size: 13px; font-weight: 650; }
+  .mesa-theme .oce-choice:hover { border-color: #b08b6c; background: #fffbf2; }
+  .mesa-theme .oce-choice.is-checked { background: #ffecdb; border-color: #c75b2b; color: #622e14; box-shadow: inset 3px 0 0 #fd5408; }
+  .mesa-theme .oce-choice svg { color: #a9441a; }
+  .mesa-theme .oce-choice input { accent-color: #ba4519; }
+  .mesa-theme .oce-add-custom { gap: 8px; }
+  .mesa-theme .oce-add-custom input { min-height: 44px; padding: 11px 12px; background: #fffefa; border-color: #c5beaf; border-radius: 9px; font-size: 13px; color: #28251f; }
+  .mesa-theme .oce-add-custom input::placeholder { color: #777064; }
+  .mesa-theme .oce-add-custom button { min-height: 44px; padding: 10px 13px; border-color: #272721; border-radius: 9px; background: #272721; color: #fffefa; font-size: 13px; }
+  .mesa-theme .oce-add-custom button:hover { background: #414038; }
+  .mesa-theme .oce-custom-pill { background: #fff0df; border-color: #debd96; color: #75451e; padding: 7px 11px; font-size: 12px; }
+  .mesa-theme .oce-custom-pill button { color: #753519; min-width: 25px; min-height: 25px; }
+  .mesa-theme .oce-notes > span { color: #302d26; font-size: 14px; }
+  .mesa-theme .oce-notes textarea { color: #25221d; background: #fffefa; border-color: #c5beaf; border-radius: 11px; padding: 14px; font-size: 14px; min-height: 105px; }
+  .mesa-theme .oce-notes textarea::placeholder { color: #777064; }
+  .mesa-theme :is(.oce-notes small, .oce-financial-note) { font-size: 12px; color: #6c6559; }
+  .mesa-theme .oce-order-panel { background: #fffefa; border-color: #d3bfa7; border-top: 3px solid #e36e38; }
+  .mesa-theme .oce-unsaved { color: #9b4b1c; font-size: 12px; }
+  .mesa-theme .oce :is(button,input,textarea):focus-visible { outline: 3px solid #a93d0c; outline-offset: 3px; }
+
+  /* Financial values keep existing denominations and calculations. */
+  .mesa-theme .finance-account { background: #f3f0e7; border-color: #d8d2c4; border-radius: 12px; padding: 20px; gap: 11px; }
+  .mesa-theme .finance-account .money-lg { font-size: 30px; }
+  .mesa-theme .finance-warning { background: #fcf3d7; border-color: #dccc94; color: #72551c; }
+  .mesa-theme .finance-presets { padding: 5px; background: #eeece4; border-radius: 14px; }
+  .mesa-theme .finance-presets .btn { min-height: 43px; }
+  .mesa-theme .finance-presets .btn-primary { color: #171715; background: #fffefa; border-color: #cfc8b9; }
+  .mesa-theme .finance-presets .btn-ghost { border-color: transparent; }
+  .mesa-theme .cash-close-flow { background: #f3f0e7; border-color: #d8d2c4; padding: 18px; }
+  .mesa-theme .cash-close-flow > div { min-width: 0; overflow-wrap: anywhere; }
+  .mesa-theme .finance-days { gap: 0; }
+  .mesa-theme .finance-day { padding: 17px 0; border-bottom: 1px solid #e4e0d6; }
+  .mesa-theme .finance-day:last-child { border-bottom: 0; }
+  .mesa-theme .finance-bar { height: 9px; }
+  .mesa-theme .finance-bar.collected { background: #477953; }
+  .mesa-theme .finance-day-values { font-size: 13px; color: #615d53; }
+  .mesa-theme .finance-inbox fieldset { border-color: #d3cbb9; }
+  .mesa-theme .finance-inbox pre { background: #f3f0e7; padding: 14px; border-radius: 10px; color: #454036; }
+  .mesa-theme .order-item strong[style*="color: rgb(101, 211, 147)"],
+  .mesa-theme .order-item strong[style*="color:rgb(101, 211, 147)"] { color: #25643e !important; }
+}
+
+@media screen and (min-width: 1100px) {
+  .mesa-theme .mesa-order-workspace { grid-template-columns: minmax(0, 1.65fr) minmax(350px, 1fr); align-items: start; }
+  .mesa-theme .mesa-order-workspace > * { grid-column: 1 / -1; }
+  .mesa-theme .mesa-order-workspace > .mesa-order-lines { grid-column: 1 / -1; }
+  .mesa-theme .mesa-order-workspace > .mesa-order-total { grid-column: 1; }
+  .mesa-theme .mesa-order-workspace > .mesa-order-checkout { grid-column: 2; }
+  .mesa-theme .mesa-quick-sale { grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr); align-items: start; }
+  .mesa-theme .mesa-quick-sale > * { grid-column: 1 / -1; }
+  .mesa-theme .mesa-quick-sale > .mesa-sale-products { grid-column: 1; }
+  .mesa-theme .mesa-quick-sale > .mesa-sale-manual { grid-column: 2; }
+  .mesa-theme .mesa-quick-sale > .mesa-sale-cart { grid-column: 1; }
+  .mesa-theme .mesa-quick-sale > #quick-sale-checkout { grid-column: 2; }
+}
+
+@media screen and (max-width: 1100px) {
+  .mesa-theme .container { padding: 24px 22px 36px; }
+  .mesa-theme .crm-customer-row { grid-template-columns: 1fr; }
+  .mesa-theme .crm-customer-stats { border-top: 1px solid #ddd7ca; padding-top: 17px; }
+}
+
+@media screen and (max-width: 700px) {
+  .mesa-theme { font-size: 14px; }
+  .mesa-theme .container { padding: 20px 13px 30px; }
+  .mesa-theme .container.stack { gap: 16px; }
+  .mesa-theme .card { padding: 18px; border-radius: 13px; }
+  .mesa-theme .card .card { padding: 15px; }
+  .mesa-theme .brand-hero { align-items: flex-start; padding: 8px 0 22px; gap: 14px; }
+  .mesa-theme .brand-hero h1 { font-size: clamp(39px, 9.5vw, 58px); }
+  .mesa-theme .brand-hero img { width: 48px; height: 48px; padding: 8px; border-radius: 11px; }
+  .mesa-theme .brand-hero p { font-size: 13px; }
+  .mesa-theme .brand-hero .eyebrow { font-size: 10px; letter-spacing: .12em; }
+  .mesa-theme :is(.card, .sheet, .container) > .row { flex-wrap: wrap; }
+  .mesa-theme .card > .row-between { flex-wrap: wrap; }
+  .mesa-theme .card > .row-between > .row { flex-wrap: wrap; }
+  .mesa-theme .btn { padding: 11px 15px; font-size: 13px; }
+  .mesa-theme :is(.input, .select, .textarea, .oce-notes textarea, .oce-add-custom input) { font-size: 16px; }
+  .mesa-theme .crm-customer-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .mesa-theme .crm-customer-stats .btn { grid-column: 1 / -1; }
+  .mesa-theme .crm-customer-main > .row { flex-wrap: wrap; }
+  .mesa-theme .crm-customer-main > .row > strong { font-size: 21px; }
+  .mesa-theme .order-steps { gap: 8px; border: 0; padding: 0; }
+  .mesa-theme .order-steps span { border: 1px solid #d9d3c5; padding: 7px 10px; border-radius: 7px; font-size: 11px; }
+  .mesa-theme .order-steps span:first-child { border-left: 1px solid #d9d3c5; padding-left: 10px; }
+  .mesa-theme .mesa-order-party .btn { width: 100%; }
+  .mesa-theme .mesa-order-total, .mesa-theme #quick-sale-checkout { padding: 22px; }
+  .mesa-theme .mesa-sale-cart .order-item { grid-template-columns: 1fr; }
+  .mesa-theme .mesa-quick-sale > .brand-hero { padding: 22px; }
+  .mesa-theme .mesa-quick-sale > .brand-hero h1 { font-size: clamp(50px, 12vw, 78px); }
+  .mesa-theme .table th, .mesa-theme .table td { padding: 10px 7px; font-size: 13px; }
+  .mesa-theme .sales-table td { padding: 7px 0; }
+  .mesa-theme .sales-table tr { padding-block: 16px; }
+  .mesa-theme .overlay { padding: 10px 8px 0; }
+  .mesa-theme .sheet { max-height: 93dvh; padding: 22px 17px max(22px, env(safe-area-inset-bottom)); border-radius: 22px 22px 0 0; }
+  .mesa-theme .sheet h2 { font-size: 30px; }
+  .mesa-theme .oce-group { padding: 15px; }
+  .mesa-theme .oce-order-header { align-items: stretch; }
+  .mesa-theme .oce-order-actions { width: 100%; }
+  .mesa-theme .finance-account { padding: 17px; }
+}
+
+@media screen and (prefers-reduced-motion: reduce) {
+  .mesa-theme :is(.btn, .input, .select, .textarea, a.card, .oce-choice, .crm-customer-row, .customer-card) { transition: none; }
+}

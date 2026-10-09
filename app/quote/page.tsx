@@ -188,7 +188,7 @@ export default function GeneralQuotePage() {
     <header className="sq-heading">
       <div>
         <div className="sq-kicker"><OsIcon name="receipt" size={17}/> VENTAS / COTIZACIONES</div>
-        <h1>Cotiza cualquier producto, en segundos.</h1>
+        <h1><span className="mesa-commerce-number" aria-hidden="true">01 /</span> Cotización<span className="mesa-commerce-dot">.</span></h1>
         <p>Busca en tu catálogo, combina artículos o servicios y continúa directamente a la venta u orden.</p>
       </div>
       <div className="sq-heading-actions">
@@ -279,7 +279,7 @@ export default function GeneralQuotePage() {
 
       <aside className="sq-basket" aria-label="Cotización actual" ref={cartRef}>
         <div className="sq-basket-heading">
-          <div><span className="sq-kicker">MOSTRADOR / CLIENTE</span><h2>Cotización actual</h2></div>
+          <div><span className="sq-kicker">MOSTRADOR / CLIENTE</span><h2>Tu cotización<span className="mesa-commerce-dot">.</span></h2></div>
           <span className="sq-count">{lines.length} {lines.length===1?"artículo":"artículos"}</span>
         </div>
         {!ready || !lines.length ? <div className="sq-basket-empty">

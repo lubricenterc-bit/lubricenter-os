@@ -1,0 +1,171 @@
+/* Mesa LC: the shared navigation frame. Business screens retain their own markup. */
+.mesa-shell {
+  --mesa-dock-clearance: 118px;
+  min-height: 100dvh;
+  padding: 0;
+  padding-bottom: calc(var(--mesa-dock-clearance) + env(safe-area-inset-bottom, 0px));
+  background: #f0eee8;
+  color: #171714;
+  font-family: var(--mesa-body, Arial, sans-serif);
+  color-scheme: light;
+}
+.mesa-workspace { min-width: 0; }
+.mesa-workspace-content { min-width: 0; outline: none; }
+.mesa-shell .sq-mobile-cart { bottom: calc(var(--mesa-dock-clearance) + env(safe-area-inset-bottom, 0px)); }
+.mesa-shell .sq-basket, .mesa-shell .oq-form { top: 92px; max-height: calc(100dvh - 104px - var(--mesa-dock-clearance)); }
+.mesa-masthead {
+  position: sticky; top: 0; z-index: 34;
+  display: flex; align-items: center; gap: 24px; min-height: 78px; padding: 12px 24px;
+  border-bottom: 1px solid #c7c5be; color: #171714;
+  background: rgba(247,246,241,.95); backdrop-filter: blur(16px);
+  font-family: var(--mesa-body, Arial, sans-serif);
+}
+.mesa-lockup { display: flex; align-items: center; flex: 0 0 auto; gap: 10px; color: #10110f; }
+.mesa-monogram { display: block; font-family: var(--mesa-display, Impact, sans-serif); font-size: 44px; font-weight: 900; line-height: .9; letter-spacing: -.075em; color: #fa5005; padding-right: 10px; border-right: 1px solid #242522; }
+.mesa-lockup-name { font-family: var(--mesa-display, Impact, sans-serif); font-size: 19px; font-weight: 800; white-space: nowrap; letter-spacing: -.02em; }
+.mesa-workspace-label { display: grid; flex: 0 0 auto; gap: 5px; padding-left: 24px; border-left: 1px solid #b7b5ae; font-size: 10px; font-weight: 750; letter-spacing: .19em; line-height: 1.4; }
+.mesa-workspace-label > span { font-size: 9px; color: #74746e; font-weight: 500; letter-spacing: .06em; }
+.mesa-search { display: flex; align-items: center; gap: 12px; flex: 1 1 auto; min-width: 120px; max-width: 660px; min-height: 44px; padding: 10px 16px; border: 1px solid #d8d6cf; border-radius: 99px; background: transparent; color: #171714; transition: border-color .18s ease, background .18s ease; }
+.mesa-search:hover { background: #fffdf7; border-color: #a3a197; }
+.mesa-search > span { flex: 1; color: #76766f; font-size: 12px; text-align: left; white-space: nowrap; }
+.mesa-search kbd { font-family: inherit; font-size: 9px; color: #6a6b64; white-space: nowrap; }
+.mesa-masthead-links { display: flex; align-items: center; gap: 7px; margin-left: auto; }
+.mesa-masthead-links a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 10px; border-radius: 8px; white-space: nowrap; font-size: 12px; transition: background .18s ease; }
+.mesa-masthead-links a:hover { background: #e9e6dd; }
+.mesa-masthead-links a.is-active { background: #e8e5dc; box-shadow: inset 0 -2px #f7540b; }
+.mesa-session-tools { display: flex; align-items: center; gap: 12px; padding-left: 20px; border-left: 1px solid #b7b5ae; }
+.mesa-pricing .pill { font-size: 10px; padding: 6px 8px; white-space: nowrap; color: #47493e; border-color: #c5c5b7; }
+.mesa-pricing .pill.ok { color: #387349; border-color: #b3c4a8; }
+.mesa-pricing .pill.warn { color: #8b571c; border-color: #d8bf82; }
+.mesa-notifications { position: relative; display: grid; place-items: center; width: 34px; height: 44px; }
+.mesa-notifications > span { position: absolute; top: 1px; right: -4px; min-width: 17px; padding: 2px; border-radius: 99px; background: #f85308; color: white; text-align: center; font-size: 9px; font-weight: 800; }
+.mesa-profile { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 44px; padding: 0; border: 0; background: none; color: #161714; }
+.mesa-profile-avatar { position: relative; display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 auto; border-radius: 50%; background: #121310; color: #fffdf7; font-family: var(--mesa-display, Impact, sans-serif); font-size: 18px; font-weight: 700; letter-spacing: -.025em; }
+.mesa-profile-avatar::after { content: ""; position: absolute; top: 1px; right: 1px; width: 8px; height: 8px; border: 2px solid #f7f6f1; border-radius: 50%; background: #ff5508; }
+.mesa-page-path { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; max-width: 1600px; margin: 0 auto; padding: 19px 26px 0; font-size: 10px; color: #76766d; }
+.mesa-page-path > a { color: #383931; }
+.mesa-page-path > strong { font-weight: 600; color: #383931; }
+.mesa-skip-link { position: fixed; top: 8px; left: 8px; z-index: 150; padding: 12px 18px; border: 2px solid #ff5508; border-radius: 8px; color: #131410; background: #fffdf7; transform: translateY(-160%); }
+.mesa-skip-link:focus { transform: translateY(0); }
+
+.mesa-dock {
+  position: fixed; z-index: 45; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  display: flex; align-items: center; width: max-content; max-width: calc(100% - 32px); min-height: 80px; padding: 8px 13px;
+  border: 1px solid #171714; border-radius: 999px; background: rgba(250,249,244,.96); color: #171714;
+  box-shadow: 0 9px 30px rgba(38,34,22,.07); backdrop-filter: blur(18px); font-family: var(--mesa-body, Arial, sans-serif);
+}
+.mesa-dock-action { display: flex; align-items: center; gap: 13px; min-height: 56px; padding: 0 25px; border: 0; border-right: 1px solid #c9c6bd; color: #171714; background: transparent; text-align: left; }
+.mesa-dock-action:nth-last-child(2) { border-right: 0; }
+.mesa-dock-icon { display: grid; place-items: center; flex: 0 0 auto; width: 52px; height: 52px; border: 1px solid #dbd8cf; border-radius: 50%; transition: background .18s ease, transform .18s ease, color .18s ease; }
+.mesa-dock-copy { display: grid; gap: 5px; }
+.mesa-dock-copy strong { font-family: var(--mesa-display, Impact, sans-serif); font-size: 18px; font-weight: 650; line-height: 1; }
+.mesa-dock-copy small { color: #71726b; font-size: 8px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+.mesa-dock-action:hover .mesa-dock-icon { background: #eae7de; transform: translateY(-2px); }
+.mesa-dock-action.is-active .mesa-dock-icon { background: #ff5508; border-color: #ff5508; color: #fffdf7; }
+.mesa-dock-utility { display: grid; place-items: center; flex: 0 0 auto; width: 36px; min-height: 44px; padding: 0; border: 0; border-radius: 22px; background: transparent; color: #66675e; }
+.mesa-dock-utility:hover, .mesa-dock-utility.is-active { color: #e84b06; background: #eee9de; }
+
+.mesa-drawer-scrim { position: fixed; inset: 0; z-index: 100; display: flex; justify-content: flex-end; background: rgba(27,27,21,.45); backdrop-filter: blur(5px); }
+.mesa-drawer { display: flex; flex-direction: column; width: min(480px,100%); height: 100dvh; padding: 28px; outline: 0; background: #f7f6ef; color: #161714; box-shadow: -16px 0 80px #17171126; animation: mesa-drawer-in .2s ease-out; }
+.mesa-drawer-heading { display: flex; align-items: center; gap: 16px; margin-bottom: 23px; }
+.mesa-drawer-heading > div { flex: 1; }
+.mesa-drawer-eyebrow { font-size: 9px; letter-spacing: .22em; color: #746f63; }
+.mesa-drawer-heading h2 { margin: 10px 0 0; font-family: var(--mesa-display, Impact, sans-serif); font-size: 35px; font-weight: 700; line-height: 1.05; letter-spacing: -.02em; }
+.mesa-close { display: grid; place-items: center; flex: 0 0 auto; width: 44px; height: 44px; background: transparent; border: 1px solid #cecac0; border-radius: 50%; color: #151611; }
+.mesa-close:hover { background: #e9e5db; }
+.mesa-location { display: flex; align-items: center; gap: 12px; padding: 15px 16px; border-radius: 10px; background: #eae7dd; }
+.mesa-location > span { flex: 1; display: grid; gap: 4px; }
+.mesa-location small { color: #726e63; font-size: 9px; letter-spacing: .13em; }
+.mesa-location strong { font-size: 14px; font-weight: 600; }
+.mesa-navigation { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 18px 3px; margin: 0 -3px; scrollbar-width: thin; scrollbar-color: #bcb6a8 transparent; }
+.mesa-nav-group { border-bottom: 1px solid #dedacf; }
+.mesa-nav-parent { display: flex; align-items: center; gap: 13px; width: 100%; min-height: 52px; padding: 12px; border: 0; border-radius: 7px; background: transparent; color: #303126; text-align: left; font-size: 14px; font-weight: 600; }
+.mesa-nav-parent > span { flex: 1; }
+.mesa-nav-parent:hover { background: #eae6da; }
+.mesa-nav-parent.is-current { color: #e94b05; }
+.mesa-nav-arrow { color: #8e8b7f; transition: transform .18s ease; }
+.mesa-nav-arrow.is-open { transform: rotate(180deg); }
+.mesa-nav-children { display: grid; gap: 2px; padding: 0 0 10px 30px; }
+.mesa-nav-child { display: flex; align-items: center; gap: 10px; min-height: 47px; padding: 10px 12px; border-radius: 7px; color: #393b30; font-size: 13px; }
+.mesa-nav-child > span { flex: 1; }
+.mesa-nav-child small { display: block; margin-top: 4px; font-size: 10px; line-height: 1.5; color: #757063; }
+.mesa-nav-child > svg { flex: 0 0 auto; color: #8a8475; }
+.mesa-nav-child:hover { background: #eae6da; }
+.mesa-nav-child.is-active { background: #ffe1c5; color: #973702; }
+.mesa-drawer-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 0 max(0px, env(safe-area-inset-bottom, 0px)); border-top: 1px solid #ccc7ba; }
+.mesa-drawer-person { display: flex; align-items: center; gap: 12px; }
+.mesa-drawer-person > span:last-child { display: grid; gap: 4px; }
+.mesa-drawer-person strong { font-size: 13px; font-weight: 600; }
+.mesa-drawer-person small { font-size: 11px; color: #787162; }
+.mesa-logout { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 12px; border: 1px solid #d1cbbc; border-radius: 8px; background: transparent; color: #464334; font-size: 12px; }
+.mesa-logout:hover { background: #ebe5d7; }
+
+.mesa-theme .os-command-scrim { z-index: 110; background: rgba(27,27,21,.5); backdrop-filter: blur(5px); }
+.mesa-theme .os-command { border: 1px solid #d0cabe; border-radius: 16px; background: #f7f6ef; color: #171714; box-shadow: 0 25px 90px #211b1845; }
+.mesa-theme .os-command-input { min-height: 72px; color: #4e4b3d; border-color: #ded9cc; }
+.mesa-theme .os-command-input input { color: #171714; }
+.mesa-theme .os-command-input input::placeholder { color: #7c786a; }
+.mesa-theme .os-command-input button { display: grid; place-items: center; min-width: 44px; min-height: 44px; color: #6b6554; }
+.mesa-theme .os-command-hint { color: #756e5b; }
+.mesa-theme .os-command-result { color: #27281f; }
+.mesa-theme .os-command-result:hover { background: #eae4d7; }
+.mesa-theme .os-command-result small { color: #746b59; line-height: 1.5; }
+.mesa-theme .os-command-result-icon { background: #ffe1c5; color: #bc4706; }
+.mesa-theme .os-command-footer { color: #777060; border-color: #ded9cc; }
+.mesa-theme :is(button,a,input,select,textarea):focus-visible { outline: 3px solid #cf4907; outline-offset: 3px; }
+@keyframes mesa-drawer-in { from { opacity: .7; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+
+@media (max-width: 1500px) {
+  .mesa-masthead { gap: 18px; }
+  .mesa-pricing { display: none; }
+  .mesa-workspace-label { padding-left: 18px; }
+}
+@media (max-width: 1200px) {
+  .mesa-workspace-label { display: none; }
+  .mesa-masthead { gap: 20px; }
+  .mesa-dock-action { padding-inline: 20px; }
+}
+@media (max-width: 900px) {
+  .mesa-masthead { min-height: 72px; padding: 12px 18px; gap: 15px; }
+  .mesa-masthead-links { gap: 2px; }
+  .mesa-masthead-links a { padding: 8px; }
+  .mesa-masthead-links a span { display: none; }
+  .mesa-search kbd { display: none; }
+  .mesa-session-tools { gap: 8px; padding-left: 12px; }
+  .mesa-dock { padding: 7px 10px; min-height: 76px; }
+  .mesa-dock-action { gap: 8px; padding-inline: 16px; }
+  .mesa-dock-icon { width: 44px; height: 44px; }
+  .mesa-dock-copy small { display: none; }
+}
+@media (max-width: 680px) {
+  .mesa-shell { --mesa-dock-clearance: 96px; }
+  .mesa-masthead { min-height: 66px; padding: 10px 13px; gap: 10px; }
+  .mesa-lockup { gap: 7px; }
+  .mesa-monogram { font-size: 35px; padding-right: 8px; }
+  .mesa-lockup-name { font-size: 16px; }
+  .mesa-masthead-links { display: none; }
+  .mesa-search { flex: 0 0 auto; min-width: 44px; width: 44px; height: 44px; margin-left: auto; padding: 0; justify-content: center; border-color: transparent; }
+  .mesa-search > span { display: none; }
+  .mesa-session-tools { gap: 7px; padding-left: 0; border: 0; }
+  .mesa-profile { gap: 4px; }
+  .mesa-profile-avatar { width: 36px; height: 36px; font-size: 16px; }
+  .mesa-notifications { width: 29px; }
+  .mesa-profile > svg { display: none; }
+  .mesa-page-path { padding: 15px 14px 0; font-size: 9px; gap: 5px; }
+  .mesa-dock { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); max-width: calc(100% - 20px); width: 450px; min-height: 72px; padding: 6px; border-radius: 40px; }
+  .mesa-dock-action { flex: 1 1 0; min-width: 0; min-height: 58px; flex-direction: column; justify-content: center; gap: 4px; padding: 0 5px; border: 0; }
+  .mesa-dock-icon { width: 33px; height: 33px; border-color: transparent; }
+  .mesa-dock-icon svg { width: 22px; height: 22px; }
+  .mesa-dock-copy strong { font-family: var(--mesa-body, Arial, sans-serif); font-size: 10px; font-weight: 650; }
+  .mesa-dock-utility { width: 31px; }
+  .mesa-drawer { padding: 22px 18px; }
+  .mesa-drawer-heading h2 { font-size: 31px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mesa-drawer { animation: none; }
+  .mesa-dock-icon, .mesa-search, .mesa-masthead-links a, .mesa-nav-arrow { transition: none; }
+}
+@media print {
+  .mesa-masthead, .mesa-dock, .mesa-page-path, .mesa-drawer-scrim, .mesa-skip-link { display: none !important; }
+  .mesa-shell, .mesa-workspace, .mesa-workspace-content { min-height: 0 !important; padding: 0 !important; margin: 0 !important; background: white !important; color: black !important; }
+}

@@ -8,9 +8,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [ready, setReady] = useState(pathname === "/login");
+  const publicDesignLab = pathname === "/design-lab" && process.env.NEXT_PUBLIC_DESIGN_LAB_PUBLIC === "1";
 
   useEffect(() => {
-    if (pathname === "/login") {
+    if (pathname === "/login" || publicDesignLab) {
       setReady(true);
       return;
     }
@@ -27,7 +28,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       mounted = false;
       subscription.subscription.unsubscribe();
     };
-  }, [pathname, router]);
+  }, [pathname, publicDesignLab, router]);
 
   if (!ready) return <div className="container"><div className="card">Cargando Lubricenter OS…</div></div>;
   return <>{children}</>;

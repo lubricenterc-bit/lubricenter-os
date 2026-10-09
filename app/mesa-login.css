@@ -1,0 +1,13 @@
+.mesa-login{min-height:100dvh;display:grid;grid-template-columns:1fr 1fr;background:#f3f0e8;color:#171714}
+.mesa-login-art{padding:44px 52px;background:#fd5408;color:#18150f;display:flex;flex-direction:column;justify-content:space-between;min-height:100dvh}
+.mesa-login-wordmark{font-family:var(--mesa-display);font-size:56px;letter-spacing:-.08em;display:flex;align-items:center;gap:20px}
+.mesa-login-wordmark span{font-family:var(--mesa-body);font-size:16px;letter-spacing:-.04em;border-left:1px solid #71370d;padding-left:20px;font-weight:850}
+.mesa-login-kicker,.mesa-login-foot{font-size:10px;letter-spacing:.2em;font-weight:700}
+.mesa-login-art h1{font-family:var(--mesa-display);font-weight:700;font-size:clamp(78px,8vw,142px);line-height:.92;letter-spacing:-.035em;margin:24px 0}
+.mesa-login-art h1 span{color:#fff6e7}.mesa-login-art p{font-size:15px;line-height:1.7;color:#5a260d}
+.mesa-login-form{display:grid;place-items:center;padding:40px}
+.mesa-login-form>.card{width:min(100%,440px);border:0;background:transparent;box-shadow:none;padding:0;gap:35px}
+.mesa-login-form h2{font-family:var(--mesa-display);font-size:48px;line-height:1;margin:34px 0 12px}
+.mesa-login-form .os-login-brand{font-size:23px}.mesa-login-form .os-login-brand img{width:40px;height:40px}
+.mesa-login-form .btn-primary{margin-top:15px;min-height:52px}
+@media(max-width:760px){.mesa-login{grid-template-columns:1fr}.mesa-login-art{min-height:0;padding:24px}.mesa-login-art>div:nth-child(2){display:none}.mesa-login-wordmark{font-size:40px}.mesa-login-foot{font-size:8px;margin-top:10px}.mesa-login-form{padding:35px 24px 60px}.mesa-login-form h2{font-size:44px;margin-top:22px}}

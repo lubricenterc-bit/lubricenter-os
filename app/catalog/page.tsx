@@ -165,7 +165,7 @@ export default function CatalogPage() {
     <header className="lc-catalog-heading">
       <div>
         <div className="lc-catalog-kicker"><OsIcon name="inventory" size={15}/> INVENTARIO / CATÁLOGO NOTION</div>
-        <h1>Catálogo de productos</h1>
+        <h1><span className="mesa-commerce-number" aria-hidden="true">03 /</span> Catálogo<span className="mesa-commerce-dot">.</span></h1>
         <p>Consulta productos, fotografías y los tres precios de venta sin salir de Lubricenter OS.</p>
       </div>
       <div className="lc-catalog-heading-actions">

@@ -230,8 +230,8 @@ export function QuickSaleScreen() {
     if (error) return setError(error.message); const row = Array.isArray(data) ? data[0] : data; router.push(`/orders/${row.order_id}`);
   }
 
-  return <main className="container stack">
-    <section className="brand-hero"><div><div className="eyebrow">MOSTRADOR · PRECIO → VENTA → COBRO</div><h1>Venta rápida</h1><p>Cotiza sin crear una orden. La OS nace solo cuando registras la venta o decides continuar como orden completa.</p></div><img src="/lubricenter-logo.png" alt="Lubricenter" /></section>
+  return <main className="container stack mesa-quick-sale">
+    <section className="mesa-sale-hero"><div><div className="eyebrow">02 / VENTA RÁPIDA · MOSTRADOR</div><h1>Vender<span>.</span></h1><p>Cotiza sin crear una orden. La OS nace solo cuando registras la venta o decides continuar como orden completa.</p></div><span className="mesa-sale-signature" aria-hidden="true">RÁPIDO<br/>SENCILLO<br/>PARA TU<br/>TALLER<span>↗</span></span></section>
     <div className="row-between"><span className="muted small">Venta directa o Cashea tradicional desde el mismo carrito.</span><div className="row"><Link className="btn btn-ghost" href="/quote"><OsIcon name="receipt" size={16}/> Cotizar productos</Link><Link className="btn btn-ghost" href="/cashea">Seguimiento Cashea</Link></div></div>
     {error && <div className="error" role="alert">{error}</div>}
     {quoteFlow && <section className="card stack" style={{borderColor:"rgba(255,128,47,.72)",background:"rgba(255,128,47,.08)"}}>
@@ -263,7 +263,9 @@ export function QuickSaleScreen() {
     </section>}
 
     {tenderOpen&&<QuickTenderCheckout items={payload()} method={selectedPayment} reference={reference} totalVes={totalVes} totalRef={totalRef} rate={rates.operative} bcv={rates.bcv} businessAt={businessInstant(saleDate)} onCancel={()=>setTenderOpen(false)} onDone={async row=>{setCompleted({order_id:row.order_id,order_number:row.order_number,total_ves:Number(row.total_ves),total_ref:Number(row.total_ref)});setTenderOpen(false);resetAfterSale();await load();}}/>}
-    <section className="card stack">
+    <div className="mesa-sale-layout">
+    <div className="mesa-sale-workbench">
+    <section className="card stack mesa-sale-search">
       <div className="row-between"><div><strong>1. Buscar / cotizar</strong><div className="muted small">SKU, marca, descripción, filtro o nombre. Enter agrega el primer resultado.</div></div><span className="pill">{inventory.length} stock · {catalog.length} catálogo</span></div>
       <input ref={searchRef} className="input" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && results[0]) { e.preventDefault(); addResult(results[0]); } }} placeholder="Ej: Valvoline, 3387, 20W50, refrigerante…" autoFocus />
       {loading ? <div className="muted">Cargando precios…</div> : <div className="stack" style={{ maxHeight: 430, overflow: "auto" }}>
@@ -280,7 +282,8 @@ export function QuickSaleScreen() {
       {!cart.length && <div className="muted">Agrega productos para armar la cotización. Todavía no se crea ninguna OS.</div>}
     </section>
 
-    <section id="quick-sale-checkout" className="card stack" style={{ borderColor: cart.length ? "rgba(255,93,21,.42)" : undefined, scrollMarginTop: 80 }}>
+    </div>
+    <section id="quick-sale-checkout" className="card stack mesa-sale-checkout" style={{ borderColor: cart.length ? "rgba(255,93,21,.42)" : undefined, scrollMarginTop: 80 }}>
       <div><div className="eyebrow">3. FINALIZAR VENTA</div><h2 style={{ margin: "4px 0 0" }}>Registrar y cobrar</h2></div>
       <div className="row-between"><div><div className="muted small">TOTAL A COBRAR</div><div className="money-lg">{fmtRef(totalRef)}</div></div><div style={{ textAlign: "right" }}><strong>{fmtVes(totalVes)}</strong><div className="muted small">USD físico aprox. {cashUsd.toFixed(2)}</div></div></div>
       <div className="segmented"><button type="button" className={`btn ${checkoutMode === "DIRECT" ? "btn-primary" : "btn-ghost"}`} onClick={() => setCheckoutMode("DIRECT")}>Cobro directo</button><button type="button" className={`btn ${checkoutMode === "CASHEA" ? "btn-primary" : "btn-ghost"}`} onClick={() => setCheckoutMode("CASHEA")}>Cashea tradicional</button></div>
@@ -312,6 +315,7 @@ export function QuickSaleScreen() {
       {!cart.length && <div className="muted small">Agrega al menos un producto para habilitar el cierre.</div>}
       {!cartValid && cart.length > 0 && <div className="muted small">Corrige cantidades o precios antes de registrar la venta.</div>}
     </section>
+    </div>
     {partialCreditOpen && <QuickPartialCreditSheet items={payload()} totalVes={totalVes} totalRef={totalRef} rates={rates} saleDate={saleDate} onCancel={()=>setPartialCreditOpen(false)} onDone={async row=>{setPartialCreditOpen(false);setCompleted({order_id:row.order_id,order_number:row.order_number,total_ves:Number(row.total_ves??0),total_ref:Number(row.total_ref??0),credit:{outstanding_ves:Number(row.outstanding_ves??0),outstanding_ref:Number(row.outstanding_ref??0)}});resetAfterSale();await load();}}/>}
   </main>;
 }
