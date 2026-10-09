@@ -3,6 +3,12 @@ on:
   pull_request:
     paths:
       - 'app/page.tsx'
+      - 'app/reminders/**'
+      - 'app/vehicles/**'
+      - 'lib/oil-forecast.ts'
+      - 'components/vehicle-oil-forecast-card.tsx'
+      - 'tests/oil-forecast.test.ts'
+      - 'supabase/migrations/20261009_vehicle_oil_usage_forecasts.sql'
       - 'app/service-history/**'
       - 'lib/maintenance-history.ts'
       - 'tests/maintenance-history.test.ts'
@@ -57,7 +63,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - run: npx vitest run tests/navigation.test.ts tests/brand-assets.test.ts tests/catalog.test.ts tests/oil-quote.test.ts tests/sales-quote.test.ts tests/order-extras.test.ts tests/maintenance-history.test.ts
+      - run: npx vitest run tests/navigation.test.ts tests/brand-assets.test.ts tests/catalog.test.ts tests/oil-quote.test.ts tests/sales-quote.test.ts tests/order-extras.test.ts tests/maintenance-history.test.ts tests/oil-forecast.test.ts
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
