@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { VehicleOilForecastCard } from "@/components/vehicle-oil-forecast-card";
+import { canMentionUsageForecast, type VehicleOilForecast } from "@/lib/oil-forecast";
 
 type Followup = {
   id: string;
@@ -23,7 +25,7 @@ type Followup = {
   year: number | null;
 };
 
-type Reminder = {
+type Reminder = VehicleOilForecast & {
   service_record_id: string;
   vehicle_id: string;
   customer_id: string | null;
@@ -60,11 +62,30 @@ function cleanWhatsapp(value: string | null) {
 }
 
 function reminderMessage(r: Reminder) {
-  const name = (r.customer_name || "").trim() || "amigo";
-  const vehicle = [r.make, r.model].filter(Boolean).join(" ") || "tu vehículo";
-  const plate = r.plate ? `\n🔢 *Placa:* ${r.plate}` : "";
-  const km = r.next_service_odometer ? `\n📈 *Kilometraje estimado:* Deberías estar cerca de los *${r.next_service_odometer.toLocaleString("es-VE")} km*.` : "";
-  return `Hola *${name}*! 👋\n\nTe escribimos de *Lubricenter* para recordarte que ya es hora de consentir tu vehículo. 🛠️\n\nSegún nuestros registros:\n🚗 *Vehículo:* ${vehicle}${plate}\n\n🗓️ *Motivo:* Ya corresponde revisar tu próximo servicio.${km}\n\n¡Es un buen momento para agendar tu próxima visita! Te esperamos con el mejor servicio.`;
+  const name=(r.customer_name||"").trim()||"amigo";
+  const vehicle=[r.make,r.model].filter(Boolean).join(" ")||"tu vehículo";
+  const plate=r.plate?`\n🔢 *Placa:* ${r.plate}`:"";
+  const km=r.next_service_odometer!=null?
+    `\n🔧 *Kilometraje de referencia:* ${r.next_service_odometer.toLocaleString("es-VE")} km`:"";
+  const usage=canMentionUsageForecast(r)&&r.due_reason==="KM_USAGE";
+  const reason=usage?
+    "Según el uso estimado de este carro entre sus cambios anteriores, se acerca el momento de revisar el aceite.":
+    r.due_reason==="VISIT_PATTERN"?
+      "Según la frecuencia con la que has hecho sus cambios de aceite, puede ser buen momento para revisar el mantenimiento.":
+      "Por la fecha de mantenimiento registrada, queremos ayudarte a planificar su próximo cambio de aceite.";
+  const date=r.next_service_date?
+    `\n🗓️ *Fecha de referencia:* ${formatDate(r.next_service_date)}`:"";
+  return `¡Hola, *${name}*! 👋🧡
+
+Te saludamos de *Lubricenter*. Queríamos ayudarte a mantener tu vehículo al día.
+
+🚗 *Vehículo:* ${vehicle}${plate}${km}${date}
+
+${reason}
+
+*La fecha es orientativa*, así que podemos confirmar el kilometraje actual contigo antes de coordinar.
+
+¿Te gustaría agendar tu visita? ¡Será un gusto atenderte! 🚗`;
 }
 
 function formatDate(value: string | null) {
@@ -191,7 +212,7 @@ export default function CrmPage() {
     <section className="grid grid-3">
       <div className="card"><div className="muted small">POST-SERVICIO PENDIENTE</div><div className="kpi">{postPending}</div><div className="muted">Enviar al terminar la visita</div></div>
       <div className="card"><div className="muted small">MANTENIMIENTOS VENCIDOS</div><div className="kpi">{due}</div><div className="muted">Contactar ahora</div></div>
-      <div className="card"><div className="muted small">PRÓXIMOS 14 DÍAS</div><div className="kpi">{soon}</div><div className="muted">Seguimiento preventivo</div></div>
+      <div className="card"><div className="muted small">PRÓXIMOS 14 DÍAS</div><div className="kpi">{soon}</div><div className="muted">Según uso real o fecha recomendada</div></div>
     </section>
 
     <section className="card stack">
@@ -244,6 +265,11 @@ export default function CrmPage() {
             <div style={{ textAlign: "right" }}><div className="label">PRÓXIMO</div><strong>{formatDate(r.next_service_date)}</strong>{r.next_service_odometer != null && <div className="muted small">{r.next_service_odometer.toLocaleString("es-VE")} km</div>}</div>
           </div>
           <details className="card"><summary><strong>Ver mensaje</strong></summary><div style={{ whiteSpace: "pre-wrap", marginTop: 12 }} className="small">{msg}</div></details>
+          <VehicleOilForecastCard compact forecast={{...r,recommended_due_date:r.next_service_date}}/>
+          <div className="row" style={{gap:8,flexWrap:"wrap"}}>
+            <Link className="btn btn-ghost" href={`/vehicles/${r.vehicle_id}`}>Historial de este carro</Link>
+            {r.customer_id&&<Link className="btn btn-ghost" href={`/customers/${r.customer_id}`}>Ficha del cliente</Link>}
+          </div>
           {r.urgency !== "SENT" ? <div className="grid grid-2">
             <button className="btn btn-primary" disabled={!phoneOk || busyId === r.service_record_id} onClick={() => openWhatsapp(r.customer_phone, msg)}>Abrir WhatsApp</button>
             <button className="btn" disabled={busyId === r.service_record_id} onClick={() => setReminderStatus(r, "SENT")}>{busyId === r.service_record_id ? "Guardando…" : "Marcar enviado"}</button>
