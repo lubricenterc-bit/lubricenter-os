@@ -9,6 +9,7 @@ import "./quote/general.css";
 import "./order-extras.css";
 import "./service-history/history.css";
 import "./reminders/forecast.css";
+import "./reminders/retention.css";
 import "./receipt.css";
 import "./design-lab/design-lab.css";
 import "./mesa-fonts.css";

@@ -4,6 +4,11 @@ on:
     paths:
       - 'app/page.tsx'
       - 'app/reminders/**'
+      - 'components/maintenance-journey-screen.tsx'
+      - 'lib/crm-retention.ts'
+      - 'tests/crm-retention.test.ts'
+      - 'tests/crm-retention-db.test.ts'
+      - 'supabase/migrations/20261009_crm_retention_contact_journeys.sql'
       - 'app/vehicles/**'
       - 'lib/oil-forecast.ts'
       - 'components/vehicle-oil-forecast-card.tsx'
@@ -63,7 +68,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - run: npx vitest run tests/navigation.test.ts tests/brand-assets.test.ts tests/catalog.test.ts tests/oil-quote.test.ts tests/sales-quote.test.ts tests/order-extras.test.ts tests/maintenance-history.test.ts tests/oil-forecast.test.ts
+      - run: npx vitest run tests/navigation.test.ts tests/brand-assets.test.ts tests/catalog.test.ts tests/oil-quote.test.ts tests/sales-quote.test.ts tests/order-extras.test.ts tests/maintenance-history.test.ts tests/oil-forecast.test.ts tests/crm-retention.test.ts tests/crm-retention-db.test.ts
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
