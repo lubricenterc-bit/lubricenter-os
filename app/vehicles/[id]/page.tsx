@@ -149,7 +149,7 @@ export default function VehiclePage() {
         {latestOil ? <div className="grid grid-2"><div><div className="muted small">POR KILOMETRAJE</div><strong>{nextDueKm != null ? `${nextDueKm.toLocaleString("es-VE")} km` : "No definido"}</strong>{kmRemaining != null && <div className="muted small">{kmRemaining > 0 ? `Faltan ${kmRemaining.toLocaleString("es-VE")} km` : `Pasado por ${Math.abs(kmRemaining).toLocaleString("es-VE")} km`}</div>}</div><div><div className="muted small">POR FECHA</div><strong>{nextDueDate ?? "No definida"}</strong></div></div> : <div className="muted">Al cerrar un cambio de aceite desde una orden, esta ficha conservará el historial y la próxima referencia de mantenimiento.</div>}
       </section>
 
-      <button className="btn btn-primary btn-block" disabled={busy} onClick={startOrder}>{busy ? "Creando orden…" : "+ Nueva orden para este vehículo"}</button>
+      <div className="row" style={{flexWrap:"wrap"}}><button className="btn btn-primary" disabled={busy} onClick={startOrder}>{busy ? "Creando orden…" : "+ Nueva orden para este vehículo"}</button><Link className="btn" href={"/service-history?vehicle="+vehicle.id}>Historial completo del vehículo</Link></div>
 
       <section className="card stack">
         <div className="row-between"><div><h2 className="section-title">Historial de servicio</h2><div className="muted small">{services.length} trabajos registrados entre el historial anterior y Lubricenter OS</div></div></div>
@@ -161,7 +161,7 @@ export default function VehiclePage() {
                 <div className="row"><strong>{serviceLabel(s.service_type)} · {s.description}</strong>{historical && <span className="pill">HISTÓRICO</span>}</div>
                 <div className="muted small">{fmtDate(s.performed_at)}{s.odometer != null ? ` · ${s.odometer.toLocaleString("es-VE")} km` : ""}{s.source_invoice ? ` · Factura ${s.source_invoice}` : ""}</div>
               </div>
-              {s.order_id ? <Link href={`/orders/${s.order_id}`} className="btn btn-ghost">Orden</Link> : <span className="muted small">Sin OS histórica</span>}
+              {s.order_id ? <Link href={`/orders/${s.order_id}`} className="btn btn-ghost">Orden</Link> : <Link href={`/service-history/${s.id}`} className="btn btn-ghost">Ver ficha histórica</Link>}
             </div>
             {s.service_type === "OIL_CHANGE" && (s.oil_brand || s.oil_viscosity || s.oil_quantity_liters || s.oil_filter_code) && <div className="muted small">{[s.oil_brand,s.oil_viscosity,s.oil_quantity_liters ? `${s.oil_quantity_liters} L` : null,s.oil_filter_code ? `Filtro ${s.oil_filter_code}` : null].filter(Boolean).join(" · ")}</div>}
             {!!s.included_services?.length && <div className="muted small"><strong>Servicios incluidos:</strong> {s.included_services.join(" · ")}</div>}
