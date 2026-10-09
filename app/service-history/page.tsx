@@ -43,7 +43,7 @@ export default function ServiceHistoryPage() {
 
   const load=useCallback(async(reset=true)=>{
     setLoading(true);setError("");
-    const requestedPage=reset?0:page;
+    const requestedPage=reset?0:page+1;
     const result=await supabase.from("service_records")
       .select(HISTORY_COLUMNS,{count:"exact"})
       .order("performed_at",{ascending:false})
