@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
+import { VehicleOilForecastCard } from "@/components/vehicle-oil-forecast-card";
+import type { VehicleOilForecast } from "@/lib/oil-forecast";
 
 type Vehicle = {
   id: string;
@@ -48,6 +50,7 @@ export default function VehiclePage() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [services, setServices] = useState<ServiceRecord[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [forecast, setForecast] = useState<VehicleOilForecast | null>(null);
   const [odometer, setOdometer] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -61,22 +64,24 @@ export default function VehiclePage() {
     setVehicle(vr);
     setOdometer(vr.current_odometer != null ? String(vr.current_odometer) : "");
 
-    const [{ data: c, error: ce }, { data: s, error: se }, { data: o, error: oe }] = await Promise.all([
+    const [{ data: c, error: ce }, { data: s, error: se }, { data: o, error: oe }, { data: estimate, error: forecastError }] = await Promise.all([
       vr.customer_id ? supabase.from("customers").select("id,name,phone,document_id").eq("id", vr.customer_id).maybeSingle() : Promise.resolve({ data: null, error: null } as any),
       supabase.from("service_records").select("id,order_id,service_type,description,odometer,oil_brand,oil_viscosity,oil_quantity_liters,oil_filter_code,next_service_odometer,next_service_date,charged_ref_amount,charged_ves_amount,performed_at,source_system,source_invoice,service_notes,included_services,bonuses").eq("vehicle_id", vehicleId).order("performed_at", { ascending: false }).limit(200),
       supabase.from("orders").select("id,order_number,status,total_ref,total_ves,opened_at,closed_at").eq("vehicle_id", vehicleId).order("opened_at", { ascending: false }).limit(100),
+      supabase.from("vehicle_oil_usage_forecasts").select("*").eq("vehicle_id",vehicleId).maybeSingle(),
     ]);
-    if (ce || se || oe) return setError((ce || se || oe)?.message ?? "No pude cargar el historial.");
+    if (ce || se || oe || forecastError) return setError((ce || se || oe || forecastError)?.message ?? "No pude cargar el historial.");
     setCustomer((c ?? null) as Customer | null);
     setServices((s ?? []) as ServiceRecord[]);
     setOrders((o ?? []) as Order[]);
+    setForecast((estimate??null) as VehicleOilForecast|null);
   }
 
   useEffect(() => { if (vehicleId) load(); }, [vehicleId]);
 
   const latestOil = useMemo(() => services.find(s => s.service_type === "OIL_CHANGE") ?? null, [services]);
-  const nextDueKm = latestOil?.next_service_odometer ?? null;
-  const nextDueDate = latestOil?.next_service_date ?? null;
+  const nextDueKm = forecast?.due_km ?? latestOil?.next_service_odometer ?? null;
+  const nextDueDate = forecast?.recommended_due_date ?? latestOil?.next_service_date ?? null;
   const kmRemaining = nextDueKm != null && vehicle?.current_odometer != null ? nextDueKm - vehicle.current_odometer : null;
   const overdueKm = kmRemaining != null && kmRemaining <= 0;
   const overdueDate = nextDueDate ? new Date(`${nextDueDate}T23:59:59`) < new Date() : false;
@@ -148,6 +153,8 @@ export default function VehiclePage() {
         <div className="row-between"><div><div className="muted small">PRÓXIMO CAMBIO DE ACEITE</div><h2 className="section-title" style={{ marginBottom: 0 }}>{latestOil ? (overdueKm || overdueDate ? "Mantenimiento pendiente" : "Seguimiento activo") : "Sin planificación todavía"}</h2></div>{latestOil && <span className={`pill ${overdueKm || overdueDate ? "" : "ok"}`}>{overdueKm || overdueDate ? "REVISAR" : "AL DÍA"}</span>}</div>
         {latestOil ? <div className="grid grid-2"><div><div className="muted small">POR KILOMETRAJE</div><strong>{nextDueKm != null ? `${nextDueKm.toLocaleString("es-VE")} km` : "No definido"}</strong>{kmRemaining != null && <div className="muted small">{kmRemaining > 0 ? `Faltan ${kmRemaining.toLocaleString("es-VE")} km` : `Pasado por ${Math.abs(kmRemaining).toLocaleString("es-VE")} km`}</div>}</div><div><div className="muted small">POR FECHA</div><strong>{nextDueDate ?? "No definida"}</strong></div></div> : <div className="muted">Al cerrar un cambio de aceite desde una orden, esta ficha conservará el historial y la próxima referencia de mantenimiento.</div>}
       </section>
+
+      <VehicleOilForecastCard forecast={forecast}/>
 
       <div className="row" style={{flexWrap:"wrap"}}><button className="btn btn-primary" disabled={busy} onClick={startOrder}>{busy ? "Creando orden…" : "+ Nueva orden para este vehículo"}</button><Link className="btn" href={"/service-history?vehicle="+vehicle.id}>Historial completo del vehículo</Link></div>
 
