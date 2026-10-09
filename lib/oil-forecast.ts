@@ -3,6 +3,7 @@ export type ForecastReason = "KM_USAGE" | "VISIT_PATTERN" | "CALENDAR_LIMIT";
 
 export type VehicleOilForecast = {
   vehicle_id?: string;
+  due_km?: number | null;
   service_count: number | null;
   mileage_points: number | null;
   slope_pairs: number | null;
