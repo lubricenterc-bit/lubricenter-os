@@ -71,12 +71,15 @@ export function filterMaintenanceRecords(rows: MaintenanceHistoryRecord[], filte
     if (filters.origin === "HISTORIC" && !historic) return false;
     if (filters.origin === "CURRENT" && historic) return false;
     if (!term) return true;
-    return stripped([
+    const haystack=stripped([
       row.customer?.name, row.customer?.phone, row.vehicle?.plate,
       row.vehicle?.make, row.vehicle?.model, row.description,
       row.oil_brand, row.oil_viscosity, row.oil_filter_code,
       row.source_invoice
-    ].filter(Boolean).join(" ")).includes(term);
+    ].filter(Boolean).join(" "));
+    const compactTerm=term.replace(/\s/g,"");
+    return haystack.includes(term) ||
+      (compactTerm.length>=3 && haystack.replace(/\s/g,"").includes(compactTerm));
   });
 }
 export function groupMaintenanceByDay(rows: MaintenanceHistoryRecord[]) {
