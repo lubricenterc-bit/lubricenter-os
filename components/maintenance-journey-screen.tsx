@@ -284,7 +284,7 @@ export function MaintenanceJourneyScreen({
                 aria-label={"Mensaje WhatsApp de "+(r.customer_name||"cliente")}/>
               <div className="crmj-action-row">
                 <button className="btn btn-primary" disabled={isBusy}
-                  onClick={()=>openWhatsapp(row)}><OsIcon name="external-link" size={16}/> Abrir WhatsApp</button>
+                  onClick={()=>openWhatsapp(row)}><OsIcon name="arrow" size={16}/> Abrir WhatsApp</button>
                 <button className="btn" disabled={!opened[r.service_record_id]||isBusy}
                   onClick={()=>void logActivity(row,"SENT")}>Confirmar que lo envié</button>
                 <span>Abrir el chat no marca el mensaje como enviado.</span>
