@@ -38,7 +38,7 @@ describe("archivo de mantenimiento",()=>{
  it("consulta registros ya importados sin duplicarlos",()=>{
    const listing=readFileSync("app/service-history/page.tsx","utf8");
    expect(listing).toContain('from("service_records")');
-   expect(listing).toContain("read-only");
+   expect(listing).toContain("Sin movimientos contables");
    expect(readFileSync("app/service-history/[id]/page.tsx","utf8")).toContain("Sin orden contable");
  });
 });
