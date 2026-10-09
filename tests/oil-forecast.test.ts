@@ -57,7 +57,7 @@ describe("Predicción matemática por vehículo",()=>{
       expect(Number(forecast.km_per_day)).toBeLessThan(170);
       expect(forecast.confidence).toBe("LOW");
       expect(forecast.due_reason).toBe("KM_USAGE");
-      expect(String(forecast.projected_km_due_date)).toContain("2026-03-04");
+      expect(new Date(forecast.projected_km_due_date as string).toISOString().slice(0,10)).toBe("2026-03-04");
       const b=await pg.query<Record<string,unknown>>("SELECT * FROM vehicle_oil_usage_forecasts WHERE vehicle_id=$1",[u(102)]);
       expect(b.rows[0].confidence).toBe("INSUFFICIENT");
       expect(b.rows[0].km_per_day).toBeNull();
