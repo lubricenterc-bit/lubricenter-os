@@ -1,4 +1,4 @@
-import { canMentionUsageForecast, confidenceForForecast, type VehicleOilForecast } from "@/lib/oil-forecast";
+import { canMentionUsageForecast, confidenceForForecast, type VehicleOilForecast } from "./oil-forecast";
 
 export type CrmStage = "NOT_READY" | "PREVENTIVE" | "DUE" | "LATE" | "RECOVERY" | "WINBACK";
 export type CrmEventType = "SENT" | "REPLIED" | "BOOKED" | "DECLINED" | "CLOSED_NO_REPLY" | "REACTIVATED";
