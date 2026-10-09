@@ -170,7 +170,8 @@ export function MaintenanceJourneyScreen({
     const phone=cleanCrmWhatsapp(r.customer_phone);
     if(!phone){setError("Este número no corresponde a un WhatsApp venezolano válido.");return;}
     const msg=drafts[r.service_record_id]??makeCrmMessage(r,j);
-    const popup=window.open("https://wa.me/"+phone+"?text="+encodeURIComponent(msg),"_blank","noopener,noreferrer");
+    const popup=window.open("https://wa.me/"+phone+"?text="+encodeURIComponent(msg),"_blank");
+    if(popup)popup.opener=null;
     if(!popup){setError("El navegador bloqueó WhatsApp. Habilita la ventana emergente e inténtalo de nuevo.");return;}
     setOpened(prev=>({...prev,[r.service_record_id]:true}));
   }
