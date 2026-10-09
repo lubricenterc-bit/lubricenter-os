@@ -100,7 +100,8 @@ describe("Flujo de cotizaciones generales",()=>{
     expect(navigationSearch("cotizar", "OPERATOR").some(x=>x.href==="/quote")).toBe(true);
     expect(NAV_MODULES.find(m=>m.id==="sales")?.links.some(x=>x.href==="/quote/oil")).toBe(true);
     const app=readFileSync("components/app-shell.tsx","utf8");
-    expect(app).toContain('href="/quote"');
+    const mesaNavigation=readFileSync("components/mesa-navigation.tsx","utf8");
+    expect(app+mesaNavigation).toContain('href: "/quote"');
     const cat=readFileSync("app/catalog/page.tsx","utf8");
     expect(cat).toContain('"/quote?add="+encodeURIComponent(item.id)');
     const quick=readFileSync("components/quick-sale-screen.tsx","utf8");

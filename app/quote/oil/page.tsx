@@ -198,7 +198,7 @@ export default function OilQuotePage() {
     <div className="oq-heading">
       <div>
         <p className="oq-kicker"><OsIcon name="receipt" size={15}/> VENTAS / HERRAMIENTAS</p>
-        <h1>Comparador de cambios de aceite</h1>
+        <h1><span className="mesa-commerce-number" aria-hidden="true">01 /</span> Comparar aceites<span className="mesa-commerce-dot">.</span></h1>
         <p>Una sola búsqueda, todas las marcas compatibles. Precios de Notion con filtro y mano de obra separados.</p>
       </div>
       <div className="oq-heading-actions"><Link href="/quote" className="oq-button"><OsIcon name="right" size={17}/> Cotizador general</Link><button className="oq-button oq-reload" onClick={() => void load()} disabled={loading}>
