@@ -32,7 +32,8 @@ export const NAV_MODULES: readonly NavModule[] = [
     { href: "/workshop", label: "Tablero de vehículos", description: "Recepción, reparación y entrega", keywords: "mecánica avance" }
   ] },
   { id: "customers", label: "Clientes", icon: "customers", defaultHref: "/customers", links: [
-    { href: "/customers", label: "Directorio", description: "Clientes, vehículos e historial" },
+    { href: "/customers", label: "Directorio", description: "Clientes y vehículos" },
+    { href: "/service-history", label: "Historial de mantenimiento", description: "Cambios de aceite y servicios antiguos de Sheets y del OS", keywords: "servicio anterior histórico aceite placa factura mantenimiento" },
     { href: "/reminders", label: "Recordatorios", description: "Cambios de aceite y seguimiento", keywords: "mantenimiento" },
     { href: "/campaigns", label: "Campañas", description: "Promociones y contacto con clientes" }
   ] },
