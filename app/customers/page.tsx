@@ -66,13 +66,13 @@ export default function CustomersPage() {
     <section className="grid grid-3">
       <div className="card"><div className="muted small">CLIENTES EN ESTA VISTA</div><div className="kpi">{customers.length}</div></div>
       <div className="card"><div className="muted small">CON VEHÍCULO</div><div className="kpi">{customersWithVehicles}</div></div>
-      <div className="card"><div className="muted small">VISITAS REGISTRADAS</div><div className="kpi">{orders}</div></div>
+      <div className="card"><div className="muted small">ÓRDENES OS</div><div className="kpi">{orders}</div></div>
     </section>
 
     <section className="card stack">
       <div className="row-between">
         <div><h2 className="section-title">Directorio central</h2><div className="muted small">La búsqueda también revisa placas, marcas y modelos.</div></div>
-        <div className="row"><Link className="btn btn-ghost" href="/reminders">Seguimientos</Link><button className="btn btn-primary" onClick={() => setShowCustomerForm(true)}>+ Cliente</button></div>
+        <div className="row"><Link className="btn btn-ghost" href="/service-history">Historial de servicios</Link><Link className="btn btn-ghost" href="/reminders">Seguimientos</Link><button className="btn btn-primary" onClick={() => setShowCustomerForm(true)}>+ Cliente</button></div>
       </div>
       <input className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar nombre, teléfono, cédula, RIF, placa, marca o modelo…" autoFocus />
     </section>
@@ -86,7 +86,7 @@ export default function CustomersPage() {
           <div className="small crm-vehicle-summary">{c.vehicles_text || "Sin vehículo asociado"}</div>
         </div>
         <div className="crm-customer-stats">
-          <div><span className="muted small">VISITAS</span><strong>{Number(c.order_count)}</strong></div>
+          <div><span className="muted small">ÓRDENES</span><strong>{Number(c.order_count)}</strong></div>
           <div><span className="muted small">ÚLTIMA</span><strong>{c.last_visit_at ? fmtDate(c.last_visit_at) : "Sin visitas"}</strong></div>
           <div><span className="muted small">TOTAL</span><strong>{fmtRef(Number(c.total_ref))}</strong></div>
           <span className="btn btn-ghost">Abrir ficha</span>
