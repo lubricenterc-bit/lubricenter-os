@@ -68,6 +68,24 @@ describe("Predicción matemática por vehículo",()=>{
       const reminders=await pg.query<Record<string,unknown>>("SELECT vehicle_id,customer_id,forecast_confidence,next_service_date FROM maintenance_reminders_current WHERE vehicle_id=$1",[u(101)]);
       expect(reminders.rows[0].customer_id).toBe(u(1));
       expect(reminders.rows[0].forecast_confidence).toBe("LOW");
+      // La optimización NO puede cambiar destinatario, fecha, segmento ni estado.
+      // El SQL antiguo y el nuevo deben devolver la misma información para todos los carros.
+      const previous = await pg.query<Record<string,unknown>>(
+        "SELECT vehicle_id,service_record_id,customer_id,next_service_date,reminder_status,urgency,forecast_confidence,due_reason FROM maintenance_reminders_current ORDER BY vehicle_id"
+      );
+      const optimize=readFileSync(
+        "supabase/migrations/20261010_optimize_reminder_view.sql","utf8"
+      );
+      await pg.exec(optimize);
+      const current = await pg.query<Record<string,unknown>>(
+        "SELECT vehicle_id,service_record_id,customer_id,next_service_date,reminder_status,urgency,forecast_confidence,due_reason FROM maintenance_reminders_current ORDER BY vehicle_id"
+      );
+      expect(current.rows).toEqual(previous.rows);
+      expect(current.rows).toHaveLength(3);
+      const summary=await pg.query<{ urgency:string;n:number }>(
+        "SELECT urgency, count(*)::int n FROM maintenance_reminders_current GROUP BY urgency ORDER BY urgency"
+      );
+      expect(summary.rows.reduce((sum,row)=>sum+row.n,0)).toBe(3);
     } finally {await pg.close();}
   },30000);
 
