@@ -142,8 +142,7 @@ begin
  end if;
  insert into public.audit_events(event_type,entity_type,entity_id,data) values('order.corrected','order',o.id,jsonb_build_object('replacement_order_id',n,'reason',p_reason));
  return n;
-end $function$
-
+end $function$;
 
 CREATE OR REPLACE FUNCTION public.correct_closed_order_v2(
  p_order_id uuid, p_reason text, p_business_at timestamptz, p_items jsonb, p_payments jsonb,
