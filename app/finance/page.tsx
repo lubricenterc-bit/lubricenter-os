@@ -68,6 +68,7 @@ export default function FinancePage() {
   return <main className="container stack">
     <section className="brand-hero"><div><div className="eyebrow">FINANZAS · CONTROL DEL NEGOCIO</div><h1>Central financiera</h1><p>Separa lo vendido, lo cobrado, lo pendiente y lo gastado para saber qué ocurrió realmente con el dinero.</p></div><img src="/lubricenter-logo.png" alt="Lubricenter" /></section>
     <Link href="/finance/reconcile" className="card brand-card"><h2 className="section-title">Cuadre semanal</h2><p>Importa bancos, explica salidas pendientes y no cierres la semana hasta que el dinero cuadre.</p></Link>
+    <Link href="/finance/bank-outflows" className="card brand-card"><h2 className="section-title">Egresos bancarios</h2><p>Importa BDV, evita duplicados y clasifica tus salidas gradualmente sin tener que cerrar caja hoy.</p></Link>
     {error && <div className="error">{error}</div>}
     {financeRole === "OWNER" && <FinanceCashAlerts />}
 
