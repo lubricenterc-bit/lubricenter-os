@@ -11,7 +11,7 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
 }) {
   const [percent, setPercent] = useState("40");
   const [splits, setSplits] = useState<CasheaSplitLine[]>([newCasheaSplitLine()]);
-  const updateSplits = useCallback((next: CasheaSplitLine[]) => { setSplits(next); setConfirmed(false); }, []);
+  const updateSplits = useCallback((next: CasheaSplitLine[]) => { setSplits(next); setConfirmed(false); setError(""); }, []);
   const [casheaReference, setCasheaReference] = useState("");
   const [bcv, setBcv] = useState(0);
   const [commission, setCommission] = useState(4);
@@ -39,7 +39,7 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
   const extraVes = Math.max(Math.round((initialVes - paidVes) * 100) / 100, 0);
   const financed = Math.max(totalRef - initialRef, 0);
   const splitPreview = casheaPaymentPreview(splits, extraVes, bcv);
-  const valid = !loading && !error && bcv > 0 && totalRef >= minimum && Number.isFinite(pct) && pct > 0 && pct <= 100 && paidVes <= initialVes + .01 && splitPreview.valid;
+  const valid = !loading && bcv > 0 && totalRef >= minimum && Number.isFinite(pct) && pct > 0 && pct <= 100 && paidVes <= initialVes + .01 && splitPreview.valid;
   async function save() {
     if (!valid || !confirmed || busy) return;
     if (!/^\d{1,32}$/.test(casheaReference.trim())) return setError("Escribe el número de orden Cashea.");
@@ -62,7 +62,7 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
         <label>Inicial personalizada (%)<input className="input" type="number" min="0.01" max="100" step="0.01" value={percent} onChange={e => { setPercent(e.target.value); setConfirmed(false); setError(""); }} /></label>
         <div className="card stack"><div className="row-between"><span>Inicial total</span><strong>{fmtRef(initialRef)} · {fmtVes(initialVes)}</strong></div><div className="row-between"><span>Pagos ya registrados</span><strong>{fmtVes(paidVes)}</strong></div><div className="row-between"><strong>Recibir ahora</strong><strong>{fmtVes(extraVes)}</strong></div></div>
         <CasheaSplitEditor lines={splits} onChange={updateSplits} requiredVes={extraVes} bcv={bcv} previouslyPaidVes={paidVes} disabled={busy}/>
-        <label>Número de orden Cashea · obligatorio<input className="input" value={casheaReference} onChange={e => setCasheaReference(e.target.value)} /></label>
+        <label>Número de orden Cashea · obligatorio<input className="input" value={casheaReference} onChange={e => {setCasheaReference(e.target.value);setError("");setConfirmed(false);}} /></label>
         <div className="card stack"><div>Por recibir de Cashea: <strong>{fmtRef(financed)}</strong></div><div>3 cuotas de aproximadamente {fmtRef(financed / 3)} · a 14, 28 y 42 días.</div><div>Comisión {commission}%: {fmtRef(totalRef * commission / 100)}. No aumenta el cobro al cliente.</div></div>
         <label className="row"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />Confirmo que verifiqué los cobros en sus bancos o cajas, y que la compra figura aprobada en Cashea.</label>
       </fieldset>
