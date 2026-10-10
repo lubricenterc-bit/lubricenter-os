@@ -1,10 +1,12 @@
 "use client";
 import { QuickTenderCheckout } from "@/components/quick-tender-checkout";
+import { CasheaSplitEditor } from "@/components/cashea-split-editor";
+import { casheaPaymentPreview, newCasheaSplitLine, type CasheaSplitLine } from "@/lib/cashea-split";
 import { matchesSearch } from "@/lib/domain/search";
 
 import { businessInstant,caracasInput } from "@/lib/order-admin";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { D } from "@/lib/finance/money";
 import { referenceError } from "@/lib/finance/money";
@@ -62,8 +64,9 @@ export function QuickSaleScreen() {
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>("TRANSFER_BDV");
   const [reference, setReference] = useState("");
   const [casheaInitialPercent, setCasheaInitialPercent] = useState("40");
-  const [casheaInitialMethod, setCasheaInitialMethod] = useState<PaymentMethod>("TRANSFER_BDV");
-  const [casheaPaymentReference, setCasheaPaymentReference] = useState("");
+  const [casheaSplits, setCasheaSplits] = useState<CasheaSplitLine[]>([newCasheaSplitLine()]);
+  const casheaRequest = useRef<{signature:string;id:string}|null>(null);
+  const updateCasheaSplits = useCallback((next: CasheaSplitLine[]) => {setCasheaSplits(next);setReceived(false);},[]);
   const [casheaReference, setCasheaReference] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -187,15 +190,16 @@ export function QuickSaleScreen() {
   const cashUsd = rates.operative > 0 ? totalVes / rates.operative : 0;
   const cartValid = cart.length > 0 && cart.every(x => Number.isFinite(x.quantity) && x.quantity > 0 && Number.isFinite(Number(x.unit_ref)) && Number(x.unit_ref) > 0 && (x.kind !== "STOCK" || x.stock == null || x.quantity <= x.stock));
   const casheaPct = Number(casheaInitialPercent);
-  const casheaInitialRef = Number.isFinite(casheaPct) ? totalRef * casheaPct / 100 : 0;
-  const casheaInitialVes = casheaInitialRef * rates.bcv;
+  const casheaInitialRef = Number.isFinite(casheaPct) ? Number(new D(totalRef).mul(casheaPct).div(100).toDecimalPlaces(4)) : 0;
+  const casheaInitialVes = Number.isFinite(casheaInitialRef) ? Number(new D(casheaInitialRef).mul(rates.bcv).toDecimalPlaces(2)) : 0;
+  const casheaSplitPreview = casheaPaymentPreview(casheaSplits,casheaInitialVes,rates.bcv);
   const casheaFinancedRef = Math.max(totalRef - casheaInitialRef, 0);
   const casheaInstallmentRef = casheaFinancedRef / 3;
   const casheaCommissionRef = totalRef * CASHEA_COMMISSION / 100;
-  const casheaValid = cartValid && totalRef >= CASHEA_MIN_REF && casheaPct > 0 && casheaPct <= 100;
+  const casheaValid = cartValid && rates.bcv>0 && totalRef >= CASHEA_MIN_REF && Number.isFinite(casheaPct) && casheaPct > 0 && casheaPct <= 100 && casheaSplitPreview.valid;
 
   function payload(): QuickPayloadLine[] { return cart.map(line => ({ kind: line.kind, inventory_item_id: line.inventory_item_id ?? null, product_id: line.product_id ?? null, description: line.description, quantity: line.quantity, unit_ref: Number(line.unit_ref) })); }
-  function resetAfterSale() { setQuoteFlow(null);setQuoteTransferNotice("");setSaleDate("");setReceived(false); setCart([]); setReference(""); setCasheaPaymentReference(""); setCasheaReference(""); setSearch(""); setCheckoutMode("DIRECT"); setSelectedPayment("TRANSFER_BDV"); setCasheaInitialPercent("40"); setCasheaInitialMethod("TRANSFER_BDV"); }
+  function resetAfterSale() { setQuoteFlow(null);setQuoteTransferNotice("");setSaleDate("");setReceived(false); setCart([]); setReference(""); setCasheaSplits([newCasheaSplitLine()]); casheaRequest.current=null; setCasheaReference(""); setSearch(""); setCheckoutMode("DIRECT"); setSelectedPayment("TRANSFER_BDV"); setCasheaInitialPercent("40"); }
 
   async function completeDirect() {
     if (!cartValid || busy) return;
@@ -211,17 +215,36 @@ export function QuickSaleScreen() {
 
   async function completeCashea() {
     if (!casheaValid || busy) return;
-    if (!/^\d{1,32}$/.test(casheaReference.trim())) return setError('Escribe el número de orden Cashea.');
-    const re = referenceError(casheaInitialMethod, casheaPaymentReference); if (re) return setError(re);
-    setBusy(true); setError(""); setCompleted(null);
-    const { data, error } = await supabase.rpc("quick_sale_dated", { p_mode: "CASHEA", p_business_at: businessInstant(saleDate),
-      p_items: payload(), p_initial_percent: casheaPct, p_method: casheaInitialMethod,
-      p_reference: casheaPaymentReference.trim() || null, p_cashea_reference: casheaReference.trim() || null,
+    if (!/^\d{1,32}$/.test(casheaReference.trim())) return setError("Escribe el número de orden Cashea.");
+    const paymentLines=casheaSplitPreview.payload;
+    const signature=JSON.stringify({
+      items:payload(),pct:casheaPct,payments:paymentLines,cashea:casheaReference.trim(),
+      date:businessInstant(saleDate),ves:totalVes,ref:totalRef,bcv:rates.bcv
     });
-    setBusy(false); if (error) return setError(error.message);
-    const row = Array.isArray(data) ? data[0] : data;
-    setCompleted({ order_id: row.order_id, order_number: row.order_number, total_ves: Number(row.total_ves ?? 0), total_ref: Number(row.total_ref ?? 0), cashea: { initial_ref: Number(row.initial_ref ?? 0), financed_ref: Number(row.financed_ref ?? 0), commission_ref: Number(row.commission_ref ?? 0) } });
-    resetAfterSale(); await load();
+    if(casheaRequest.current?.signature!==signature){
+      casheaRequest.current={signature,id:crypto.randomUUID()};
+    }
+    setBusy(true);setError("");setCompleted(null);
+    // La base de datos registra los cobros y cierra la venta en una sola transacción.
+    // p_request evita crear una segunda OS si se repite el intento tras perder la respuesta.
+    const {data,error}=await supabase.rpc("quick_sale_cashea_split",{
+      p_request:casheaRequest.current.id,p_items:payload(),
+      p_business_at:businessInstant(saleDate),p_initial_percent:casheaPct,
+      p_initial_payments:paymentLines,p_cashea_reference:casheaReference.trim(),
+      p_expected_total_ves:totalVes,p_expected_total_ref:totalRef,p_expected_bcv:rates.bcv
+    });
+    setBusy(false);
+    if(error)return setError(error.message);
+    const row=Array.isArray(data)?data[0]:data;
+    setCompleted({
+      order_id:row.order_id,order_number:row.order_number,
+      total_ves:Number(row.total_ves??0),total_ref:Number(row.total_ref??0),
+      cashea:{
+        initial_ref:Number(row.initial_ref??0),financed_ref:Number(row.financed_ref??0),
+        commission_ref:Number(row.commission_ref??0)
+      }
+    });
+    resetAfterSale();await load();
   }
 
   async function continueAsOrder() {
@@ -303,9 +326,9 @@ export function QuickSaleScreen() {
         <div><span className="label">Inicial aprobada</span><div className="grid grid-3">{[40,50,60].map(p => <button type="button" key={p} className={casheaInitialPercent === String(p) ? "btn btn-primary" : "btn"} onClick={() => setCasheaInitialPercent(String(p))}>{p}%</button>)}</div></div>
         <label><span className="label">Inicial personalizada %</span><input className="input" type="number" min="0.01" max="100" step="0.01" value={casheaInitialPercent} onChange={e => setCasheaInitialPercent(e.target.value)} placeholder="Ej. 45" /></label>
         <div className="grid grid-3"><div className="card"><div className="muted small">INICIAL HOY</div><strong>{fmtRef(casheaInitialRef)}</strong><div className="muted small">{fmtVes(casheaInitialVes)}</div></div><div className="card"><div className="muted small">POR RECIBIR</div><strong>{fmtRef(casheaFinancedRef)}</strong><div className="muted small">3 × {fmtRef(casheaInstallmentRef)}</div></div><div className="card"><div className="muted small">COMISIÓN LUBRICENTER</div><strong>{fmtRef(casheaCommissionRef)}</strong><div className="muted small">4% registrado aparte</div></div></div>
-        <div className="muted small">Cuotas previstas: +14, +28 y +42 días. El saldo se controla en el módulo Cashea y no se mezcla con Crédito LC.</div>
-        <div><span className="label">Cómo recibiste la inicial</span><div className="grid grid-2">{PAYMENT_METHODS.map(([method,label]) => <button type="button" key={method} className={casheaInitialMethod === method ? "btn btn-primary" : "btn"} onClick={() => setCasheaInitialMethod(method)}>{casheaInitialMethod === method ? `✓ ${label}` : label}</button>)}</div></div>
-        <input className="input" value={casheaPaymentReference} onChange={e => setCasheaPaymentReference(e.target.value)} placeholder="Banco: últimos 4 de referencia · obligatorio" />
+        <div className="muted small">Cuotas previstas: +14, +28 y +42 días. El saldo se controla en Cashea; solo la inicial entra hoy a tus cuentas y caja.</div>
+        <CasheaSplitEditor lines={casheaSplits} onChange={updateCasheaSplits}
+          requiredVes={casheaInitialVes} bcv={rates.bcv} disabled={busy}/>
         <input className="input" value={casheaReference} onChange={e => setCasheaReference(e.target.value)} placeholder="Número de orden Cashea · obligatorio" />
         <button className="btn btn-primary btn-block" style={{ minHeight: 56, fontSize: 17 }} disabled={!casheaValid || busy || !received} onClick={completeCashea}>{busy ? "Registrando Cashea…" : `Registrar Cashea y cerrar · ${fmtRef(totalRef)}`}</button>
       </div>}
