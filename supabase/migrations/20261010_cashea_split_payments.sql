@@ -44,8 +44,10 @@ BEGIN
   IF p_cashea_reference IS NULL OR btrim(p_cashea_reference) !~ '^[0-9]{1,32}$' THEN
     RAISE EXCEPTION 'Registra el número de orden de Cashea (solo dígitos)';
   END IF;
-  IF p_initial_payments IS NULL OR jsonb_typeof(p_initial_payments)<>'array' OR
-    jsonb_array_length(p_initial_payments)>8 THEN
+  IF p_initial_payments IS NULL OR jsonb_typeof(p_initial_payments)<>'array' THEN
+    RAISE EXCEPTION 'Envía el desglose de la inicial como lista';
+  END IF;
+  IF jsonb_array_length(p_initial_payments)>8 THEN
     RAISE EXCEPTION 'La inicial admite entre 0 y 8 formas de cobro';
   END IF;
 
@@ -129,7 +131,7 @@ BEGIN
   SELECT count(DISTINCT method),min(method)
     INTO v_count,v_label FROM public.payments WHERE order_id=p_order_id;
   IF v_count=0 THEN RAISE EXCEPTION 'La inicial no tiene pagos registrados'; END IF;
-  IF v_count>1 THEN v_label:='MIXED'; END IF;
+  IF v_count>1 OR v_label NOT IN ('CASH_USD','CASH_VES','MOBILE_PAYMENT','TRANSFER_BDV','TRANSFER_BNC','ZELLE','BINANCE') THEN v_label:='MIXED'; END IF;
 
   -- El cierre probado calcula comisión/cuotas, no agrega pago porque ya
   -- fue cubierta EXACTAMENTE la inicial (0 de remanente).
@@ -151,7 +153,7 @@ CREATE OR REPLACE FUNCTION public.close_order_cashea_split(
   p_order_id uuid,p_initial_percent numeric,p_initial_payments jsonb,
   p_cashea_reference text,p_expected_total_ves numeric,
   p_expected_total_ref numeric,p_expected_bcv numeric
-) RETURNS uuid LANGUAGE sql SET search_path TO ''
+) RETURNS uuid LANGUAGE sql SECURITY DEFINER SET search_path TO ''
 AS $cashea$
   SELECT lubricenter_private.close_order_cashea_split(
     p_order_id,p_initial_percent,p_initial_payments,p_cashea_reference,
@@ -225,7 +227,7 @@ CREATE OR REPLACE FUNCTION public.quick_sale_cashea_split(
   p_request uuid,p_items jsonb,p_business_at timestamptz,
   p_initial_percent numeric,p_initial_payments jsonb,p_cashea_reference text,
   p_expected_total_ves numeric,p_expected_total_ref numeric,p_expected_bcv numeric
-) RETURNS jsonb LANGUAGE sql SET search_path TO ''
+) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path TO ''
 AS $cashea$
   SELECT lubricenter_private.quick_sale_cashea_split(
     p_request,p_items,p_business_at,p_initial_percent,p_initial_payments,
