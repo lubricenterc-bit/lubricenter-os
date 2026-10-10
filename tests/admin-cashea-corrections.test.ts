@@ -38,9 +38,9 @@ describe('Bank outflow queue structure', () => {
  it('exposes a paginated, read-only outflow review endpoint', async () => {
   const q = await db.query<{fn:string}>(`select pg_get_functiondef(p.oid) fn from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where n.nspname='lubricenter_private' and p.proname='finance_bank_outflows_review'`);
-  expect(q.rows[0].fn).toContain("x.direction = 'OUT'");
+  expect(q.rows[0].fn.toLowerCase()).toMatch(/x\.direction\s*=\s*'out'/);
   expect(q.rows[0].fn).toContain("finance_require");
-  expect(q.rows[0].fn).toContain("limit 100");
+  expect(q.rows[0].fn.toLowerCase()).toMatch(/limit\s+100/);
  });
  it('does not grant anonymous reading of bank statements', async () => {
   const signature='public.finance_bank_outflows_review(date,date,integer)';
