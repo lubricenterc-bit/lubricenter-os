@@ -1,6 +1,6 @@
 import { D, money, positive, veMoney } from './money';
 
-export type Provider = 'BDV' | 'CASHEA_TRANSACTIONS' | 'CASHEA_ORDERS';
+export type Provider = 'BDV' | 'BNC' | 'CASHEA_TRANSACTIONS' | 'CASHEA_ORDERS';
 export type Issue = { row: number; message: string };
 export type ExternalRow = {
   row: number; occurred_at: string; reference: string; description: string; direction: 'IN' | 'OUT'; currency: 'VES' | 'USD';
@@ -80,7 +80,14 @@ export function parseBdv(text: string): Preview {
   return dates(p);
 }
 
-export function parseCashea(cells: unknown[][], provider: Exclude<Provider, 'BDV'>): Preview {
+// BNC movements can be pasted in the same six-column normalized bank format as BDV.
+// Importing the original legacy .xls requires preserving the bank's reference and balance; never infer the missing clock time.
+export function parseBnc(text: string): Preview {
+ const p=parseBdv(text);
+ return {...p,provider:'BNC'};
+}
+
+export function parseCashea(cells: unknown[][], provider: Exclude<Provider, 'BDV'|'BNC'>): Preview {
   const p = empty(provider);
   const headers = (cells[0] ?? []).map(h => String(h ?? '').trim());
   const required = provider === 'CASHEA_TRANSACTIONS'
