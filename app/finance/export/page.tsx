@@ -32,11 +32,11 @@ function saveCsv(name:string,lines:unknown[][]){
 }
 function transactionCsv(report:Report,provider:Provider){
  const header=['Fuente','Fecha y hora Caracas','Referencia','Descripción','Entrada/Salida','Importe original','Moneda',
- 'Monto referencial USD','Asignado USD Cashea','Saldo banco VES','Orden Cashea','Orden OS','Pertenencia','Naturaleza','Categoría','Importe relacionado','Estado conciliación','Reporte verificado','Justificación'];
+ 'Monto referencial USD','Asignado USD Cashea','Saldo banco VES','Orden Cashea','Orden OS','Pertenencia','Naturaleza','Categoría','Importe relacionado','Estado conciliación','Reporte verificado','Justificación','Atribución Cabudare','Ref. Cashea vinculada','Método de vínculo BNC'];
  const rows=report.transactions.filter(row=>row.provider===provider).map(t=>[
  providerLabels[provider],t.occurred_at,t.reference,t.description,t.direction,t.amount,t.currency,t.amount_ref,t.assigned_ref,
  t.balance,t.external_order,t.order_number,t.ownership_status,t.nature,t.category,t.amount_alloc,t.reconciliation_status,
- t.report_verified?'SÍ':'NO',t.reconciliation_reason
+ t.report_verified?'SÍ':'NO',t.reconciliation_reason,t.cabudare_attribution,t.cashea_link_reference,t.cashea_bank_match_method
  ]);
  saveCsv(`Lubricenter_${provider}_${report.from}_${report.to}.csv`,[header,...rows]);
 }
