@@ -19,6 +19,7 @@ BEGIN
    coalesce(v.count_alloc,0)::integer allocations,
    coalesce(v.amount_alloc,0)::numeric amount_alloc,
    CASE
+    WHEN s.provider='CASHEA_TRANSACTIONS' AND x.ownership_status<>'OWN' THEN 'NO_ATRIBUIDO_A_OS'
     WHEN coalesce(v.count_alloc,0)=0 THEN 'PENDIENTE'
     WHEN coalesce(v.amount_alloc,0)+0.000001 <
      CASE WHEN s.provider='CASHEA_TRANSACTIONS' THEN coalesce(x.assigned_ref,x.amount_ref,x.amount) ELSE x.amount END
@@ -60,11 +61,13 @@ BEGIN
  WHERE snap.purchased_on BETWEEN p_from AND p_to
  ) y;
  SELECT count(*) INTO v_pending FROM jsonb_array_elements(v_rows) z
- WHERE z->>'reconciliation_status'<>'CONCILIADO';
+ WHERE z->>'reconciliation_status' NOT IN ('CONCILIADO','NO_ATRIBUIDO_A_OS');
 
  SELECT jsonb_agg(jsonb_build_object('provider',p.provider,
   'records',CASE WHEN p.provider='CASHEA_ORDERS' THEN jsonb_array_length(v_orders) ELSE coalesce(t.n,0) END,
-  'in_ves',coalesce(t.in_ves,0),'out_ves',coalesce(t.out_ves,0),'not_final',coalesce(t.pending,0),
+  'in_ves',coalesce(t.in_ves,0),'out_ves',coalesce(t.out_ves,0),
+  'own_in_ves',coalesce(t.own_in_ves,0),'unattributed_in_ves',coalesce(t.unattributed_in_ves,0),
+  'not_final',coalesce(t.pending,0),
   'coverage',CASE WHEN coalesce(t.n,0)=0 AND p.provider<>'CASHEA_ORDERS' THEN 'SIN_EXTRACTO'
    WHEN p.provider='CASHEA_ORDERS' AND jsonb_array_length(v_orders)=0 THEN 'SIN_EXTRACTO'
    WHEN p.provider='CASHEA_ORDERS' THEN 'REVISAR_ORDENES'
@@ -75,7 +78,9 @@ BEGIN
   SELECT count(*) n,
    coalesce(sum((j->>'amount')::numeric) FILTER(WHERE j->>'direction'='IN' AND j->>'currency'='VES'),0) in_ves,
    coalesce(sum((j->>'amount')::numeric) FILTER(WHERE j->>'direction'='OUT' AND j->>'currency'='VES'),0) out_ves,
-   count(*) FILTER(WHERE j->>'reconciliation_status'<>'CONCILIADO') pending
+   count(*) FILTER(WHERE j->>'reconciliation_status' NOT IN ('CONCILIADO','NO_ATRIBUIDO_A_OS')) pending,
+   coalesce(sum((j->>'amount')::numeric) FILTER(WHERE j->>'direction'='IN' AND j->>'currency'='VES' AND j->>'ownership_status'='OWN'),0) own_in_ves,
+   coalesce(sum((j->>'amount')::numeric) FILTER(WHERE j->>'direction'='IN' AND j->>'currency'='VES' AND j->>'ownership_status'<>'OWN'),0) unattributed_in_ves
   FROM jsonb_array_elements(v_rows) j WHERE j->>'provider'=p.provider
  ) t ON true;
  SELECT rp.status INTO v_period_status FROM public.finance_reconciliation_periods rp
