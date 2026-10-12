@@ -9,7 +9,7 @@ type Provider = 'BDV'|'BNC'|'CASHEA_TRANSACTIONS'|'CASHEA_ORDERS';
 type Row = {provider:Provider;occurred_at:string;reference:string;description:string;direction:string;currency:string;amount:number|string;
  amount_ref:number|string|null;assigned_ref:number|string|null;external_order:string|null;order_number:string;
  balance:number|string|null;ownership_status:string;nature:string;category:string|null;reconciliation_status:string;
- amount_alloc:number|string;report_verified:boolean;reconciliation_reason:string;bank_cashea_match?:string;paired_reference?:string;paired_order?:string};
+ amount_alloc:number|string;report_verified:boolean;reconciliation_reason:string;time_precision?:string;bank_cashea_match?:string;paired_reference?:string;paired_order?:string};
 type CasheaOrder = {external_order:string;purchased_on:string;status:string;total_ref:number|string;initial_ref:number|string;
  invoice_no:string|null;order_number:string;relation_status:string;report_verified:boolean;installments:unknown};
 type Source = {provider:Provider;records:number;in_ves:number|string;out_ves:number|string;own_in_ves:number|string;unattributed_in_ves:number|string;not_final:number;coverage:string};
@@ -36,7 +36,7 @@ function transactionRows(report:Report,provider:Provider):unknown[][]{
  const header=['Fuente','Fecha y hora Caracas','Referencia','Descripción','Entrada/Salida','Importe original','Moneda',
  'Monto referencial USD','Asignado USD Cashea','Saldo banco VES','Orden Cashea','Orden OS','Pertenencia','Naturaleza','Categoría','Importe relacionado','Estado conciliación','Reporte verificado','Justificación','Coincidencia BNC-Cashea','Referencia contraparte','Orden Cashea vinculada'];
  const rows=report.transactions.filter(row=>row.provider===provider).map(t=>[
- providerLabels[provider],t.occurred_at,t.reference,t.description,t.direction,t.amount,t.currency,t.amount_ref,t.assigned_ref,
+ providerLabels[provider],t.time_precision==='DATE_ONLY'?t.occurred_at.slice(0,10)+' · hora no disponible':t.occurred_at,t.reference,t.description,t.direction,t.amount,t.currency,t.amount_ref,t.assigned_ref,
  t.balance,t.external_order,t.order_number,t.ownership_status,t.nature,t.category,t.amount_alloc,t.reconciliation_status,
  t.report_verified?'SÍ':'NO',t.reconciliation_reason,t.bank_cashea_match||'NO',t.paired_reference||'',t.paired_order||''
  ]);
