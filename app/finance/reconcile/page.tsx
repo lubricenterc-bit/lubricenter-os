@@ -117,6 +117,7 @@ export default function WeeklyReconciliationPage() {
     <section className="brand-hero">
       <div><div className="eyebrow">CUADRE OBLIGATORIO</div><h1>Conciliación semanal</h1><p>Lunes a domingo. Explica lo que el sistema no pueda resolver y no repitas el gasto en otro módulo.</p></div>
       <Link className="btn" href="/finance/inbox">Herramientas avanzadas</Link>
+      <Link className="btn" href="/finance/export">Exportar conciliación</Link>
     </section>
     {error && <div className="error" role="alert">{error}</div>}
     {notice && <div className="success" role="status">{notice}</div>}
