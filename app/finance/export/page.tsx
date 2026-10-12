@@ -81,8 +81,8 @@ export default function FinanceExportPage(){
    <p className="muted small">Los CSV se descargan a tu computadora, compatibles con Excel. Solo usuarios financieros autorizados pueden consultar la información.</p>
   </section>
   {report&&<section className="card stack">
-    <div className="row-between"><h2>Conciliación del {report.from} al {report.to}</h2><span className="pill">BORRADOR · NO CERRADO</span></div>
-    <p className="finance-warning">Este documento no certifica el cierre semanal. Deben verificarse los extractos bancarios, los movimientos pendientes y los saldos de cada cuenta. Los pagos Cashea del BNC son una sola entrada de dinero, aunque figuren en dos evidencias.</p>
+    <div className="row-between"><h2>Conciliación del {report.from} al {report.to}</h2><span className={report.status==="CONCILIADO"?"pill ok":"pill"}>{report.status==="CONCILIADO"?"CONCILIACIÓN CERRADA":report.status==="CIERRE_CON_EXCEPCIONES"?"CIERRE CON EXCEPCIONES":"BORRADOR · NO CERRADO"}</span></div>
+    {report.status!=="CONCILIADO"&&<p className="finance-warning">Este documento no certifica el cierre semanal. Deben verificarse los extractos bancarios, los movimientos pendientes y los saldos de cada cuenta. Los pagos Cashea del BNC son una sola entrada de dinero, aunque figuren en dos evidencias.</p>}
     <div className="row-between"><div><strong>Resumen general</strong><p className="muted small">{report.pending_transactions} transacciones sin conciliación final según los archivos importados.</p></div>
      <button className="btn btn-primary" onClick={()=>summaryCsv(report)}>Exportar resumen CSV</button></div>
     {report.sources.map(s=><div className="order-item row-between" key={s.provider}>
