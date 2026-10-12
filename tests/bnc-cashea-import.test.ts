@@ -6,6 +6,12 @@ let db:PGlite;
 beforeAll(async()=>{
  db=new PGlite();
  await db.exec(gunzipSync(readFileSync('tests/fixtures/production-structure.sql.gz')).toString());
+ // The compact fixture predates Finance Core. Add only the dependency tables needed to compile the migration.
+ await db.exec(`
+  create table if not exists public.financial_accounts(id uuid primary key default gen_random_uuid(),code text,currency text,active boolean);
+  create table if not exists public.external_sources(id uuid primary key default gen_random_uuid(),provider text, name text, account_id uuid, external_account text,currency text,active boolean);
+  create table if not exists public.external_transactions(id uuid primary key default gen_random_uuid());
+ `);
  await db.exec(readFileSync('supabase/migrations/20261012090000_finance_export_individual_sources.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20261012100000_bnc_statement_cashea_links.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20261012102000_finance_export_bnc_linked.sql','utf8'));
