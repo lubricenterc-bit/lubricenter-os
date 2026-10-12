@@ -1,7 +1,7 @@
 -- Read-only, owner/admin-only historical reconciliation evidence. Does not close periods or modify cash.
 CREATE OR REPLACE FUNCTION lubricenter_private.finance_export_period(p_from date,p_to date)
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $f$
-DECLARE v_rows jsonb;v_orders jsonb;v_sources jsonb;v_total integer;v_pending integer;v_export jsonb;
+DECLARE v_rows jsonb;v_orders jsonb;v_sources jsonb;v_total integer;v_pending integer;v_period_status text;v_is_final boolean;
 BEGIN
  PERFORM lubricenter_private.finance_require();
  IF p_from IS NULL OR p_to IS NULL OR p_to<p_from OR p_to-p_from>92 THEN
@@ -62,9 +62,11 @@ BEGIN
  SELECT count(*) INTO v_pending FROM jsonb_array_elements(v_rows) z
  WHERE z->>'reconciliation_status'<>'CONCILIADO';
 
- SELECT jsonb_agg(jsonb_build_object('provider',p.provider,'records',coalesce(t.n,0),
+ SELECT jsonb_agg(jsonb_build_object('provider',p.provider,
+  'records',CASE WHEN p.provider='CASHEA_ORDERS' THEN jsonb_array_length(v_orders) ELSE coalesce(t.n,0) END,
   'in_ves',coalesce(t.in_ves,0),'out_ves',coalesce(t.out_ves,0),'not_final',coalesce(t.pending,0),
   'coverage',CASE WHEN coalesce(t.n,0)=0 AND p.provider<>'CASHEA_ORDERS' THEN 'SIN_EXTRACTO'
+   WHEN p.provider='CASHEA_ORDERS' AND jsonb_array_length(v_orders)=0 THEN 'SIN_EXTRACTO'
    WHEN p.provider='CASHEA_ORDERS' THEN 'REVISAR_ORDENES'
    WHEN coalesce(t.pending,0)>0 THEN 'CONCILIACION_PENDIENTE'
    ELSE 'CONCILIADO_EN_REGISTROS' END)) INTO v_sources
@@ -76,8 +78,17 @@ BEGIN
    count(*) FILTER(WHERE j->>'reconciliation_status'<>'CONCILIADO') pending
   FROM jsonb_array_elements(v_rows) j WHERE j->>'provider'=p.provider
  ) t ON true;
+ SELECT rp.status INTO v_period_status FROM public.finance_reconciliation_periods rp
+ WHERE rp.period_start<=p_from AND rp.period_end>=p_to
+ ORDER BY rp.period_start DESC LIMIT 1;
+ v_is_final:=coalesce(v_period_status='CLOSED',false)
+  AND v_pending=0
+  AND (SELECT count(*) FROM jsonb_array_elements(v_sources) z WHERE z->>'coverage'='SIN_EXTRACTO')=0
+  AND NOT EXISTS (SELECT 1 FROM public.external_import_batches b JOIN public.external_sources s ON s.id=b.source_id
+     WHERE b.observed_from<=p_to AND b.observed_to>=p_from AND s.provider IN ('BDV','BNC','CASHEA_TRANSACTIONS','CASHEA_ORDERS')
+       AND (b.status<>'COMPLETE' OR b.verified_at IS NULL));
  RETURN jsonb_build_object('from',p_from,'to',p_to,'generated_at',now(),
-  'status','BORRADOR_HASTA_VERIFICAR_COBERTURA_SALDOS_Y_PENDIENTES',
+  'status',CASE WHEN v_is_final THEN 'CONCILIADO' WHEN v_period_status='CLOSED_WITH_EXCEPTION' THEN 'CIERRE_CON_EXCEPCIONES' ELSE 'BORRADOR_HASTA_VERIFICAR_COBERTURA_SALDOS_Y_PENDIENTES' END,
   'transactions',v_rows,'orders',v_orders,'sources',v_sources,'pending_transactions',v_pending,
   'pending_note','Las cuotas Cashea y los abonos BNC son evidencias de fuentes distintas: no sumar ambos como dos ingresos. Los reportes sin cobertura verificada no son conciliación final.');
 END $f$;
