@@ -5,7 +5,7 @@ import { FinanceTaskList } from '@/components/finance-task-list';
 import { FinanceNotifications } from '@/components/finance-notifications';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { parseBdv, parseCashea, type Preview, type Provider } from '@/lib/finance/importers';
+import { parseBdv, parseBnc, parseCashea, type Preview, type Provider } from '@/lib/finance/importers';
 import { D, natures, type Nature } from '@/lib/finance/money';
 
 type Source = { id: string; name: string; provider: Provider; external_account: string };
@@ -24,7 +24,7 @@ function monthRange(month: string) {
   const end = new Date(Date.UTC(year, number, 0)).toISOString().slice(0, 10);
   return { from: `${month}-01`, to: end > today() ? today() : end };
 }
-const labels: Record<Provider, string> = { BDV: 'Banco de Venezuela · pegar movimientos', CASHEA_TRANSACTIONS: 'Cashea · cobros (export.xlsx)', CASHEA_ORDERS: 'Cashea · órdenes (ordenes.xlsx)' };
+const labels: Record<Provider, string> = { BDV: 'Banco de Venezuela · pegar movimientos', BNC: 'BNC · movimientos normalizados (Fecha, Referencia, Descripción, Débito/Crédito, Monto, Saldo)', CASHEA_TRANSACTIONS: 'Cashea · cobros (export.xlsx)', CASHEA_ORDERS: 'Cashea · órdenes (ordenes.xlsx)' };
 
 export default function FinanceInbox() {
   const [data, setData] = useState<Data | null>(null), [role, setRole] = useState(''), [offset, setOffset] = useState(0);
@@ -159,7 +159,7 @@ function ImportForm({ sources, selection, busy, run, onDone }: { sources: Source
   return <section className="card stack"><h2>Traer movimientos</h2>{!sources.length ? <p>El dueño debe configurar primero Banco de Venezuela y las fuentes Cashea.</p> : <>
     <label>Origen<select className="select" value={source} onChange={e => { setSource(e.target.value); setPreview(null); }} disabled={busy}>{sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
     <div className="grid grid-2"><label>Desde<input className="input" type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} /></label><label>Hasta<input className="input" type="date" value={to} min={from} max={today()} onChange={e => setTo(e.target.value)} /></label></div>
-    {selected?.provider === 'BDV' ? <><label>Copia todas las páginas del período, con encabezados y saldos<textarea className="textarea" rows={8} value={text} onChange={e => { setText(e.target.value); setPreview(null); }} placeholder="Fecha · Referencia · Descripción · Débito / Crédito · Monto · Saldo" /></label><button className="btn" disabled={busy || !text.trim()} onClick={() => { setPreview(parseBdv(text)); setName('Movimientos BDV'); }}>Revisar datos pegados</button></> : <label>{selected && labels[selected.provider]}<input className="input" type="file" accept=".xlsx" disabled={busy} onChange={e => run(() => file(e.target.files?.[0]))} /></label>}
+    {(selected?.provider === 'BDV' || selected?.provider === 'BNC') ? <><label>Copia todas las páginas del período, con encabezados y saldos<textarea className="textarea" rows={8} value={text} onChange={e => { setText(e.target.value); setPreview(null); }} placeholder="Fecha · Referencia · Descripción · Débito / Crédito · Monto · Saldo" /></label><button className="btn" disabled={busy || !text.trim()} onClick={() => { setPreview(selected?.provider === 'BNC' ? parseBnc(text) : parseBdv(text)); setName(selected?.provider === 'BNC'?'Movimientos BNC':'Movimientos BDV'); }}>Revisar datos pegados</button></> : <label>{selected && labels[selected.provider]}<input className="input" type="file" accept=".xlsx" disabled={busy} onChange={e => run(() => file(e.target.files?.[0]))} /></label>}
     {preview && <div className="stack"><div className="card"><strong>{preview.rows.length + preview.orders.length} filas válidas · {preview.duplicates} duplicadas omitidas</strong><p>{preview.observed_from} → {preview.observed_to}</p>{preview.balance_chain !== null && <span>Secuencia de saldos: {preview.balance_chain ? 'coherente' : 'con saltos'}</span>}</div>
       {!!preview.errors.length && <div className="error">Corrige {preview.errors.length} errores antes de importar: {preview.errors.slice(0, 5).map(e => `fila ${e.row}: ${e.message}`).join(' · ')}</div>}
       {!!preview.warnings.length && <div className="finance-warning card">{preview.warnings.length} observaciones. Se conservarán para revisión: {preview.warnings.slice(0, 3).map(e => `fila ${e.row}: ${e.message}`).join(' · ')}</div>}
