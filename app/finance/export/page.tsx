@@ -8,7 +8,7 @@ type Provider = 'BDV'|'BNC'|'CASHEA_TRANSACTIONS'|'CASHEA_ORDERS';
 type Row = {provider:Provider;occurred_at:string;reference:string;description:string;direction:string;currency:string;amount:number|string;
  amount_ref:number|string|null;assigned_ref:number|string|null;external_order:string|null;order_number:string;
  balance:number|string|null;ownership_status:string;nature:string;category:string|null;reconciliation_status:string;
- amount_alloc:number|string;report_verified:boolean;reconciliation_reason:string};
+ amount_alloc:number|string;report_verified:boolean;reconciliation_reason:string;cabudare_attribution?:string;cashea_link_reference?:string|null;cashea_bank_match_method?:string|null};
 type CasheaOrder = {external_order:string;purchased_on:string;status:string;total_ref:number|string;initial_ref:number|string;
  invoice_no:string|null;order_number:string;relation_status:string;report_verified:boolean;installments:unknown};
 type Source = {provider:Provider;records:number;in_ves:number|string;out_ves:number|string;own_in_ves:number|string;unattributed_in_ves:number|string;not_final:number;coverage:string};
