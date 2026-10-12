@@ -11,7 +11,7 @@ type Row = {provider:Provider;occurred_at:string;reference:string;description:st
  amount_alloc:number|string;report_verified:boolean;reconciliation_reason:string};
 type CasheaOrder = {external_order:string;purchased_on:string;status:string;total_ref:number|string;initial_ref:number|string;
  invoice_no:string|null;order_number:string;relation_status:string;report_verified:boolean;installments:unknown};
-type Source = {provider:Provider;records:number;in_ves:number|string;out_ves:number|string;not_final:number;coverage:string};
+type Source = {provider:Provider;records:number;in_ves:number|string;out_ves:number|string;own_in_ves:number|string;unattributed_in_ves:number|string;not_final:number;coverage:string};
 type Report = {from:string;to:string;generated_at:string;status:string;transactions:Row[];orders:CasheaOrder[];
  sources:Source[];pending_transactions:number;pending_note:string};
 const providerLabels:Record<Provider,string>={BDV:'Banco de Venezuela',BNC:'Banco Nacional de Crédito',
@@ -48,10 +48,10 @@ function orderCsv(report:Report){
  saveCsv(`Lubricenter_CASHEA_ORDENES_${report.from}_${report.to}.csv`,[header,...rows]);
 }
 function summaryCsv(report:Report){
- const header=['Fuente','Movimientos importados','Entradas Bs','Salidas Bs','Movimientos pendientes','Cobertura'];
+ const header=['Fuente','Movimientos importados','Entradas totales Bs','Entradas vinculadas OS/cuenta propia Bs','Entradas NO atribuidas Bs','Salidas Bs','Movimientos pendientes','Cobertura'];
  const rows=report.sources.map(s=>[providerLabels[s.provider],s.provider==='CASHEA_ORDERS'?report.orders.length:s.records,
- s.in_ves,s.out_ves,s.not_final,s.coverage]);
- rows.push(['ESTADO GENERAL',report.status,'','','',report.pending_note]);
+ s.in_ves,s.own_in_ves,s.unattributed_in_ves,s.out_ves,s.not_final,s.coverage]);
+ rows.push(['ESTADO GENERAL',report.status,'','','','','',report.pending_note]);
  saveCsv(`Lubricenter_RESUMEN_CONCILIACION_${report.from}_${report.to}.csv`,[header,...rows]);
 }
 export default function FinanceExportPage(){
@@ -78,7 +78,7 @@ export default function FinanceExportPage(){
     <label>Hasta <input type="date" className="input" value={to} onChange={e=>setTo(e.target.value)} min={from} max={localToday()}/></label>
    </div>
    <button className="btn btn-primary" onClick={refresh} disabled={busy}>{busy?'Consultando evidencias…':'Generar resumen y anexos'}</button>
-   <p className="muted small">Los CSV se descargan a tu computadora, compatibles con Excel. Solo usuarios financieros autorizados pueden consultar la información.</p>
+   <p className="muted small">Los CSV se descargan a tu computadora, compatibles con Excel. Solo usuarios financieros autorizados pueden consultar la información. Los cobros Cashea sin orden OS se muestran como evidencia externa NO atribuida a Cabudare.</p>
   </section>
   {report&&<section className="card stack">
     <div className="row-between"><h2>Conciliación del {report.from} al {report.to}</h2><span className={report.status==="CONCILIADO"?"pill ok":"pill"}>{report.status==="CONCILIADO"?"CONCILIACIÓN CERRADA":report.status==="CIERRE_CON_EXCEPCIONES"?"CIERRE CON EXCEPCIONES":"BORRADOR · NO CERRADO"}</span></div>
