@@ -17,7 +17,7 @@ BEGIN
 
  SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY t.occurred_at,t.provider,t.reference),'[]'::jsonb) INTO v_rows FROM (
  SELECT x.id, s.provider,s.name source_name,timezone('America/Caracas',x.occurred_at) occurred_at,
-   x.reference,x.description,x.direction,x.currency,x.amount,x.balance,x.external_order,
+   x.reference,x.description,x.direction,x.currency,x.amount,x.balance,x.external_order,x.raw->>'time_precision' time_precision,
    x.installments,x.amount_ref,x.assigned_ref,x.ownership_status,x.nature,x.category,x.classification_reason,
    coalesce(os.order_number,op.order_number,ob.order_number,'') order_number,
    case when pair_b.bank_transaction_id is not null or pair_c.cashea_transaction_id is not null
