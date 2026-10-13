@@ -143,8 +143,7 @@ begin
   return pg_catalog.jsonb_build_object('ok', true, 'products', v_catalog_count,
     'product_changes', v_product_changes, 'rate_changes', v_rate_changes, 'synced_at', p_synced_at);
 end
-$function$
-
+$function$;
 
 -- Disable the older bulk catalog import RPC as it bypasses the dedicated audit flow.
 create or replace function public.sync_catalog_products(p_products jsonb)
