@@ -60,17 +60,17 @@ afterEach(async()=>{await db.exec("rollback");await root()});
 describe("Invoice sales take precedence over collections",()=>{
   it("counts the full invoice in BCV including financed portions while excluding real USD",async()=>{
     await root();
-    const idA=(await db.query<{id:string}>(\`insert into public.orders(status,total_ves,total_ref,closed_at,business_at)
-      values('CLOSED',80000,100,'2026-09-10T15:00:00-04:00','2026-09-10T15:00:00-04:00') returning id\`)).rows[0].id;
-    const idB=(await db.query<{id:string}>(\`insert into public.orders(status,total_ves,total_ref,closed_at,business_at)
-      values('CLOSED',80000,100,'2026-09-11T15:00:00-04:00','2026-09-11T15:00:00-04:00') returning id\`)).rows[0].id;
-    await db.query(\`insert into public.order_items
+    const idA=(await db.query<{id:string}>(`insert into public.orders(status,total_ves,total_ref,closed_at,business_at)
+      values('CLOSED',80000,100,'2026-09-10T15:00:00-04:00','2026-09-10T15:00:00-04:00') returning id`)).rows[0].id;
+    const idB=(await db.query<{id:string}>(`insert into public.orders(status,total_ves,total_ref,closed_at,business_at)
+      values('CLOSED',80000,100,'2026-09-11T15:00:00-04:00','2026-09-11T15:00:00-04:00') returning id`)).rows[0].id;
+    await db.query(`insert into public.order_items
       (order_id,item_type,business_area,description,charged_ves_amount,charged_ref_amount,bcv_rate_snapshot,operative_rate_snapshot)
       values($1,'SERVICE','WORKSHOP','Test',80000,100,800,900),
-            ($2,'SERVICE','WORKSHOP','Test',80000,80,1000,1100)\`,[idA,idB]);
-    await db.query(\`insert into public.payments
+            ($2,'SERVICE','WORKSHOP','Test',80000,80,1000,1100)`,[idA,idB]);
+    await db.query(`insert into public.payments
       (order_id,method,currency,amount_original,value_ves,value_ref,bcv_rate_snapshot,operative_rate_snapshot)
-      values($1,'CASH_USD','USD',20,16000,20,800,900)\`,[idA]);
+      values($1,'CASH_USD','USD',20,16000,20,800,900)`,[idA]);
     await asOwner();
     const result=(await db.query<{data:any}>("select public.finance_sales_bcv('2026-09-10','2026-09-11') as data")).rows[0].data;
     expect(Number(result.sales_ves)).toBe(144000);
