@@ -21,6 +21,26 @@ async function dashboard():Promise<any>{
 beforeAll(async()=>{
   db=new PGlite();
   await db.exec(gunzipSync(readFileSync("tests/fixtures/production-structure.sql.gz")).toString());
+  // The fixture predates Finance Core. Reproduce the current dependency chain.
+  await db.exec(readFileSync("supabase/migrations/20260924145617_usd_pricing_payroll_review.sql","utf8"));
+  for (const file of [
+    "20260923145542_finance_core_v22.sql",
+    "20260923150824_finance_reconciliation_v22.sql",
+    "20260923150830_finance_cash_v22.sql",
+    "20260925103000_finance_cashea_mixed_accounts_usd_quick_sale.sql",
+    "20260930143615_finance_integrity_residuals.sql",
+    "20260930151245_finance_report_navigation.sql",
+    "20260930153613_finance_conflict_visibility.sql",
+    "20260930154654_finance_allocation_guard.sql",
+    "20260930155832_finance_cash_anchor_review.sql",
+    "20260930160819_finance_cash_due_tasks.sql",
+    "20260930175314_cashea_merchant_balance.sql",
+    "20261001132405_cash_change_phone_alerts.sql",
+    "20261001154229_exact_bcv_digital_checkout.sql",
+    "20261001153446_finance_followup.sql",
+    "20261007210757_finance_weekly_reconciliation_core.sql",
+    "20261007211631_finance_rules_resolve_outflows.sql",
+  ]) await db.exec(readFileSync("supabase/migrations/" + file,"utf8"));
   await db.exec(readFileSync("supabase/migrations/20261013170000_finance_three_currency_views.sql","utf8"));
   await db.exec("insert into auth.users values('"+owner+"','lubricenterc@gmail.com',now())");
   await db.exec("insert into public.financial_accounts(id,code,name,currency,account_type) values "+
