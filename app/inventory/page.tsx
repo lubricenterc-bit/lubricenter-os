@@ -152,9 +152,9 @@ export default function InventoryPage() {
   const units = rows.reduce((sum, r) => sum + Math.max(r.quantity_on_hand, 0), 0);
   const review = rows.filter(r => r.needs_review || r.quantity_on_hand < 0).length;
   const catalogAge = sync?.catalogSyncedAt ? (Date.now() - new Date(sync.catalogSyncedAt).getTime()) / 3600000 : Infinity;
-  const rateTimes = [sync?.bcvEffectiveAt, sync?.operativeEffectiveAt].filter(Boolean) as string[];
-  const rateAge = rateTimes.length ? Math.max(...rateTimes.map(v => (Date.now() - new Date(v).getTime()) / 3600000)) : Infinity;
-  const pricingFresh = catalogAge <= 24 && rateAge <= 3;
+  const rateAge = sync?.bcvEffectiveAt ? (Date.now() - new Date(sync.bcvEffectiveAt).getTime()) / 3600000 : Infinity;
+  const pricingFresh = catalogAge <= 24 && rateAge >= 0 && rateAge <= 240
+    && Number(sync?.bcv ?? 0)>0 && Number(sync?.operative ?? 0)>0;
 
   function switchMode(next: "inventory" | "catalog") {
     setMode(next);
