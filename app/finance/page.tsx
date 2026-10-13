@@ -14,6 +14,7 @@ type FinanceAccount = ExpenseAccount & {
   code: string; name: string; currency: "VES" | "USD"; account_type: string;
   opening: number; incoming: number; outgoing: number; closing: number; counted: number | null;
 };
+type InvoiceSales = { orders: number; sales_ves: number; sales_bcv: number | null; sales_divisas_usd: number; warnings: { missing_order_bcv: number; usd_overpayment: number; excluded_cashea_other_or_unresolved: number } };
 type CurrencySummary = {
   period: { from: string; to: string };
   bs: Values; bcv: Values; usd: Values; operative: Values;
@@ -35,19 +36,20 @@ const VIEWS: { code: CurrencyView; label: string }[] = [
 ];
 const METRICS: Record<CurrencyView, Metric[]> = {
   VES: [
-    { title: "Ventas asignadas a Bs", key: "sales_assigned", help: "Porciones de órdenes cerradas asignadas a cobros en bolívares. La fecha es la de facturación.", formula: "Suma del importe nativo de pagos Bs de órdenes facturadas en el período. Excluye partes financiadas aún sin moneda de cobro." },
+    { title: "Ventas facturadas en Bs", key: "sales_assigned", help: "Ventas correspondientes a Bs, incluso las partes pendientes y financiadas en Cashea; se excluye la porción atribuida a divisas.", formula: "Total de cada factura en Bs menos su porción cobrada en USD/Zelle/Binance. Se filtra por fecha de factura, sin depender del día del cobro." },
     { title: "Cobros de ventas", key: "collections", help: "Dinero recibido por ventas en Bs en el período, aunque la factura sea anterior.", formula: "Entradas de movimientos PAYMENT en cuentas VES; no incluye transferencias internas." },
     { title: "Entradas a cuentas", key: "entries", help: "Todos los créditos en Bs de bancos y caja, incluso transferencias entre cuentas propias.", formula: "Suma de movimientos IN en cuentas VES, por fecha real del movimiento." },
     { title: "Salidas de cuentas", key: "outflows", help: "Todos los débitos en Bs. Las transferencias no son gastos del negocio.", formula: "Suma de movimientos OUT en cuentas VES; los egresos externos se presentan por separado." },
   ],
   BCV: [
-    { title: "Cobros de ventas $ BCV", key: "collections", help: "Equivalente de los pagos de clientes realmente recibidos en Bs.", formula: "Cada cobro en Bs / tasa BCV del momento de cobro, sumado individualmente." },
+    { title: "Ventas facturadas $ BCV", key: "sales_bcv", help: "Todas las ventas de las órdenes cerradas correspondientes a bolívares, incluidas las partes Cashea financiadas. Excluye lo pagado en efectivo USD, Zelle o Binance.", formula: "Cada factura en Bs menos su porción efectivamente atribuida a divisas, convertida a la tasa BCV histórica de esa factura. Se muestra por fecha de venta, no de cobro." },
+    { title: "Cobros de ventas $ BCV", key: "collections", help: "Pagos recibidos en Bs, incluso si la factura es anterior.", formula: "Cobros Bs / tasa BCV de cada cobro; no es facturación." },
     { title: "Entradas equivalentes", key: "entries", help: "Todas las entradas en Bs convertidas a tasa histórica BCV; no son dólares disponibles.", formula: "Suma por movimiento IN de Bs / BCV efectivo del movimiento." },
     { title: "Salidas equivalentes", key: "outflows", help: "Salidas en bolívares convertidas a tasa BCV histórica.", formula: "Suma por movimiento OUT de Bs / BCV efectivo del movimiento." },
     { title: "Entradas externas", key: "external_entries", help: "Entradas no procedentes de una transferencia entre cuentas propias.", formula: "Movimientos IN de Bs sin TRANSFER, convertidos individualmente; no equivale solo a ventas." },
   ],
   USD: [
-    { title: "Ventas asignadas a divisas", key: "sales_assigned", help: "Porciones de órdenes cerradas asignadas a pagos reales en USD/USDT, por fecha de factura.", formula: "Suma de pagos originales USD vinculados a órdenes facturadas en el período; no convierte pagos Bs." },
+    { title: "Ventas facturadas en divisas", key: "sales_assigned", help: "Porciones de órdenes cerradas pagadas en efectivo USD, Zelle o Binance (USDT 1:1), por fecha de factura.", formula: "Suma de pagos originales USD vinculados a órdenes facturadas en el período; no convierte pagos Bs." },
     { title: "Cobros de ventas", key: "collections", help: "USD reales o USDT cobrados por ventas durante el período.", formula: "Suma de movimientos PAYMENT en cuentas USD; Binance USDT se presenta nominalmente 1:1." },
     { title: "Entradas en divisas", key: "entries", help: "Dinero recibido en cuentas USD, incluyendo transferencias propias identificadas.", formula: "Suma de movimientos IN en cuentas USD, sin bolívares convertidos." },
     { title: "Salidas en divisas", key: "outflows", help: "Salidas reales de cuentas de divisas, separando traspasos de gastos.", formula: "Suma de movimientos OUT en cuentas USD." },
@@ -108,6 +110,7 @@ export default function FinancePage() {
   const [view, setView] = useState<CurrencyView>("USD");
   const [includeVes, setIncludeVes] = useState(false);
   const [data, setData] = useState<CurrencySummary | null>(null);
+  const [invoiceSales, setInvoiceSales] = useState<InvoiceSales | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [role, setRole] = useState("");
@@ -117,22 +120,24 @@ export default function FinancePage() {
     let live = true;
     (async () => {
       setLoading(true); setError("");
-      const [summary, financeRole] = await Promise.all([
+      const [summary, billing, financeRole] = await Promise.all([
         supabase.rpc("finance_currency_summary", { p_from: from, p_to: to }),
+        supabase.rpc("finance_sales_bcv", { p_from: from, p_to: to }),
         supabase.rpc("finance_role"),
       ]);
       if (!live) return;
       setLoading(false);
       setRole(String(financeRole.data ?? ""));
-      if (summary.error) { setData(null); setError(summary.error.message); return; }
+      if (summary.error || billing.error) { setData(null); setInvoiceSales(null); setError(summary.error?.message ?? billing.error?.message ?? "Error de facturación"); return; }
       setData(summary.data as CurrencySummary);
+      setInvoiceSales(billing.data as InvoiceSales);
     })();
     return () => { live = false; };
   }, [from, to]);
 
   const ownAccounts = useMemo(() => (data?.accounts ?? []).filter(a => a.account_type !== "RELATED"), [data]);
   const selectedAccounts = ownAccounts.filter(a => (view === "USD" ? "USD" : "VES") === a.currency);
-  const selected = data ? (view === "VES" ? data.bs : view === "BCV" ? data.bcv : data.usd) : {};
+  const selected: Values = data && invoiceSales ? { ...(view === "VES" ? data.bs : view === "BCV" ? data.bcv : data.usd), ...(view === "VES" ? { sales_assigned: invoiceSales.sales_ves } : view === "BCV" ? { sales_bcv: invoiceSales.sales_bcv } : { sales_assigned: invoiceSales.sales_divisas_usd }) } : {};
   const missingRates = view === "BCV" ? (data?.warnings.bcv_missing ?? 0) : view === "USD" && includeVes ? (data?.warnings.operative_missing ?? 0) : 0;
   const metricCurrency = view === "VES" ? "VES" : "USD";
 
@@ -187,7 +192,7 @@ export default function FinancePage() {
     </section>
     {loading && <div className="card muted">Calculando el período…</div>}
     {error && <div className="error">No se pudo cargar el nuevo resumen: {error}. Ningún saldo fue modificado.</div>}
-    {data && !loading && <>
+    {data && invoiceSales && !loading && <>
       <section className="stack">
         <div className="row-between">
           <h2 className="section-title" style={{ margin: 0 }}>{view === "VES" ? "Movimientos en bolívares" : view === "BCV" ? "Equivalentes a tasa BCV" : "Dinero real en divisas"}</h2>
@@ -197,6 +202,16 @@ export default function FinancePage() {
         <section className="grid grid-2">
           {METRICS[view].map(m => <MetricCard key={m.key} metric={m} row={selected} currency={metricCurrency} />)}
         </section>
+        {(view === "BCV" || view === "VES") && <div className="card stack" style={{ gap: 6 }}>
+          <div className="row-between"><strong className="small">Facturación del período</strong>
+            <Info title="Facturación, no cobros" help="La facturación incluye el total de ventas atribuido a Bs, también cuando Cashea financia una parte que todavía no se ha acreditado." formula="Valor facturado Bs − pagos en divisas de esas órdenes. Conversión $ BCV a tasa de venta; los cobros se calculan por separado a la tasa de cobro." /></div>
+          <div className="row-between small"><span>Órdenes cerradas</span><strong>{invoiceSales.orders}</strong></div>
+          <div className="row-between small"><span>Ventas en bolívares</span><strong>{fmtVes(invoiceSales.sales_ves)}</strong></div>
+          <div className="row-between small"><span>Equivalente a tasa BCV de venta</span><strong><Money value={invoiceSales.sales_bcv} currency="USD" /></strong></div>
+          <div className="row-between small"><span>Ventas en divisas excluidas</span><strong>{fmtRef(invoiceSales.sales_divisas_usd)}</strong></div>
+          <div className="muted small">Ventas por fecha de factura; cobros por fecha de pago. El equivalente no representa dinero recibido en dólares.</div>
+        </div>}
+        {(invoiceSales.warnings.missing_order_bcv > 0 || invoiceSales.warnings.usd_overpayment > 0 || invoiceSales.warnings.excluded_cashea_other_or_unresolved > 0) && <div className="error">Hay ventas con datos pendientes de revisión: BCV faltante ({invoiceSales.warnings.missing_order_bcv}), pagos en divisas superiores a factura ({invoiceSales.warnings.usd_overpayment}), Cashea sin atribución confirmada ({invoiceSales.warnings.excluded_cashea_other_or_unresolved}).</div>}
         <div className="card row-between">
           <div><strong>Flujo externo del período</strong><div className="muted small">Entradas externas menos salidas externas. No es utilidad ni saldo bancario.</div></div>
           <strong><Money currency={metricCurrency} value={valueFor(selected, "external_entries") === null || valueFor(selected, "external_outflows") === null

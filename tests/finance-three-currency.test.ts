@@ -42,6 +42,7 @@ beforeAll(async()=>{
     "20261007211631_finance_rules_resolve_outflows.sql",
   ]) await db.exec(readFileSync("supabase/migrations/" + file,"utf8"));
   await db.exec(readFileSync("supabase/migrations/20261013170000_finance_three_currency_views.sql","utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261013184500_finance_bcv_sales_invoice.sql","utf8"));
   await db.exec("insert into auth.users values('"+owner+"','lubricenterc@gmail.com',now())");
   await db.exec("insert into public.financial_accounts(id,code,name,currency,account_type) values "+
     "('"+bdv+"','FIN_TEST_BDV','Banco de Venezuela','VES','BANK'),"+
@@ -55,6 +56,35 @@ beforeAll(async()=>{
 afterAll(async()=>{await db?.close()});
 beforeEach(async()=>{await db.exec("begin");await asOwner()});
 afterEach(async()=>{await db.exec("rollback");await root()});
+
+describe("Invoice sales take precedence over collections",()=>{
+  it("counts the full invoice in BCV including financed portions while excluding real USD",async()=>{
+    await root();
+    const idA=(await db.query<{id:string}>(`insert into public.orders(status,total_ves,total_ref,closed_at,business_at)
+      values('CLOSED',80000,100,'2026-09-10T15:00:00-04:00','2026-09-10T15:00:00-04:00') returning id`)).rows[0].id;
+    const idB=(await db.query<{id:string}>(`insert into public.orders(status,total_ves,total_ref,closed_at,business_at)
+      values('CLOSED',80000,100,'2026-09-11T15:00:00-04:00','2026-09-11T15:00:00-04:00') returning id`)).rows[0].id;
+    await db.query(`insert into public.order_items
+      (order_id,item_type,business_area,description,charged_ves_amount,charged_ref_amount,bcv_rate_snapshot,operative_rate_snapshot)
+      values($1,'SERVICE','WORKSHOP','Test',80000,100,800,900),
+            ($2,'SERVICE','WORKSHOP','Test',80000,80,1000,1100)`,[idA,idB]);
+    await db.query(`insert into public.payments
+      (order_id,method,currency,amount_original,value_ves,value_ref,bcv_rate_snapshot,operative_rate_snapshot,financial_account_id)
+      values($1,'CASH_USD','USD',20,16000,20,800,900,$2)`,[idA,cash]);
+    await asOwner();
+    const result=(await db.query<{data:any}>("select public.finance_sales_bcv('2026-09-10','2026-09-11') as data")).rows[0].data;
+    expect(Number(result.sales_ves)).toBe(144000);
+    expect(Number(result.sales_bcv)).toBe(160);
+    expect(Number(result.sales_divisas_usd)).toBe(20);
+    expect(Number(result.orders)).toBe(2);
+  });
+  it("keeps financial billing access unavailable to anon",async()=>{
+    await root();
+    const r=await db.query<{ok:boolean}>("select has_function_privilege('anon','public.finance_sales_bcv(date,date)','EXECUTE') as ok");
+    expect(r.rows[0].ok).toBe(false);
+    await asOwner();
+  });
+});
 
 describe("Separated finance currencies",()=>{
   it("uses the historical BCV rate of each VES collection and never converts USD collections into Bs",async()=>{
