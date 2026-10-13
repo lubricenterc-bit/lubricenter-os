@@ -148,19 +148,27 @@ function TransferSheet({ accounts, onCancel, onDone }: { accounts: Account[]; on
   const [fromId, setFromId] = useState(accounts[0]?.id ?? "");
   const [toId, setToId] = useState(accounts[1]?.id ?? "");
   const [amount, setAmount] = useState(0);
+  const [toAmount, setToAmount] = useState(0);
   const [note, setNote] = useState("");
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const from = accounts.find(a => a.id === fromId);
-  const compatible = accounts.filter(a => a.id !== fromId && a.currency === from?.currency);
+  const compatible = accounts.filter(a => a.id !== fromId && a.account_type !== "RELATED");
+  const destination = accounts.find(a => a.id === toId);
+  const isFx = !!from && !!destination && from.currency !== destination.currency;
+  const exchangeRate = isFx && amount > 0 && toAmount > 0
+    ? (from?.currency === "VES" ? amount / toAmount : toAmount / amount) : null;
 
   useEffect(() => { if (toId === fromId || !compatible.some(a => a.id === toId)) setToId(compatible[0]?.id ?? ""); }, [fromId]);
 
   async function save() {
     if (!fromId || !toId || amount <= 0) return;
     setBusy(true); setError("");
-    const { error } = await supabase.rpc("record_internal_transfer", { p_from_account_id: fromId, p_to_account_id: toId, p_amount: amount, p_note: note.trim() || null, p_reference: reference.trim() || null });
+    if (isFx && (!toAmount || toAmount <= 0)) { setError("Indica el monto real recibido en la otra moneda."); setBusy(false); return; }
+    const { error } = isFx
+      ? await supabase.rpc("finance_transfer_fx", { p_from_account_id: fromId, p_to_account_id: toId, p_from_amount: amount, p_to_amount: toAmount, p_note: note.trim() || null, p_reference: reference.trim() || null })
+      : await supabase.rpc("record_internal_transfer", { p_from_account_id: fromId, p_to_account_id: toId, p_amount: amount, p_note: note.trim() || null, p_reference: reference.trim() || null });
     setBusy(false);
     if (error) return setError(error.message);
     await onDone();
@@ -170,11 +178,14 @@ function TransferSheet({ accounts, onCancel, onDone }: { accounts: Account[]; on
     <div className="row-between"><h2 style={{ margin: 0 }}>Transferencia interna</h2><button className="btn btn-ghost" onClick={onCancel}>Cerrar</button></div>
     <label><span className="label">Desde</span><select className="select" value={fromId} onChange={e => setFromId(e.target.value)}>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></label>
     <label><span className="label">Hacia</span><select className="select" value={toId} onChange={e => setToId(e.target.value)}>{compatible.map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></label>
-    <label><span className="label">Monto {from?.currency ?? ""}</span><input className="input" type="number" min="0" step="0.01" value={amount || ""} onChange={e => setAmount(Number(e.target.value))} /></label>
+    <label><span className="label">Monto que sale ({from?.currency ?? ""})</span><input className="input" type="number" min="0" step="0.01" value={amount || ""} onChange={e => setAmount(Number(e.target.value))} /></label>
+    {isFx && <><label><span className="label">Monto recibido ({destination?.currency === "USD" && destination.code === "BINANCE" ? "USDT" : destination?.currency})</span>
+      <input className="input" type="number" min="0" step="0.01" value={toAmount || ""} onChange={e => setToAmount(Number(e.target.value))} /></label>
+      <div className="muted small">Tasa ejecutada: {exchangeRate === null ? "indica ambos montos" : `${exchangeRate.toLocaleString("es-VE", { maximumFractionDigits: 6 })} Bs/USD`}. Se registran ambas cifras reales como una transferencia, sin crear ventas.</div></>}
     <label><span className="label">Nota</span><input className="input" value={note} onChange={e => setNote(e.target.value)} placeholder="Ej. transferencia a El Cuji" /></label>
     <label><span className="label">Referencia opcional</span><input className="input" value={reference} onChange={e => setReference(e.target.value)} /></label>
-    <div className="muted small">Una transferencia mueve el saldo entre cuentas; no aumenta ventas ni gastos.</div>
+    <div className="muted small">Una transferencia mueve saldos sin aumentar ventas ni ingresos comerciales. Si compraste USDT, introduce exactamente los Bs gastados y los USDT recibidos. Comisiones externas deben registrarse aparte.</div>
     {error && <div className="error">{error}</div>}
-    <button className="btn btn-primary btn-block" disabled={busy || !fromId || !toId || amount <= 0} onClick={save}>{busy ? "Moviendo…" : "Registrar transferencia"}</button>
+    <button className="btn btn-primary btn-block" disabled={busy || !fromId || !toId || amount <= 0 || (isFx && toAmount <= 0)} onClick={save}>{busy ? "Moviendo…" : isFx ? "Registrar conversión interna" : "Registrar transferencia"}</button>
   </div></div>;
 }
