@@ -50,9 +50,10 @@ export default function CashPage() {
   useEffect(() => { load(); }, []);
 
   const accountMap = useMemo(() => new Map(accounts.map(a => [a.id, a])), [accounts]);
-  const totalVes = accounts.filter(a => a.account_type !== "RELATED").reduce((sum, a) => sum + Number(a.balance_ves || 0), 0);
-  const cashUsd = accounts.find(a => a.code === "CASH_USD");
-  const banksVes = accounts.filter(a => a.account_type === "BANK" || a.account_type === "CLEARING").reduce((sum, a) => sum + Number(a.balance_native || 0), 0);
+  const ownVes = accounts.filter(a => a.currency === "VES" && a.account_type !== "RELATED");
+  const banksVes = ownVes.filter(a => a.account_type === "BANK").reduce((sum, a) => sum + Number(a.balance_native || 0), 0);
+  const cashVes = ownVes.filter(a => a.account_type === "CASH").reduce((sum, a) => sum + Number(a.balance_native || 0), 0);
+  const realUsd = accounts.filter(a => a.currency === "USD" && a.account_type !== "RELATED").reduce((sum, a) => sum + Number(a.balance_native || 0), 0);
 
   return <main className="container stack">
     <section className="brand-hero">
@@ -63,9 +64,9 @@ export default function CashPage() {
     {error && <div className="error">{error}</div>}
 
     <section className="grid grid-3">
-      <div className="card"><div className="muted small">VALOR REGISTRADO</div><div className="kpi">{fmtVes(totalVes)}</div><div className="muted small">Equivalente operativo de cuentas propias.</div></div>
-      <div className="card"><div className="muted small">BANCOS / PAGO MÓVIL</div><div className="kpi">{fmtVes(banksVes)}</div></div>
-      <div className="card"><div className="muted small">CAJA USD</div><div className="kpi">${Number(cashUsd?.balance_native ?? 0).toFixed(2)}</div></div>
+      <div className="card"><div className="muted small">BANCOS EN BOLÍVARES</div><div className="kpi">{fmtVes(banksVes)}</div><div className="muted small">Solo cuentas bancarias VES.</div></div>
+      <div className="card"><div className="muted small">CAJA EN BOLÍVARES</div><div className="kpi">{fmtVes(cashVes)}</div></div>
+      <div className="card"><div className="muted small">DIVISAS REALES (USD / USDT)</div><div className="kpi">${realUsd.toFixed(2)}</div><div className="muted small">Efectivo USD + Zelle + Binance nominal 1:1; no incluye Bs.</div></div>
     </section>
 
     <section className="row" style={{ flexWrap: "wrap" }}>
@@ -90,7 +91,7 @@ export default function CashPage() {
       {movements.map(m => {
         const a = accountMap.get(m.account_id);
         return <div className="order-item" key={m.id}>
-          <div className="row-between"><div><strong>{movementLabel(m)}</strong><div className="muted small">{a?.name ?? "Cuenta"} · {fmtDate(m.occurred_at)}{m.reference ? ` · Ref. ${m.reference}` : ""}</div>{m.note && <div className="muted small">{m.note}</div>}</div><div style={{ textAlign: "right" }}><strong style={{ color: m.direction === "IN" ? "var(--ok)" : "var(--danger)" }}>{m.direction === "IN" ? "+" : "−"}{m.currency === "USD" ? `$${Number(m.amount_original).toFixed(2)}` : fmtVes(m.amount_original)}</strong><div className="muted small">{fmtVes(m.value_ves)}</div></div></div>
+          <div className="row-between"><div><strong>{movementLabel(m)}</strong><div className="muted small">{a?.name ?? "Cuenta"} · {fmtDate(m.occurred_at)}{m.reference ? ` · Ref. ${m.reference}` : ""}</div>{m.note && <div className="muted small">{m.note}</div>}</div><div style={{ textAlign: "right" }}><strong style={{ color: m.direction === "IN" ? "var(--ok)" : "var(--danger)" }}>{m.direction === "IN" ? "+" : "−"}{m.currency === "USD" ? `$${Number(m.amount_original).toFixed(2)}` : fmtVes(m.amount_original)}</strong><div className="muted small">{m.currency === "USD" ? "Movimiento en divisas reales" : "Movimiento en Bs"}</div></div></div>
         </div>;
       })}
       {!movements.length && <div className="muted">Los movimientos aparecerán cuando registres pagos, gastos o transferencias.</div>}
