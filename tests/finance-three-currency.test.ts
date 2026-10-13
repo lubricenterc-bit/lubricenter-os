@@ -69,8 +69,8 @@ describe("Invoice sales take precedence over collections",()=>{
       values($1,'SERVICE','WORKSHOP','Test',80000,100,800,900),
             ($2,'SERVICE','WORKSHOP','Test',80000,80,1000,1100)`,[idA,idB]);
     await db.query(`insert into public.payments
-      (order_id,method,currency,amount_original,value_ves,value_ref,bcv_rate_snapshot,operative_rate_snapshot)
-      values($1,'CASH_USD','USD',20,16000,20,800,900)`,[idA]);
+      (order_id,method,currency,amount_original,value_ves,value_ref,bcv_rate_snapshot,operative_rate_snapshot,financial_account_id)
+      values($1,'CASH_USD','USD',20,16000,20,800,900,$2)`,[idA,cash]);
     await asOwner();
     const result=(await db.query<{data:any}>("select public.finance_sales_bcv('2026-09-10','2026-09-11') as data")).rows[0].data;
     expect(Number(result.sales_ves)).toBe(144000);
