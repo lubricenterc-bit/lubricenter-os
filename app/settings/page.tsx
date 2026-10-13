@@ -121,7 +121,6 @@ export default function SettingsPage() {
     setMessage("Plantilla post-servicio guardada. Las próximas órdenes cerradas usarán este formato.");
   }
 
-  const rateTimes = [bcvAt, operativeAt].filter(Boolean) as string[];
   const rateFresh = bcv > 0 && operative > 0 && !!bcvAt && new Date(bcvAt).getTime() <= Date.now() && Date.now()-new Date(bcvAt).getTime() <= 10*86400000;
   const catalogFresh = !!catalogAt && Date.now() - new Date(catalogAt).getTime() <= 24 * 3600000;
 
