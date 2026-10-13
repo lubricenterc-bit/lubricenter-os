@@ -101,12 +101,13 @@ export function filterCatalog(products: CatalogProduct[], filters: CatalogFilter
 
 export function catalogIsFresh(sync: CatalogSync | null, nowMs = Date.now()) {
   if (!sync?.catalogSyncedAt || !sync?.bcvEffectiveAt || !sync?.operativeEffectiveAt) return false;
-  const ages = [
-    nowMs - new Date(sync.catalogSyncedAt).getTime(),
-    nowMs - new Date(sync.bcvEffectiveAt).getTime(),
-    nowMs - new Date(sync.operativeEffectiveAt).getTime(),
-  ];
-  return ages.every((v, index) => Number.isFinite(v) && v >= -300000 && v <= (index === 0 ? 24 : 3) * 3600000);
+  if (!(sync.bcv > 0 && sync.operative > 0)) return false;
+  const catalogAge=nowMs-new Date(sync.catalogSyncedAt).getTime();
+  const bcvAge=nowMs-new Date(sync.bcvEffectiveAt).getTime();
+  // The operative rate is deliberately manual: its unchanged value never expires
+  // after three hours. BCV may be unchanged through extended bank holidays.
+  return Number.isFinite(catalogAge)&&catalogAge>=-300000&&catalogAge<=24*3600000
+    &&Number.isFinite(bcvAge)&&bcvAge>=-300000&&bcvAge<=10*86400000;
 }
 
 export function formatCatalogDate(value: string | null) {
