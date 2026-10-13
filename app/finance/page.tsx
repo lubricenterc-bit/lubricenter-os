@@ -14,6 +14,7 @@ type FinanceAccount = ExpenseAccount & {
   code: string; name: string; currency: "VES" | "USD"; account_type: string;
   opening: number; incoming: number; outgoing: number; closing: number; counted: number | null;
 };
+type InvoiceSales = { orders: number; sales_ves: number; sales_bcv: number | null; sales_divisas_usd: number; warnings: { missing_order_bcv: number; usd_overpayment: number; excluded_cashea_other_or_unresolved: number } };
 type CurrencySummary = {
   period: { from: string; to: string };
   bs: Values; bcv: Values; usd: Values; operative: Values;
@@ -109,6 +110,7 @@ export default function FinancePage() {
   const [view, setView] = useState<CurrencyView>("USD");
   const [includeVes, setIncludeVes] = useState(false);
   const [data, setData] = useState<CurrencySummary | null>(null);
+  const [invoiceSales, setInvoiceSales] = useState<InvoiceSales | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [role, setRole] = useState("");
@@ -118,22 +120,24 @@ export default function FinancePage() {
     let live = true;
     (async () => {
       setLoading(true); setError("");
-      const [summary, financeRole] = await Promise.all([
+      const [summary, billing, financeRole] = await Promise.all([
+        supabase.rpc("finance_sales_bcv", { p_from: from, p_to: to }),
         supabase.rpc("finance_currency_summary", { p_from: from, p_to: to }),
         supabase.rpc("finance_role"),
       ]);
       if (!live) return;
       setLoading(false);
       setRole(String(financeRole.data ?? ""));
-      if (summary.error) { setData(null); setError(summary.error.message); return; }
+      if (summary.error || billing.error) { setData(null); setInvoiceSales(null); setError(summary.error?.message ?? billing.error?.message ?? "Error de facturación"); return; }
       setData(summary.data as CurrencySummary);
+      setInvoiceSales(billing.data as InvoiceSales);
     })();
     return () => { live = false; };
   }, [from, to]);
 
   const ownAccounts = useMemo(() => (data?.accounts ?? []).filter(a => a.account_type !== "RELATED"), [data]);
   const selectedAccounts = ownAccounts.filter(a => (view === "USD" ? "USD" : "VES") === a.currency);
-  const selected = data ? (view === "VES" ? data.bs : view === "BCV" ? data.bcv : data.usd) : {};
+  const selected: Values = data && invoiceSales ? { ...(view === "VES" ? data.bs : view === "BCV" ? data.bcv : data.usd), ...(view === "VES" ? { sales_assigned: invoiceSales.sales_ves } : view === "BCV" ? { sales_bcv: invoiceSales.sales_bcv } : { sales_assigned: invoiceSales.sales_divisas_usd }) } : {};
   const missingRates = view === "BCV" ? (data?.warnings.bcv_missing ?? 0) : view === "USD" && includeVes ? (data?.warnings.operative_missing ?? 0) : 0;
   const metricCurrency = view === "VES" ? "VES" : "USD";
 
@@ -188,7 +192,7 @@ export default function FinancePage() {
     </section>
     {loading && <div className="card muted">Calculando el período…</div>}
     {error && <div className="error">No se pudo cargar el nuevo resumen: {error}. Ningún saldo fue modificado.</div>}
-    {data && !loading && <>
+    {data && invoiceSales && !loading && <>
       <section className="stack">
         <div className="row-between">
           <h2 className="section-title" style={{ margin: 0 }}>{view === "VES" ? "Movimientos en bolívares" : view === "BCV" ? "Equivalentes a tasa BCV" : "Dinero real en divisas"}</h2>
