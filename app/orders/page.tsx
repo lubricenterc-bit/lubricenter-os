@@ -2,18 +2,32 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
-type Sale = {id:string;order_number:string;status:string;sale_at:string;customer_id:string|null;customer_name:string|null;plate:string|null;kind:string;total_ref:number;total_ves:number;payment_type:string;has_financed_sale:boolean;cancellation_reason:string|null};
+import { fmtDate, fmtRef, fmtVes, fmtRate } from "@/lib/format";
+type PaymentDetail = {method:string;currency:"VES"|"USD";amount_original:number;equivalent_bcv:number|null;reference_tail:string|null;paid_at:string|null};
+type CasheaInfo = {initial_percent:number;initial_bcv_usd:number;initial_ves:number;financed_bcv_usd:number;total_bcv_usd:number;bcv_rate:number;reference:string|null;initial_method:string|null;ownership_status:string;status:string};
+type Sale = {id:string;order_number:string;status:string;sale_at:string;customer_id:string|null;customer_name:string|null;plate:string|null;kind:string;services:string|null;total_ref:number;total_ves:number;payment_type:string;has_financed_sale:boolean;cancellation_reason:string|null;collected_ves:number;collected_usd:number;payment_details:PaymentDetail[];cashea:CasheaInfo|null};
+type Summary = {orders:number;closed:number;cashea:number;sales_ref:number;collected_ves:number;collected_usd:number;cashea_initial_bcv:number;cashea_initial_ves:number;cashea_financed_bcv:number};
+const BLANK:Summary={orders:0,closed:0,cashea:0,sales_ref:0,collected_ves:0,collected_usd:0,cashea_initial_bcv:0,cashea_initial_ves:0,cashea_financed_bcv:0};
+type DatePreset = "TODAY"|"YESTERDAY"|"WEEK"|"MONTH"|"ALL"|"CUSTOM";
+function caracasToday(){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Caracas",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());}
+function shiftDate(day:string,offset:number){const d=new Date(day+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+offset);return d.toISOString().slice(0,10);}
+function monday(day:string){const weekDay=new Date(day+"T12:00:00Z").getUTCDay();return shiftDate(day,-((weekDay+6)%7));}
+function methodLabel(name:string){return ({TRANSFER_BDV:"Banco de Venezuela",TRANSFER_BNC:"BNC",MOBILE_PAYMENT:"Pago móvil",CASH_VES:"Efectivo Bs",CASH_USD:"Efectivo USD",BINANCE:"Binance USDT",ZELLE:"Zelle"} as Record<string,string>)[name]??name.replaceAll("_"," ");}
+function whenVenezuela(value:string){return new Intl.DateTimeFormat("es-VE",{timeZone:"America/Caracas",dateStyle:"short",timeStyle:"short"}).format(new Date(value));}
+function Explanation({title,children}:{title:string;children:React.ReactNode}){return <details style={{position:"relative"}}><summary title={title} aria-label={title} style={{cursor:"pointer",listStyle:"none",color:"var(--muted)",padding:"2px 5px"}}>ⓘ</summary><div className="card small" style={{position:"absolute",top:25,right:0,zIndex:5,width:"min(280px,74vw)",boxShadow:"0 12px 25px #0003"}}><strong>{title}</strong><p>{children}</p></div></details>;}
+function Metric({label,value,ves,description}:{label:string;value:number;ves?:boolean;description:string}){return <div className="card"><div className="row-between" style={{gap:5}}><span className="small muted">{label}</span><Explanation title={label}>{description}</Explanation></div><div className="kpi" style={{wordBreak:"break-word"}}>{ves?fmtVes(value):fmtRef(value)}</div></div>;}
 export default function OrdersPage() {
  const [rows,setRows]=useState<Sale[]>([]),[count,setCount]=useState(0),[page,setPage]=useState(0);
- const [query,setQuery]=useState(""),[status,setStatus]=useState("ALL"),[from,setFrom]=useState(""),[to,setTo]=useState("");
+ const [summary,setSummary]=useState<Summary>(BLANK),[paymentFilter,setPaymentFilter]=useState("ALL"),[preset,setPreset]=useState<DatePreset>("TODAY");
+ const [query,setQuery]=useState(""),[status,setStatus]=useState("CLOSED"),[from,setFrom]=useState(caracasToday()),[to,setTo]=useState(caracasToday());
  const [admin,setAdmin]=useState(false),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[revision,setRevision]=useState(0);
  const [cancel,setCancel]=useState<Sale|null>(null),[reason,setReason]=useState(""),[keepAsBalance,setKeepAsBalance]=useState(false);
  useEffect(()=>{supabase.rpc("can_administer_orders").then(({data})=>setAdmin(data===true));},[]);
  useEffect(()=>{let active=true;setLoading(true);const timer=setTimeout(async()=>{
-  const r=await supabase.rpc("search_order_admin",{p_query:query,p_status:status,p_from:from||null,p_to:to||null,p_page:page});
-  if(!active)return;setLoading(false);if(r.error){setRows([]);return setError(r.error.message);}setRows(r.data?.rows??[]);setCount(Number(r.data?.count??0));setError("");
- },250);return()=>{active=false;clearTimeout(timer);};},[query,status,from,to,page,revision]);
+  const r=await supabase.rpc("search_order_collection_v2",{p_query:query,p_status:status,p_from:from||null,p_to:to||null,p_page:page,p_payment_filter:paymentFilter});
+  if(!active)return;setLoading(false);if(r.error){setRows([]);setSummary(BLANK);return setError(r.error.message);}setRows(r.data?.rows??[]);setSummary(r.data?.summary??BLANK);setCount(Number(r.data?.count??0));setError("");
+ },250);return()=>{active=false;clearTimeout(timer);};},[query,status,from,to,page,revision,paymentFilter]);
+ function selectPeriod(p:DatePreset){setPreset(p);setPage(0);const today=caracasToday();if(p==="TODAY"){setFrom(today);setTo(today);}if(p==="YESTERDAY"){const d=shiftDate(today,-1);setFrom(d);setTo(d);}if(p==="WEEK"){setFrom(monday(today));setTo(today);}if(p==="MONTH"){setFrom(today.slice(0,7)+"-01");setTo(today);}if(p==="ALL"){setFrom("");setTo("");}}
  async function annul(){if(!cancel||busy||reason.trim().length<5)return;setBusy(true);setError("");const r=await supabase.rpc(keepAsBalance?"cancel_order_to_customer_balance":"cancel_order",{p_order_id:cancel.id,p_reason:reason.trim()});setBusy(false);if(r.error)return setError(r.error.message);setCancel(null);setReason("");setKeepAsBalance(false);setRevision(x=>x+1);}
  return <main className="container stack">
   <div className="row-between"><div><h1>Ventas y órdenes</h1><p className="muted">Órdenes y ventas reales. Los mantenimientos antiguos se consultan por separado, sin sumarlos a la facturación.</p></div><div className="row" style={{flexWrap:"wrap"}}><Link className="btn" href="/service-history">Historial de mantenimiento</Link><Link className="btn" href="/quick-sale">Venta rápida</Link><Link className="btn btn-primary" href="/orders/new">+ Orden completa</Link></div></div>
