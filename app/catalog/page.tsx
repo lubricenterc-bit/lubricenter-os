@@ -87,14 +87,14 @@ function ProductDetail({ item, onClose }: { item: CatalogProduct; onClose: () =>
       <button ref={closeButton} className="lc-catalog-dialog-close" onClick={onClose} aria-label="Cerrar detalle"><OsIcon name="close"/></button>
       <Photo url={item.image_url} name={item.name} large/>
       <div className="lc-catalog-dialog-content">
-        <div className="lc-catalog-kicker">FICHA DE PRODUCTO · NOTION</div>
+        <div className="lc-catalog-kicker">FICHA DE PRODUCTO · {item.catalog_source==="Lubricenter OS"?"LUBRICENTER OS":"NOTION"}</div>
         <h2 id="lc-catalog-detail-title">{item.name}</h2>
         <span className="lc-catalog-category">{item.category || "Sin categoría"}</span>
         <div className="lc-catalog-dialog-section">
           <div className="lc-catalog-dialog-section-title">Precios actuales</div>
           <PriceSet item={item}/>
         </div>
-        <p className="lc-catalog-dialog-caption">Precios sincronizados desde Notion. El importe en divisas corresponde al campo «Precio» de Notion; los equivalentes en Bs y dólares BCV reflejan las tasas sincronizadas.</p>
+        <p className="lc-catalog-dialog-caption">{item.catalog_source==="Lubricenter OS"?"Precio de venta administrado en Lubricenter OS. Los equivalentes en bolívares y dólares BCV se calculan con las tasas del sistema.":"Precio de venta sincronizado desde Notion durante la transición. Los equivalentes reflejan las tasas registradas."}</p>
         <div className="lc-catalog-dialog-actions">
           <button className="lc-catalog-button is-primary" onClick={() => void copyPrice()}>
             <OsIcon name={copyState === "done" ? "check" : "receipt"} size={17}/>
@@ -104,7 +104,7 @@ function ProductDetail({ item, onClose }: { item: CatalogProduct; onClose: () =>
           <button className="lc-catalog-button" onClick={onClose}>Volver</button>
         </div>
         {copyState === "error" && <p className="lc-catalog-copy-error" role="alert">Tu navegador impidió copiar. Puedes seleccionar los precios de esta ficha.</p>}
-        <div className="lc-catalog-dialog-footer">Última sincronización del producto: {formatCatalogDate(item.catalog_synced_at)}</div>
+        <div className="lc-catalog-dialog-footer">{item.catalog_source==="Lubricenter OS"?"Importación histórica: ":"Última sincronización: "}{formatCatalogDate(item.catalog_synced_at)}</div>
       </div>
     </section>
   </div>;
@@ -131,7 +131,7 @@ export default function CatalogPage() {
       supabase.rpc("get_pricing_sync_status"),
     ]);
     if (products.error || current.error) {
-      setError(products.error?.message || current.error?.message || "No fue posible cargar el catálogo de Notion.");
+      setError(products.error?.message || current.error?.message || "No fue posible cargar el catálogo.");
       setLoading(false);
       return;
     }
@@ -158,13 +158,14 @@ export default function CatalogPage() {
   const filtered = useMemo(() => filterCatalog(catalog, filters), [catalog, filters]);
   const withPhotos = catalog.filter(item => item.image_url).length;
   const upToDate = catalogIsFresh(sync);
+  const nativeCatalog = catalog.some(item=>item.catalog_source==="Lubricenter OS");
   const updateFilter = <K extends keyof CatalogFilters>(name: K, value: CatalogFilters[K]) =>
     setFilters(previous => ({ ...previous, [name]: value }));
 
   return <main className="container lc-catalog">
     <header className="lc-catalog-heading">
       <div>
-        <div className="lc-catalog-kicker"><OsIcon name="inventory" size={15}/> INVENTARIO / CATÁLOGO NOTION</div>
+        <div className="lc-catalog-kicker"><OsIcon name="inventory" size={15}/> INVENTARIO / {nativeCatalog?"CATÁLOGO LUBRICENTER OS":"CATÁLOGO NOTION"}</div>
         <h1><span className="mesa-commerce-number" aria-hidden="true">03 /</span> Catálogo<span className="mesa-commerce-dot">.</span></h1>
         <p>Consulta productos, fotografías y los tres precios de venta sin salir de Lubricenter OS.</p>
       </div>
@@ -173,7 +174,7 @@ export default function CatalogPage() {
         <Link href="/catalog/manage" className="lc-catalog-button">Administrar artículos</Link>
         <Link href="/quote" className="lc-catalog-button is-primary"><OsIcon name="receipt" size={17}/> Abrir cotizador</Link>
         <a href={NOTION_CATALOG_URL} target="_blank" rel="noopener noreferrer" className="lc-catalog-button">
-          Ver en Notion <OsIcon name="arrow" size={16}/>
+          {nativeCatalog?"Archivo histórico Notion":"Ver en Notion"} <OsIcon name="arrow" size={16}/>
         </a>
         <button className="lc-catalog-button is-primary" onClick={() => void load()} disabled={loading}>
           <OsIcon name="refresh" size={16}/>{loading ? "Cargando…" : "Actualizar catálogo"}
@@ -193,8 +194,8 @@ export default function CatalogPage() {
 
     <div className={"lc-catalog-sync" + (upToDate ? " is-fresh" : " is-stale")} role="status">
       <OsIcon name={upToDate ? "check" : "alert"} size={17}/>
-      <span><strong>{upToDate ? "Precios sincronizados" : "Verifica la actualización de precios"}</strong>
-        <small>Notion · Nuestros Productos · Última sincronización: {formatCatalogDate(sync?.catalogSyncedAt ?? null)}</small></span>
+      <span><strong>{upToDate ? (nativeCatalog?"Catálogo interno disponible":"Precios sincronizados") : "Verifica la actualización de precios"}</strong>
+        <small>{nativeCatalog?"Lubricenter OS · administración interna de precios":"Notion · Nuestros Productos · Última sincronización: "+formatCatalogDate(sync?.catalogSyncedAt??null)}</small></span>
       {!upToDate && <Link href="/settings">Revisar tasas</Link>}
     </div>
 
@@ -248,7 +249,7 @@ export default function CatalogPage() {
 
     <div className="lc-catalog-count" aria-live="polite">
       <span>{loading && !catalog.length ? "Cargando productos…" : filtered.length + " de " + catalog.length + " productos"}</span>
-      <small>Solo productos marcados «Disponible» en Notion. No representa el stock físico.</small>
+      <small>Solo artículos publicados como disponibles. No representa el stock físico ni las cantidades del Excel.</small>
     </div>
 
     {loading && !catalog.length && <div className="lc-catalog-grid">
@@ -258,7 +259,7 @@ export default function CatalogPage() {
     {!loading && !error && !filtered.length && <div className="lc-catalog-empty">
       <OsIcon name="search" size={34}/>
       <strong>{catalog.length ? "No se encontraron productos" : "El catálogo está vacío"}</strong>
-      <p>{catalog.length ? "Prueba otra búsqueda o elimina alguno de los filtros." : "Revisa la última sincronización de Notion."}</p>
+      <p>{catalog.length ? "Prueba otra búsqueda o elimina alguno de los filtros." : "Revisa los artículos publicados y su disponibilidad."}</p>
       {catalog.length > 0 && <button className="lc-catalog-button" onClick={() => setFilters({ query: "", category: "TODAS", imagesOnly: false, sort: "name" })}>Limpiar filtros</button>}
     </div>}
 
@@ -296,7 +297,7 @@ export default function CatalogPage() {
       </div>)}
     </section>}
 
-    <p className="lc-catalog-disclaimer">Los precios se actualizan mediante la integración existente de Notion. Este módulo es de consulta y no modifica los precios maestros ni el inventario físico.</p>
+    <p className="lc-catalog-disclaimer">{nativeCatalog?"El catálogo se administra desde Lubricenter OS. Puedes crear y editar artículos desde «Administrar artículos». Los cambios no modifican existencias ni ventas históricas.":"Durante la transición los precios continúan sincronizados desde Notion. Las existencias se administran por separado."}</p>
     {selected && <ProductDetail key={selected.id} item={selected} onClose={closeDetail}/>}
   </main>;
 }
