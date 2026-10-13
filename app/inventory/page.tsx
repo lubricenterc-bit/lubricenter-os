@@ -210,6 +210,7 @@ export default function InventoryPage() {
       <button className={`btn ${mode === "inventory" ? "btn-primary" : "btn-ghost"}`} onClick={() => switchMode("inventory")}>Inventario físico</button>
       <Link href="/catalog" className="btn btn-ghost">Abrir catálogo visual con fotos ↗</Link>
       <Link href="/catalog/technical" className="btn btn-primary">Clasificar aceites y filtros</Link>
+      <Link href="/catalog/manage" className="btn">Administrar artículos</Link>
       <button className="btn btn-ghost" onClick={load} disabled={loading}>{loading ? "Cargando…" : "Recargar"}</button>
     </section>
 
