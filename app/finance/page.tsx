@@ -121,8 +121,8 @@ export default function FinancePage() {
     (async () => {
       setLoading(true); setError("");
       const [summary, billing, financeRole] = await Promise.all([
-        supabase.rpc("finance_sales_bcv", { p_from: from, p_to: to }),
         supabase.rpc("finance_currency_summary", { p_from: from, p_to: to }),
+        supabase.rpc("finance_sales_bcv", { p_from: from, p_to: to }),
         supabase.rpc("finance_role"),
       ]);
       if (!live) return;
