@@ -80,7 +80,7 @@ describe("Separated finance currencies",()=>{
     expect(raw.rows).toHaveLength(2);
     expect(raw.rows.map(x=>x.movement_type)).toEqual(["TRANSFER","TRANSFER"]);
     // FX transfers use the real current timestamp, not September's historical fixture window.
-    const r=(await db.query("select public.finance_currency_summary((now() at time zone 'America/Caracas')::date,(now() at time zone 'America/Caracas')::date) as report")).rows[0].report as any;
+    const r=(await db.query<{report: any}>("select public.finance_currency_summary((now() at time zone 'America/Caracas')::date,(now() at time zone 'America/Caracas')::date) as report")).rows[0].report;
     expect(Number(r.bs.outflows)).toBe(10000);
     expect(Number(r.usd.entries)).toBe(10);
     expect(Number(r.bs.collections)).toBe(0);
