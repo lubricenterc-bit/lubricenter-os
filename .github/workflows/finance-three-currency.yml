@@ -1,0 +1,27 @@
+name: Finance three-currency checks
+on:
+  pull_request:
+    paths:
+      - 'app/finance/page.tsx'
+      - 'app/cash/page.tsx'
+      - 'tests/finance-three-currency.test.ts'
+      - 'supabase/migrations/20261013170000_finance_three_currency_views.sql'
+      - '.github/workflows/finance-three-currency.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/finance-three-currency.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
