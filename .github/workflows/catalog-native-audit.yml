@@ -1,0 +1,32 @@
+name: Native catalog two-month simulation audit
+on:
+  pull_request:
+    paths:
+      - 'app/catalog/**'
+      - 'app/inventory/page.tsx'
+      - 'lib/catalog-management.ts'
+      - 'lib/navigation.ts'
+      - 'supabase/migrations/20261013224000_native_catalog_cutover.sql'
+      - 'supabase/migrations/20261013224500_native_catalog_editing.sql'
+      - 'supabase/migrations/20261013225000_catalog_invoice_intake.sql'
+      - 'tests/catalog-two-month-three-cycles.test.ts'
+      - '.github/workflows/catalog-native-audit.yml'
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/catalog-two-month-three-cycles.test.ts tests/catalog.test.ts tests/catalog-technical-taxonomy.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
