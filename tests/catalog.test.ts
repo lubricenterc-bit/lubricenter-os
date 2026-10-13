@@ -103,7 +103,11 @@ describe("Catálogo visual sincronizado desde Notion", () => {
     });
     expect(sync?.catalogProducts).toBe(76);
     expect(catalogIsFresh(sync, new Date("2026-10-08T18:00:00Z").getTime())).toBe(true);
-    expect(catalogIsFresh(sync, new Date("2026-10-08T22:00:00Z").getTime())).toBe(false);
+    expect(catalogIsFresh(sync, new Date("2026-10-08T22:00:00Z").getTime())).toBe(true);
+    // An unchanged manual operative rate is not considered expired after 3 hours.
+    expect(catalogIsFresh(sync, new Date("2026-10-09T16:00:00Z").getTime())).toBe(true);
+    // But a truly stale catalog still prevents silent catalog pricing.
+    expect(catalogIsFresh(sync, new Date("2026-10-09T18:30:00Z").getTime())).toBe(false);
     expect(formatCatalogDate(null)).toBe("Sin sincronizar");
   });
 });
