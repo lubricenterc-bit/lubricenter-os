@@ -10,6 +10,7 @@ beforeAll(async()=>{
   await db.exec("create function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;");
   await db.exec("create table public.products(id uuid primary key default gen_random_uuid()); create table public.inventory_items(id uuid primary key default gen_random_uuid());");
   await db.exec(readFileSync("supabase/migrations/20261013213000_catalog_technical_taxonomy.sql","utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261013213200_catalog_technical_access_hardening.sql","utf8"));
 },30000);
 afterAll(async()=>{await db?.close();});
 
