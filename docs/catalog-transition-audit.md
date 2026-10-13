@@ -25,6 +25,14 @@ Rechazos cubiertos: precio cero disponible al público, factura duplicada, líne
 
 **Límite:** simulaciones representan reglas y datos sintéticos; no son pruebas end-to-end sobre la aplicación desplegada ni acreditan la exactitud del conteo físico o de todas las importaciones reales.
 
+## Resultado de ejecución reproducible (13 de octubre de 2026)
+
+- Workflow de auditoría del catálogo: **SUCCESS**, run [38470813676](https://github.com/lubricenterc-bit/lubricenter-os/actions/runs/38470813676).
+- Tres escenarios de 60 días por separado: **ciclo 1 PASS, ciclo 2 PASS y ciclo 3 PASS**. Cada ciclo incluye 60 cambios de precio, 60 snapshots de órdenes, 9 facturas de captura (18 renglones, 9 nuevos borradores), 6 reintentos de sincronización de catálogo desde Notion y comprobación de rechazos esperados.
+- Pruebas de catálogo general y catálogo técnico: **PASS**. TypeScript lint y Next.js producción: **PASS**.
+- UI de catálogo corregida para mostrar la fuente oficial una vez activado el cambio, y seguir indicando Notion en producción hasta entonces.
+- El workflow general preexistente **Cash close checks** sigue en rojo por fixtures ajenos a este PR (entre otros, `public.finance_role` faltante y columna `created_at` en tests de terceros). Estaba fallando en cambios anteriores; debe investigarse como deuda técnica separada antes de cualquier despliegue financiero. No se ha marcado como prueba aprobada.
+
 ## Checklist previo a la activación
 
 - [ ] Confirmar conteo real del equipo, y mantener todas las existencias fuera de la migración.
