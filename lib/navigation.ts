@@ -40,6 +40,7 @@ export const NAV_MODULES: readonly NavModule[] = [
   { id: "inventory", label: "Inventario", icon: "inventory", defaultHref: "/inventory", links: [
     { href: "/inventory", label: "Inventario físico", description: "Existencias, códigos y conteos" },
     { href: "/catalog", label: "Catálogo de precios", description: "Fotografías y precios en Bs, $ BCV y divisas desde Notion", keywords: "notion foto productos catalogo lista" },
+    { href: "/catalog/manage", label: "Administrar catálogo", description: "Altas, precios y artículos desde facturas", ownerOnly: true, keywords: "precios productos factura notion" },
     { href: "/expenses", label: "Compras y proveedores", description: "Facturas, mercancía, deudas y pagos", keywords: "egresos" }
   ] },
   { id: "finance", label: "Finanzas", icon: "finance", defaultHref: "/cash-close", links: [
