@@ -79,7 +79,8 @@ describe("Separated finance currencies",()=>{
       "select currency,amount_original,direction,movement_type from public.account_movements where transfer_group=$1 order by direction",[group]);
     expect(raw.rows).toHaveLength(2);
     expect(raw.rows.map(x=>x.movement_type)).toEqual(["TRANSFER","TRANSFER"]);
-    const r=(await dashboard()).report as any;
+    // FX transfers use the real current timestamp, not September's historical fixture window.
+    const r=(await db.query("select public.finance_currency_summary((now() at time zone 'America/Caracas')::date,(now() at time zone 'America/Caracas')::date) as report")).rows[0].report as any;
     expect(Number(r.bs.outflows)).toBe(10000);
     expect(Number(r.usd.entries)).toBe(10);
     expect(Number(r.bs.collections)).toBe(0);
