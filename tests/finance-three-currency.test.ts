@@ -44,9 +44,9 @@ beforeAll(async()=>{
   await db.exec(readFileSync("supabase/migrations/20261013170000_finance_three_currency_views.sql","utf8"));
   await db.exec("insert into auth.users values('"+owner+"','lubricenterc@gmail.com',now())");
   await db.exec("insert into public.financial_accounts(id,code,name,currency,account_type) values "+
-    "('"+bdv+"','BDV','Banco de Venezuela','VES','BANK'),"+
-    "('"+cash+"','CASH_USD','Caja USD','USD','CASH'),"+
-    "('"+binance+"','BINANCE','Binance USDT','USD','CLEARING')");
+    "('"+bdv+"','FIN_TEST_BDV','Banco de Venezuela','VES','BANK'),"+
+    "('"+cash+"','FIN_TEST_CASHUSD','Caja USD','USD','CASH'),"+
+    "('"+binance+"','FIN_TEST_BINANCE','Binance USDT','USD','CLEARING')");
   await db.exec("insert into public.exchange_rates(rate_type,value,effective_at) values "+
     "('BCV',800,'2026-09-10T00:00:00-04:00'),"+
     "('BCV',1000,'2026-09-11T00:00:00-04:00'),"+
@@ -69,7 +69,7 @@ describe("Separated finance currencies",()=>{
     expect(Number(r.bcv.collections)).toBe(22.5);
     expect(Number(r.usd.collections)).toBe(20);
     expect(Number(r.operative.external_entries)).toBe(20);
-    expect(r.accounts.find((a:any)=>a.code==="CASH_USD").closing).toBe(20);
+    expect(r.accounts.find((a:any)=>a.code==="FIN_TEST_CASHUSD").closing).toBe(20);
   });
 
   it("records an exchange as two linked transfers without creating any sale",async()=>{
