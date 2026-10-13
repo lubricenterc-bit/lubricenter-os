@@ -1,0 +1,26 @@
+name: Orders daily collections checks
+on:
+  pull_request:
+    paths:
+      - 'app/orders/page.tsx'
+      - 'supabase/migrations/20261013202000_orders_daily_collections_v2.sql'
+      - 'tests/orders-daily-collections.test.ts'
+      - '.github/workflows/orders-daily.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/orders-daily-collections.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
