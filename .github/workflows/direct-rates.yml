@@ -1,0 +1,32 @@
+name: Direct BCV and manual operative rates checks
+on:
+  pull_request:
+    paths:
+      - 'lib/bcv-effective-date.ts'
+      - 'lib/catalog.ts'
+      - 'app/settings/page.tsx'
+      - 'app/inventory/page.tsx'
+      - 'supabase/functions/bcv-rate-sync/**'
+      - 'supabase/migrations/20261013220000_direct_bcv_manual_operative.sql'
+      - 'supabase/migrations/20261013220500_exchange_rate_status.sql'
+      - 'tests/bcv-effective-date.test.ts'
+      - 'tests/catalog.test.ts'
+      - '.github/workflows/direct-rates.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/bcv-effective-date.test.ts tests/catalog.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
