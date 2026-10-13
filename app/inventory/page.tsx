@@ -209,6 +209,7 @@ export default function InventoryPage() {
     <section className="row" style={{ gap: 10, flexWrap: "wrap" }}>
       <button className={`btn ${mode === "inventory" ? "btn-primary" : "btn-ghost"}`} onClick={() => switchMode("inventory")}>Inventario físico</button>
       <Link href="/catalog" className="btn btn-ghost">Abrir catálogo visual con fotos ↗</Link>
+      <Link href="/catalog/technical" className="btn btn-primary">Clasificar aceites y filtros</Link>
       <button className="btn btn-ghost" onClick={load} disabled={loading}>{loading ? "Cargando…" : "Recargar"}</button>
     </section>
 
