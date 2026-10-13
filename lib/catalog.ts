@@ -101,7 +101,7 @@ export function filterCatalog(products: CatalogProduct[], filters: CatalogFilter
 
 export function catalogIsFresh(sync: CatalogSync | null, nowMs = Date.now()) {
   if (!sync?.catalogSyncedAt || !sync?.bcvEffectiveAt || !sync?.operativeEffectiveAt) return false;
-  if (!(sync.bcv > 0 && sync.operative > 0)) return false;
+  if (!((sync.bcv ?? 0) > 0 && (sync.operative ?? 0) > 0)) return false;
   const catalogAge=nowMs-new Date(sync.catalogSyncedAt).getTime();
   const bcvAge=nowMs-new Date(sync.bcvEffectiveAt).getTime();
   // The operative rate is deliberately manual: its unchanged value never expires
