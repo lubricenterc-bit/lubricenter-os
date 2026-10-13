@@ -7,6 +7,7 @@ on:
       - 'app/catalog/page.tsx'
       - 'lib/catalog-taxonomy.ts'
       - 'supabase/migrations/20261013213000_catalog_technical_taxonomy.sql'
+      - 'supabase/migrations/20261013213200_catalog_technical_access_hardening.sql'
       - 'tests/catalog-technical-taxonomy.test.ts'
       - '.github/workflows/catalog-technical.yml'
 jobs:
