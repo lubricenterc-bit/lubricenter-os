@@ -36,6 +36,8 @@ begin
  then raise exception 'La fotografía debe tener una URL HTTPS válida'; end if;
  if p_usd is null or p_usd<0 or p_usd>1000000 or p_usd::text in ('NaN','Infinity','-Infinity')
  then raise exception 'Precio USD inválido'; end if;
+ if coalesce(p_active,false) and coalesce(p_available,false) and p_usd<=0
+ then raise exception 'No publiques un producto sin precio de venta'; end if;
  perform pg_advisory_xact_lock(hashtextextended('lubricenter-native-catalog',0));
  if p_id is not null then
   select * into v_old from public.products where id=p_id for update;
