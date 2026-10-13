@@ -210,7 +210,7 @@ export default function FinancePage() {
           <div className="row-between small"><span>Equivalente a tasa BCV de venta</span><strong><Money value={invoiceSales.sales_bcv} currency="USD" /></strong></div>
           <div className="row-between small"><span>Ventas en divisas excluidas</span><strong>{fmtRef(invoiceSales.sales_divisas_usd)}</strong></div>
           <div className="muted small">Ventas por fecha de factura; cobros por fecha de pago. El equivalente no representa dinero recibido en dólares.</div>
-        </div>
+        </div>}
         {(invoiceSales.warnings.missing_order_bcv > 0 || invoiceSales.warnings.usd_overpayment > 0 || invoiceSales.warnings.excluded_cashea_other_or_unresolved > 0) && <div className="error">Hay ventas con datos pendientes de revisión: BCV faltante ({invoiceSales.warnings.missing_order_bcv}), pagos en divisas superiores a factura ({invoiceSales.warnings.usd_overpayment}), Cashea sin atribución confirmada ({invoiceSales.warnings.excluded_cashea_other_or_unresolved}).</div>}
         <div className="card row-between">
           <div><strong>Flujo externo del período</strong><div className="muted small">Entradas externas menos salidas externas. No es utilidad ni saldo bancario.</div></div>
