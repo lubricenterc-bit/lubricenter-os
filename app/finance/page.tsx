@@ -41,7 +41,8 @@ const METRICS: Record<CurrencyView, Metric[]> = {
     { title: "Salidas de cuentas", key: "outflows", help: "Todos los débitos en Bs. Las transferencias no son gastos del negocio.", formula: "Suma de movimientos OUT en cuentas VES; los egresos externos se presentan por separado." },
   ],
   BCV: [
-    { title: "Cobros de ventas $ BCV", key: "collections", help: "Equivalente de los pagos de clientes realmente recibidos en Bs.", formula: "Cada cobro en Bs / tasa BCV del momento de cobro, sumado individualmente." },
+    { title: "Ventas facturadas $ BCV", key: "sales_bcv", help: "Equivalente de los pagos de clientes realmente recibidos en Bs.", formula: "Cada cobro en Bs / tasa BCV del momento de cobro, sumado individualmente." },
+    { title: "Cobros de ventas $ BCV", key: "collections", help: "Pagos recibidos en Bs, incluso si la factura es anterior.", formula: "Cobros Bs / tasa BCV de cada cobro; no es facturación." },
     { title: "Entradas equivalentes", key: "entries", help: "Todas las entradas en Bs convertidas a tasa histórica BCV; no son dólares disponibles.", formula: "Suma por movimiento IN de Bs / BCV efectivo del movimiento." },
     { title: "Salidas equivalentes", key: "outflows", help: "Salidas en bolívares convertidas a tasa BCV histórica.", formula: "Suma por movimiento OUT de Bs / BCV efectivo del movimiento." },
     { title: "Entradas externas", key: "external_entries", help: "Entradas no procedentes de una transferencia entre cuentas propias.", formula: "Movimientos IN de Bs sin TRANSFER, convertidos individualmente; no equivale solo a ventas." },
