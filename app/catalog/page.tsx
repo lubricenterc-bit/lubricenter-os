@@ -169,6 +169,7 @@ export default function CatalogPage() {
         <p>Consulta productos, fotografías y los tres precios de venta sin salir de Lubricenter OS.</p>
       </div>
       <div className="lc-catalog-heading-actions">
+        <Link href="/catalog/technical" className="lc-catalog-button">Etiquetas técnicas</Link>
         <Link href="/quote" className="lc-catalog-button is-primary"><OsIcon name="receipt" size={17}/> Abrir cotizador</Link>
         <a href={NOTION_CATALOG_URL} target="_blank" rel="noopener noreferrer" className="lc-catalog-button">
           Ver en Notion <OsIcon name="arrow" size={16}/>
