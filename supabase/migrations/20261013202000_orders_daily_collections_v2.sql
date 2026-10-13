@@ -21,7 +21,7 @@ with base as (
        where rec.order_id=o.id and rec.debtor_type='CUSTOMER') then 'Crédito LC'
      else 'Contado / mixto' end payment_type,
    (cs.id is not null or exists(select 1 from public.receivables rec where rec.order_id=o.id)) has_financed_sale,
-   oi.kind, oi.total_ref, oi.total_ves,
+   oi.kind, oi.total_ref, oi.total_ves, oi.services,
    coalesce(pay.paid_ves,0) collected_ves,
    coalesce(pay.paid_usd,0) collected_usd,
    coalesce(pay.paid_usd_ves,0) collected_usd_ves_equiv,
@@ -53,7 +53,8 @@ with base as (
      case when count(*) filter(where i.item_type='SERVICE')>0
        then 'Orden de servicio' else 'Venta' end kind,
      coalesce(sum(i.charged_ref_amount),0) total_ref,
-     coalesce(sum(i.charged_ves_amount),0) total_ves
+     coalesce(sum(i.charged_ves_amount),0) total_ves,
+     string_agg(i.description,' · ' order by i.created_at) filter (where i.item_type='SERVICE') services
    from public.order_items i where i.order_id=o.id
  ) oi on true
  left join lateral (
@@ -91,7 +92,7 @@ with base as (
    or (p_payment_filter='CREDIT' and b.payment_type='Crédito LC')
 ), paged as (
  select id,order_number,status,customer_id,sale_at,cancellation_reason,customer_name,plate,
-   payment_type,has_financed_sale,kind,total_ref,total_ves,
+   payment_type,has_financed_sale,kind,services,total_ref,total_ves,
    collected_ves,collected_usd,collected_usd_ves_equiv,payment_details,cashea
  from filtered order by sale_at desc,id desc
  limit 30 offset greatest(coalesce(p_page,0),0)*30
