@@ -1,0 +1,29 @@
+name: Catalog technical classification checks
+on:
+  pull_request:
+    paths:
+      - 'app/catalog/technical/**'
+      - 'app/inventory/page.tsx'
+      - 'app/catalog/page.tsx'
+      - 'lib/catalog-taxonomy.ts'
+      - 'supabase/migrations/20261013213000_catalog_technical_taxonomy.sql'
+      - 'tests/catalog-technical-taxonomy.test.ts'
+      - '.github/workflows/catalog-technical.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/catalog-technical-taxonomy.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
