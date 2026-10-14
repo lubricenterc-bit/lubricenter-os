@@ -81,8 +81,9 @@ revoke all on function lubricenter_private.catalog_save_product(uuid,text,text,t
 grant execute on function public.catalog_save_product(uuid,text,text,text,numeric,text,text,boolean,boolean,timestamptz) to authenticated;
 grant execute on function lubricenter_private.catalog_save_product(uuid,text,text,text,numeric,text,text,boolean,boolean,timestamptz) to authenticated;
 
--- Existing RPC shape is preserved for other pages, but its catalog timestamp now denotes
--- a successful database availability check rather than an external Notion import.
+-- Existing RPC shape is preserved for other pages. While Notion is temporarily the FX source,
+-- return the last rate-sync heartbeat after cutover: the legacy Edge Function uses this
+-- timestamp to decide whether to fetch again; returning now() would freeze ALL rate syncs.
 create or replace function public.get_pricing_sync_status()
 returns table(catalog_synced_at timestamptz,catalog_products bigint,
 bcv_rate numeric,bcv_effective_at timestamptz,
@@ -91,7 +92,7 @@ language sql stable security definer set search_path=''
 as $$
 select
 case when (select value#>>'{}' from public.app_settings where key='catalog_authority')='LUBRICENTER_OS'
- then now()
+ then (select last_verified_at from public.integration_sync_state where source_key='notion_rates')
  else coalesce((select last_verified_at from public.integration_sync_state where source_key='notion_catalog'),
         (select max(catalog_synced_at) from public.products where catalog_source='Notion · Nuestros Productos')) end,
 (select count(*) from public.products where active and available),
