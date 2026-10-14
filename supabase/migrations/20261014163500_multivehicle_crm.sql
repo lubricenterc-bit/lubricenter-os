@@ -24,7 +24,7 @@ BEGIN
  SELECT count(distinct coalesce(oi.service_vehicle_id,v_o.vehicle_id))<=1
  INTO v_is_single FROM public.order_items oi
  WHERE oi.order_id=p_order_id AND oi.item_type='SERVICE';
- IF v_is_single AND v_o.vehicle_id=p_vehicle_id THEN
+ IF v_is_single AND v_o.vehicle_id=p_vehicle_id AND v_o.customer_id=v_v.customer_id THEN
     RETURN public.build_post_service_message(p_order_id);
  END IF;
  SELECT coalesce(nullif(btrim(c.name),''),'cliente') INTO v_name FROM public.customers c
