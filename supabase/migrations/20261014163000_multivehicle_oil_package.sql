@@ -1,3 +1,24 @@
+-- Migration audit before modifying CRM uniqueness or trigger functions.
+-- Kept in a private schema: does not expose customer messages to the browser.
+CREATE TABLE IF NOT EXISTS lubricenter_private.order_service_migration_backups(
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ captured_at timestamptz NOT NULL DEFAULT now(),
+ customer_followups_count bigint NOT NULL,
+ followups_snapshot jsonb NOT NULL,
+ old_trigger_functions jsonb NOT NULL
+);
+REVOKE ALL ON lubricenter_private.order_service_migration_backups FROM PUBLIC,anon,authenticated;
+INSERT INTO lubricenter_private.order_service_migration_backups(
+ customer_followups_count,followups_snapshot,old_trigger_functions)
+SELECT
+ (SELECT count(*) FROM public.customer_followups),
+ coalesce((SELECT jsonb_agg(to_jsonb(f) ORDER BY f.id) FROM public.customer_followups f),'[]'::jsonb),
+ jsonb_build_object(
+ 'queue_post_service_followup',pg_get_functiondef(to_regprocedure('public.queue_post_service_followup()')),
+ 'capture_service_records_on_close',pg_get_functiondef(to_regprocedure('public.capture_service_records_on_close()')),
+ 'regenerate_customer_followup_message',pg_get_functiondef(to_regprocedure('public.regenerate_customer_followup_message(uuid)'))
+ );
+
 -- One commercial order/Cashea payment, independent oil-change packages per vehicle.
 -- All new per-vehicle lines belong to ONE atomic existing product+service transaction.
 ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS service_vehicle_id uuid
