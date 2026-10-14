@@ -3,6 +3,7 @@ import {readFileSync} from "node:fs";
 import {describe,expect,it} from "vitest";
 
 const migration=readFileSync("supabase/migrations/20261014190000_manual_crm_deferred_service_cases.sql","utf8");
+const repair=readFileSync("supabase/migrations/20261014202000_repair_manual_crm_deferred_arrival.sql","utf8");
 const customer="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const payer="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const vehicle="cccccccc-cccc-4ccc-8ccc-cccccccccccc";
@@ -29,10 +30,13 @@ async function setup(){
   "create table public.inventory_movements(id uuid primary key default gen_random_uuid(),quantity_delta numeric);",
   "create table public.account_movements(id uuid primary key default gen_random_uuid(),value_ves numeric);",
   "create table public.crm_contact_permissions(customer_id uuid primary key,status text);",
+  "create table public.vehicle_customer_history(id uuid primary key default gen_random_uuid(),vehicle_id uuid,customer_id uuid,source_system text,first_seen_at timestamptz,last_seen_at timestamptz,unique(vehicle_id,customer_id,source_system));",
+  "create table public.audit_events(id uuid primary key default gen_random_uuid(),event_type text,entity_type text,entity_id uuid,actor_id uuid,data jsonb);",
   "create table public.service_records(id uuid primary key default gen_random_uuid(),order_id uuid,order_item_id uuid,customer_id uuid,vehicle_id uuid,service_type text,description text,odometer integer,oil_brand text,oil_viscosity text,oil_quantity_liters numeric,oil_filter_code text,next_service_odometer integer,next_service_date date,charged_ref_amount numeric,charged_ves_amount numeric,performed_at timestamptz,created_by uuid,source_system text,source_key text,service_notes text,source_payload jsonb default '{}'::jsonb);",
   "set app.test_identity='OWNER';"
  ].join("\n"));
  await db.exec(migration);
+ await db.exec(repair);
  await db.query("insert into public.customers(id,name) values($1,'Propietario'),($2,'Pagador Cashea')",[customer,payer]);
  await db.query("insert into public.vehicles(id,customer_id,plate,make,model,current_odometer) values($1,$2,'AB123CD','Renault','Clio',88000)",[vehicle,customer]);
  await db.query("insert into public.orders(id,customer_id,status) values($1,$2,'CLOSED')",[order,payer]);
@@ -49,6 +53,38 @@ async function snapshot(db:PGlite){
   "(select count(*)::int from public.service_records) history")).rows[0];
 }
 describe("CRM manual sin orden y sin ingresos ficticios",()=>{
+ it("creates an unassigned commitment, assigns the arriving customer and car later, then completes it",async()=>{
+  const db=await setup();try{
+   const unknown=JSON.stringify({request_id:"11111111-1111-4111-8111-111111111111",vehicle_id:null,customer_id:null,
+    subject_hint:"Segundo carro del pago Cashea; llega mañana",payer_customer_id:payer,payment_context:"UNVERIFIED",
+    scheduled_for:null,next_contact_on:"2026-10-20",payment_note:null,notes:"Cambio de aceite prepago",linked_order_id:null});
+   const created=await db.query<{id:string}>(save,[null,unknown,null]);const id=created.rows[0].id;
+   expect((await db.query<{customer_id:string|null;vehicle_id:string|null;status:string}>(
+    "select customer_id,vehicle_id,status from public.crm_manual_cases where id=$1",[id])).rows[0])
+    .toEqual({customer_id:null,vehicle_id:null,status:"PENDING_SERVICE"});
+   expect((await snapshot(db)).history).toBe(0);
+   await expect(db.query(transition,[id,"COMPLETE",1,JSON.stringify({odometer:88100,oil_brand:"SKY",next_service_odometer:93100})])).rejects.toThrow(/Asigna o registra/);
+   const assigned=JSON.stringify({request_id:"22222222-2222-4222-8222-222222222222",vehicle_id:vehicle,customer_id:customer,
+    subject_hint:"Segundo carro del pago Cashea; llega mañana",payer_customer_id:payer,payment_context:"UNVERIFIED",
+    scheduled_for:null,next_contact_on:"2026-10-20",payment_note:null,notes:"Cambio de aceite prepago",linked_order_id:null});
+   await db.query(save,[id,assigned,1]);
+   await db.query(transition,[id,"COMPLETE",2,JSON.stringify({odometer:88100,oil_brand:"SKY 15W40",oil_filter_code:"F-1",next_service_odometer:93100})]);
+   expect((await snapshot(db)).history).toBe(1);
+  }finally{await db.close();}
+ },120000);
+ it("allows two commitments from one paid order without duplicating money",async()=>{
+  const db=await setup();try{
+   const before=await snapshot(db);
+   const first=await db.query<{id:string}>(save,[null,payload({payment_context:"ORDER_LINKED",linked_order_id:order}),null]);
+   const second=JSON.stringify({request_id:"33333333-3333-4333-8333-333333333333",vehicle_id:null,customer_id:null,
+    subject_hint:"Segundo vehículo pendiente",payer_customer_id:payer,payment_context:"ORDER_LINKED",linked_order_id:order,
+    scheduled_for:null,next_contact_on:null,payment_note:"Misma compra, segundo cambio",notes:"Llega después"});
+   const other=await db.query<{id:string}>(save,[null,second,null]);
+   expect(other.rows[0].id).not.toBe(first.rows[0].id);
+   expect((await db.query("select id from public.crm_manual_cases where linked_order_id=$1",[order])).rows).toHaveLength(2);
+   expect(await snapshot(db)).toEqual(before);
+  }finally{await db.close();}
+ },120000);
  it("creates independently as PENDING, marks SCHEDULED but does not book service prematurely",async()=>{
   const db=await setup();try{
    const before=await snapshot(db);

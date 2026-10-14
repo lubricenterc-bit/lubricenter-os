@@ -46,7 +46,7 @@ export function MesaHeader({
   ];
 
   return <header className="mesa-masthead">
-    <Link href="/" className="mesa-lockup" aria-label="Lubricenter OS, inicio" onClick={event => previewNavigation(event, "/", onNavigate)}>
+    <Link href="/" className="mesa-lockup" aria-label="Lubricenter OS, inicio" onClick={(event: MouseEvent<HTMLAnchorElement>) => previewNavigation(event, "/", onNavigate)}>
       <span className="mesa-monogram" aria-hidden="true">LC</span>
       <span className="mesa-lockup-name">LUBRICENTER OS</span>
     </Link>
@@ -60,7 +60,7 @@ export function MesaHeader({
       {links.filter(link => allowed.has(link.href)).map(link => <Link key={link.href} href={link.href}
         className={activePath(pathname, link.href) ? "is-active" : undefined}
         aria-current={activePath(pathname, link.href) ? "page" : undefined}
-        onClick={event => previewNavigation(event, link.href, onNavigate)}>
+        onClick={(event: MouseEvent<HTMLAnchorElement>) => previewNavigation(event, link.href, onNavigate)}>
         <OsIcon name={link.icon} size={20} /><span>{link.label}</span>
       </Link>)}
     </nav>
@@ -68,7 +68,7 @@ export function MesaHeader({
       {children && <div className="mesa-pricing">{children}</div>}
       {owner && <Link href="/finance" className="mesa-notifications" title="Avisos financieros"
         aria-label={"Avisos financieros, " + unread + " pendientes"}
-        onClick={event => previewNavigation(event, "/finance", onNavigate)}>
+        onClick={(event: MouseEvent<HTMLAnchorElement>) => previewNavigation(event, "/finance", onNavigate)}>
         <OsIcon name="bell" size={19} />{unread > 0 && <span>{unread > 9 ? "9+" : unread}</span>}
       </Link>}
       <button type="button" className="mesa-profile" onClick={onMenu} aria-label="Abrir perfil y todos los módulos"
@@ -89,11 +89,11 @@ export function MesaDock({ pathname, onSearch, onMenu, onNavigate, menuOpen = fa
   return <nav className="mesa-dock" aria-label="Accesos de la mesa de trabajo">
     <Link href="/" className={"mesa-dock-utility" + (pathname === "/" ? " is-active" : "")}
       aria-label="Inicio" aria-current={pathname === "/" ? "page" : undefined}
-      onClick={event => previewNavigation(event, "/", onNavigate)}><OsIcon name="home" size={21} /></Link>
+      onClick={(event: MouseEvent<HTMLAnchorElement>) => previewNavigation(event, "/", onNavigate)}><OsIcon name="home" size={21} /></Link>
     {links.map(link => <Link key={link.href} href={link.href}
       className={"mesa-dock-action" + (activePath(pathname, link.href) ? " is-active" : "")}
       aria-current={activePath(pathname, link.href) ? "page" : undefined}
-      onClick={event => previewNavigation(event, link.href, onNavigate)}>
+      onClick={(event: MouseEvent<HTMLAnchorElement>) => previewNavigation(event, link.href, onNavigate)}>
       <span className="mesa-dock-icon"><OsIcon name={link.icon} size={25} /></span>
       <span className="mesa-dock-copy"><strong>{link.label}</strong><small>{link.detail}</small></span>
     </Link>)}
