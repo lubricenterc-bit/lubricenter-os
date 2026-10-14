@@ -101,7 +101,7 @@ export default function PayrollReview(){
  <div>{a.note}</div>
  <div className="muted small">{a.decision==='PAY'?'Se incluye en liquidación':a.decision==='HOLD'?'Retenido; no afecta la liquidación':'Excluido; no afecta el pago'}
  {a.transfer_id?' · Vinculado con otro empleado':''}</div>
- {!a.transfer_id&&<button className="btn" disabled={busy} onClick={()=>{setEditAdj(a);setEditAdjType(a.adjustment_type==='BONUS'?'BONUS':'DEBT');setEditAdjDecision(a.decision??'PAY');setEditAdjAmount(String(Math.abs(Number(a.amount_ref))));setEditAdjReason(a.note??'');setError('');}}>Editar / aplazar / quitar de la nómina</button>}
+ {!a.transfer_id&&<button className="btn" disabled={busy} onClick={()=>{setEditAdj(a);setEditAdjType(Number(a.amount_ref)>0?'BONUS':'DEBT');setEditAdjDecision(a.decision??'PAY');setEditAdjAmount(String(Math.abs(Number(a.amount_ref))));setEditAdjReason(a.note??'');setError('');}}>Editar / aplazar / quitar de la nómina</button>}
  </div>)}</div>
  <button className="btn btn-primary" disabled={busy||!canClose||(!s.rows.some(w=>w.decision!=="HOLD")&&!s.fixed&&!s.adj)} onClick={()=>setConfirm(emp)}>Revisar factura y liquidar</button><p className="muted small">Liquidar congela la factura; el pago se registra aparte y puede ser parcial.</p>
  </section>;})}
