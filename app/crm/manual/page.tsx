@@ -147,6 +147,7 @@ export default function ManualCrmPage(){
    <p className="muted small">«Pago reportado» no equivale a dinero conciliado. El servicio solo entra al historial cuando confirmes que se realizó.</p>
    <fieldset disabled={!admin||busy||chosen?.status==="COMPLETED"||chosen?.status==="CANCELLED"} className="stack" style={{border:0,padding:0}}>
     <h3>1. Vehículo y propietario</h3>
+    <p className="muted small">¿Todavía no existe ese carro? <Link href="/customers">Créalo primero desde Clientes</Link> y luego regresa a registrar el pendiente.</p>
     <input className="input" placeholder="Buscar placa, modelo o propietario" value={carSearch} onChange={e=>setCarSearch(e.target.value)}/>
     <select className="select" value={form.vehicle_id} onChange={e=>setForm(f=>({...f,vehicle_id:e.target.value}))}>
      <option value="">Selecciona un vehículo *</option>
