@@ -1,0 +1,28 @@
+name: Manual CRM prepaid and deferred services
+on:
+  pull_request:
+    paths:
+      - 'app/crm/manual/**'
+      - 'lib/navigation.ts'
+      - 'supabase/migrations/20261014190000_manual_crm_deferred_service_cases.sql'
+      - 'tests/manual-crm-prepaid.test.ts'
+      - '.github/workflows/manual-crm-prepaid.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/manual-crm-prepaid.test.ts tests/navigation.test.ts tests/crm-retention.test.ts tests/crm-retention-db.test.ts tests/multivehicle-order-corrections.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
