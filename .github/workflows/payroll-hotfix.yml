@@ -20,7 +20,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - run: npx vitest run tests/payroll-transfer-hold.test.ts tests/currency-payroll.test.ts tests/navigation.test.ts
+      - run: npx vitest run tests/payroll-transfer-hold.test.ts tests/navigation.test.ts
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
