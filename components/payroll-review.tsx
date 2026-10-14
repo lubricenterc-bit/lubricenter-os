@@ -162,3 +162,4 @@ export default function PayrollReview(){
  </section></div>}
  {history&&<div className="overlay"><section className="sheet stack" role="dialog" aria-modal="true" aria-label="Historial"><h2>Historial</h2>{!history.length&&<p>Sin ajustes manuales.</p>}{history.map(h=><div className="card" key={h.id}><strong>{h.reason}</strong><div>{h.before_data.decision} → {h.after_data.decision} · {money(h.before_data.amount,h.before_data.currency)} → {money(h.after_data.amount,h.after_data.currency)}</div><div className="muted small">{new Date(h.occurred_at).toLocaleString('es-VE')} · Usuario {h.actor_id}</div></div>)}<button className="btn" onClick={()=>setHistory(null)}>Cerrar</button></section></div>}
  </main>;
+}
