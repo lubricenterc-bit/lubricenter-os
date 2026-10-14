@@ -52,6 +52,14 @@ describe("Tres ciclos independientes de dos meses de uso de catálogo",()=>{
    const before=one(await db.query<{n:number;backup:number;linked:number}>(
     "select (select count(*)::int from public.products where available) n,(select count(*)::int from lubricenter_private.catalog_cutover_backups) backup,(select count(*)::int from public.inventory_items where product_id is not null) linked"));
    expect(before).toEqual({n:76,backup:1,linked:64});
+   // Regression: the legacy rate sync reads catalog_synced_at to decide when to
+   // fetch rates. After cutover it must reflect REAL last rate fetch, not now().
+   await db.exec("update public.integration_sync_state set last_verified_at=now()-interval '1 hour' where source_key='notion_rates'");
+   const heartbeat=one(await db.query<{minutes_old:number}>(
+     "select extract(epoch from now()-catalog_synced_at)/60::numeric as minutes_old from public.get_pricing_sync_status()"));
+   expect(Number(heartbeat.minutes_old)).toBeGreaterThan(55);
+   expect(Number(heartbeat.minutes_old)).toBeLessThan(65);
+   await db.exec("update public.integration_sync_state set last_verified_at=now() where source_key='notion_rates'");
    const physicalBefore=one(await db.query<{stock:number;excel:number}>(
     "select sum(quantity_on_hand)::int stock,sum(source_stock_imported)::int excel from public.inventory_items"));
    let captures=0;
