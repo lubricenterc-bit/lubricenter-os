@@ -1,0 +1,28 @@
+name: Multiple vehicles and safe order corrections
+on:
+  pull_request:
+    paths:
+      - 'app/orders/**'
+      - 'components/order-workspace.tsx'
+      - 'supabase/migrations/2026101416*'
+      - 'tests/multivehicle-order-corrections.test.ts'
+      - '.github/workflows/order-multivehicle-corrections.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/multivehicle-order-corrections.test.ts tests/cashea-cancelled-reference.test.ts tests/cashea-split.test.ts tests/oil-change-picker.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
