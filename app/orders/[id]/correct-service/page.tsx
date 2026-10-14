@@ -11,7 +11,7 @@ type OilService={id:string;service_vehicle_id:string|null;service_odometer:numbe
 type Order={id:string;order_number:string;status:string;customer_id:string|null;vehicle_id:string|null;total_ref:number;total_ves:number};
 const digits=(v:string)=>v===""?null:Number(v);
 export default function CorrectServicePage(){
- const {id}=useParams<{id:string}(),router=useRouter();
+ const {id}=useParams<{id:string}>(),router=useRouter();
  const [order,setOrder]=useState<Order|null>(null);
  const [cars,setCars]=useState<Car[]>([]);
  const [owners,setOwners]=useState<Record<string,string>>({});
