@@ -184,3 +184,28 @@ BEGIN
  END IF;
  RETURN new;
 END $$;
+
+
+-- "Regenerar mensaje" must not rebuild the wrong car's template.
+-- A correction already sent always remains immutable.
+CREATE OR REPLACE FUNCTION public.regenerate_customer_followup_message(p_followup_id uuid)
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $$
+DECLARE f public.customer_followups%rowtype;v_message text;
+BEGIN
+ PERFORM public.require_auth();
+ SELECT * INTO f FROM public.customer_followups
+ WHERE id=p_followup_id AND followup_type IN('POST_SERVICE','POST_SERVICE_CORRECTION')
+  AND status<>'SENT' FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Seguimiento no encontrado o ya enviado'; END IF;
+ IF f.vehicle_id IS NULL THEN
+  v_message:=public.build_post_service_message(f.order_id);
+ ELSE
+  v_message:=public.build_post_service_message_for_vehicle(f.order_id,f.vehicle_id);
+ END IF;
+ IF f.followup_type='POST_SERVICE_CORRECTION' THEN
+  v_message:='📝 *Corrección del historial de mantenimiento*'||chr(10)||chr(10)||v_message;
+ END IF;
+ UPDATE public.customer_followups SET message=v_message,updated_at=now() WHERE id=p_followup_id;
+ RETURN v_message;
+END $$;
