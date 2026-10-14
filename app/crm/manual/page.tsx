@@ -77,8 +77,9 @@ export default function ManualCrmPage(){
   if(!query){setForm(f=>({...f,linked_order_id:""}));return;}
   const r=await supabase.from("orders").select("id,order_number,status,customer_id,total_ref").eq("order_number",query).maybeSingle();
   if(r.error||!r.data||r.data.status!=="CLOSED"){setError(r.error?.message||"No se encontró una orden cerrada con ese número.");return;}
-  setOrders(prev=>[r.data as Order,...prev.filter(o=>o.id!==r.data.id)]);
-  setForm(f=>({...f,linked_order_id:r.data.id,payer_customer_id:r.data.customer_id||""}));
+  const foundOrder=r.data as Order;
+  setOrders(prev=>[foundOrder,...prev.filter(o=>o.id!==foundOrder.id)]);
+  setForm(f=>({...f,linked_order_id:foundOrder.id,payer_customer_id:foundOrder.customer_id||""}));
   setNotice("Orden vinculada para referencia; no se cobra otra vez.");
  }
  async function save(){
