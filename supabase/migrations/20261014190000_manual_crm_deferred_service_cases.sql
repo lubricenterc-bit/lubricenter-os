@@ -144,7 +144,7 @@ BEGIN
  INSERT INTO public.crm_manual_case_events(case_id,event_type,before_data,after_data,actor_id)
  SELECT c.id,'UPDATED',v_old,to_jsonb(c),auth.uid() FROM public.crm_manual_cases c WHERE c.id=p_case_id;
  RETURN p_case_id;
-END $$;
+END; $;
 
 CREATE OR REPLACE FUNCTION lubricenter_private.crm_manual_case_transition(
  p_case_id uuid,p_action text,p_expected_version integer,p_payload jsonb DEFAULT '{}'::jsonb
@@ -255,7 +255,7 @@ BEGIN
  INSERT INTO public.crm_manual_case_events(case_id,event_type,before_data,after_data,actor_id)
  SELECT id,'COMPLETED',v_old,to_jsonb(x),auth.uid() FROM public.crm_manual_cases x WHERE id=c.id;
  RETURN jsonb_build_object('id',c.id,'status','COMPLETED','service_record_id',v_sr);
-END $$;
+END; $;
 
 CREATE OR REPLACE FUNCTION public.crm_manual_case_save(
  p_case_id uuid,p_payload jsonb,p_expected_version integer DEFAULT NULL
