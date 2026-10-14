@@ -64,7 +64,7 @@ describe("Servicios adicionales de cambio de aceite",()=>{
     const component=readFileSync("components/order-additional-services.tsx","utf8");
     expect(oil).toContain("<OrderExtrasChecklist value={extras}");
     expect(oil).toContain("setExtras(normalizeOrderExtras(orderRes.data))");
-    expect(oil.indexOf('"set_order_crm_extras"')).toBeLessThan(oil.indexOf('"add_oil_change_package_flexible"'));
+    expect(oil.indexOf('"set_order_crm_extras"')).toBeLessThan(oil.indexOf('"add_oil_change_package_for_vehicle"'));
     expect(order).toContain("<OrderAdditionalServices key={orderId} orderId={orderId}/>");
     expect(order).not.toContain("<OrderCrmExtras orderId={orderId} />");
     expect(component).toContain('supabase.rpc("set_order_crm_extras"');

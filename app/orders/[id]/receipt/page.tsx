@@ -22,7 +22,7 @@ type Vehicle = { id: string; plate: string | null; make: string | null; model: s
 type Item = { price_denomination:string;agreed_usd:number|null; id: string; item_type: string; business_area: string; description: string; quantity: number; charged_ref_amount: number; charged_ves_amount: number; cash_price_revealed: boolean; cash_usd_special_total: number | null };
 type Payment = { id: string; method: string; currency: string; amount_original: number; value_ves: number; reference: string | null; paid_at: string };
 type Receivable = { id: string; principal_ves: number; principal_ref: number; outstanding_ves: number; status: string; due_date: string | null };
-type ServiceRecord = { id: string; service_type: string; description: string; odometer: number | null; next_service_odometer: number | null; next_service_date: string | null; oil_brand: string | null; oil_viscosity: string | null; oil_quantity_liters: number | null; oil_filter_code: string | null };
+type ServiceRecord = { id: string; vehicle_id:string; service_type: string; description: string; odometer: number | null; next_service_odometer: number | null; next_service_date: string | null; oil_brand: string | null; oil_viscosity: string | null; oil_quantity_liters: number | null; oil_filter_code: string | null };
 
 export default function ReceiptPage() {
   const params = useParams<{ id: string }>();
@@ -37,6 +37,7 @@ export default function ReceiptPage() {
   const [cashea, setCashea] = useState<{ initial_ref: number; financed_ref: number; initial_percent: number } | null>(null);
   const [receivable, setReceivable] = useState<Receivable | null>(null);
   const [services, setServices] = useState<ServiceRecord[]>([]);
+  const [serviceVehicles,setServiceVehicles]=useState<Record<string,string>>({});
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -47,7 +48,7 @@ export default function ReceiptPage() {
       supabase.from("order_items").select("id,item_type,business_area,description,quantity,charged_ref_amount,charged_ves_amount,cash_price_revealed,cash_usd_special_total,price_denomination,agreed_usd").eq("order_id", orderId).order("created_at"),
       supabase.from("payments").select("id,method,currency,amount_original,value_ves,reference,paid_at").eq("order_id", orderId).order("paid_at"),
       supabase.from("receivables").select("id,principal_ves,principal_ref,outstanding_ves,status,due_date").eq("order_id", orderId).maybeSingle(),
-      supabase.from("service_records").select("id,service_type,description,odometer,next_service_odometer,next_service_date,oil_brand,oil_viscosity,oil_quantity_liters,oil_filter_code").eq("order_id", orderId).order("performed_at"),
+      supabase.from("service_records").select("id,vehicle_id,service_type,description,odometer,next_service_odometer,next_service_date,oil_brand,oil_viscosity,oil_quantity_liters,oil_filter_code").eq("order_id", orderId).order("performed_at"),
       supabase.from("cashea_sales").select("initial_ref,financed_ref,initial_percent").eq("order_id",orderId).maybeSingle(),
       supabase.from("order_tenders").select("id,currency,received,change_usd,returned_usd,rounding_ves").eq("order_id",orderId).order("created_at"),
     ]);
@@ -62,18 +63,21 @@ export default function ReceiptPage() {
     setReceivable((rec ?? null) as Receivable | null);
     setServices((sr ?? []) as ServiceRecord[]);
 
-    const [{ data: c, error: ce }, { data: v, error: ve }] = await Promise.all([
+    const serviceVehicleIds=Array.from(new Set((sr||[]).map(x=>x.vehicle_id).filter((x):x is string=>!!x)));
+    const [{ data: c, error: ce }, { data: v, error: ve },{data: sv,error: sve}] = await Promise.all([
       ord.customer_id ? supabase.from("customers").select("id,name,phone,document_id").eq("id", ord.customer_id).maybeSingle() : Promise.resolve({ data: null, error: null } as any),
       ord.vehicle_id ? supabase.from("vehicles").select("id,plate,make,model,year,engine,current_odometer").eq("id", ord.vehicle_id).maybeSingle() : Promise.resolve({ data: null, error: null } as any),
+      serviceVehicleIds.length ? supabase.from("vehicles").select("id,plate,make,model").in("id",serviceVehicleIds) : Promise.resolve({data:[],error:null} as any),
     ]);
-    if (ce || ve) return setError((ce || ve)?.message ?? "No pude cargar cliente/vehículo.");
+    if (ce || ve || sve) return setError((ce || ve || sve)?.message ?? "No pude cargar cliente/vehículos.");
+    setServiceVehicles(Object.fromEntries((sv||[]).map((x:any)=>[x.id,[x.plate,x.make,x.model].filter(Boolean).join(" · ")])));
     setCustomer((c ?? null) as Customer | null);
     setVehicle((v ?? null) as Vehicle | null);
   }
 
   useEffect(() => { if (orderId) load(); }, [orderId]);
 
-  const oilService = services.find(s => s.service_type === "OIL_CHANGE") ?? null;
+  const oilServices = services.filter(s=>s.service_type==="OIL_CHANGE");
 
   const shareText = useMemo(() => {
     if (!order) return "";
@@ -89,12 +93,12 @@ export default function ReceiptPage() {
       receivable?.status === "OPEN" ? `Crédito LC pendiente: ${fmtVes(receivable.outstanding_ves)}` : null,
       ...tenders.filter(t=>Number(t.change_usd)>Number(t.returned_usd)).map(t=>`Pendiente de devolver: $${(Number(t.change_usd)-Number(t.returned_usd)).toFixed(2)} USD`),
       ...tenders.filter(t=>Number(t.rounding_ves)!==0).map(t=>`Ajuste de redondeo acordado: ${fmtVes(t.rounding_ves)}`),
-      oilService && (oilService.next_service_odometer || oilService.next_service_date) ? `Próximo servicio: ${oilService.next_service_odometer ? `${oilService.next_service_odometer.toLocaleString("es-VE")} km` : ""}${oilService.next_service_odometer && oilService.next_service_date ? " · " : ""}${oilService.next_service_date ?? ""}` : null,
+      ...oilServices.map(s=>`Cambio de aceite · ${serviceVehicles[s.vehicle_id]||"Vehículo"} · ${s.oil_brand||"Aceite"}${s.oil_viscosity?" "+s.oil_viscosity:""} · ${s.odometer??"—"} km. Próximo: ${s.next_service_odometer??"—"} km${s.next_service_date?" / "+s.next_service_date:""}`),
       "",
       "Cuidamos lo que te mueve.",
     ].filter((x): x is string => Boolean(x));
     return lines.join("\n");
-  }, [order, customer, vehicle, items, receivable, oilService, cashea,tenders]);
+  }, [order, customer, vehicle, items, receivable, oilServices, serviceVehicles, cashea,tenders]);
 
   async function share() {
     if (!shareText) return;
@@ -160,7 +164,7 @@ export default function ReceiptPage() {
       </section>}
 
       {tenders.filter(t=>Number(t.change_usd)>0||Number(t.rounding_ves)!==0).map(t=><section className="receipt-payments" key={t.id}><div className="receipt-payment"><span>Recibido</span><strong>{t.currency==='USD'?`$${Number(t.received).toFixed(2)}`:fmtVes(t.received)}</strong></div><div className="receipt-payment"><span>Vuelto entregado · equivalente USD</span><strong>${Number(t.returned_usd).toFixed(2)}</strong></div>{Number(t.change_usd)>Number(t.returned_usd)&&<div className="receipt-payment"><strong>Pendiente de devolver</strong><strong>${(Number(t.change_usd)-Number(t.returned_usd)).toFixed(2)} USD</strong></div>}{Number(t.rounding_ves)!==0&&<div className="receipt-payment"><span>Ajuste de redondeo acordado</span><strong>{fmtVes(t.rounding_ves)}</strong></div>}</section>)}
-      {oilService && (oilService.next_service_odometer || oilService.next_service_date) && <section className="receipt-maintenance"><div className="receipt-next">Próximo servicio: {oilService.next_service_odometer ? `${oilService.next_service_odometer.toLocaleString("es-VE")} km` : ""}{oilService.next_service_odometer && oilService.next_service_date ? " · " : ""}{oilService.next_service_date ?? ""}</div></section>}
+      {oilServices.map(s=><section className="receipt-maintenance" key={s.id}><div className="receipt-next"><strong>{serviceVehicles[s.vehicle_id]||"Vehículo atendido"}</strong><div>Aceite: {s.oil_brand||"Registrado"}{s.oil_viscosity?" "+s.oil_viscosity:""} · Km del servicio: {s.odometer?.toLocaleString("es-VE")||"—"}</div><div>Próximo servicio: {s.next_service_odometer ? `${Number(s.next_service_odometer).toLocaleString("es-VE")} km` : ""}{s.next_service_odometer && s.next_service_date ? " · " : ""}{s.next_service_date??""}</div></div></section>)}
 
       <footer className="receipt-footer">Gracias por confiar en Lubricenter.</footer>
     </article>}
