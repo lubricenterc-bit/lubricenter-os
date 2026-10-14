@@ -11,7 +11,7 @@ import { EMPTY_ORDER_EXTRAS, normalizeOrderExtras, orderExtrasRpcParams,
   validateOrderExtras, type OrderExtras } from "@/lib/order-extras";
 
 type Order = { id: string; order_number: string; status: string; customer_id: string | null; vehicle_id: string | null };
-type Vehicle = { id: string; plate: string | null; make: string | null; model: string | null; year: number | null; current_odometer: number | null };
+type Vehicle = { id: string; customer_id: string | null; plate: string | null; make: string | null; model: string | null; year: number | null; current_odometer: number | null };
 type Customer = { id: string; name: string | null; phone: string | null };
 type Rates = { bcv: number; operative: number };
 type PricingSync = { catalogSyncedAt: string | null; bcvEffectiveAt: string | null; operativeEffectiveAt: string | null };
@@ -58,6 +58,10 @@ export default function OilChangePage() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicleOwners, setVehicleOwners] = useState<Record<string,string>>({});
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const [showOtherOwners, setShowOtherOwners] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [rates, setRates] = useState<Rates>({ bcv: 0, operative: 0 });
   const [sync, setSync] = useState<PricingSync>({ catalogSyncedAt: null, bcvEffectiveAt: null, operativeEffectiveAt: null });
@@ -99,12 +103,14 @@ export default function OilChangePage() {
     setLoading(true);
     setError("");
     setWarning("");
-    const [orderRes, ratesRes, invRes, catalogRes, syncRes] = await Promise.all([
+    const [orderRes, ratesRes, invRes, catalogRes, syncRes, allVehiclesRes, ownerRes] = await Promise.all([
       supabase.from("orders").select("id,order_number,status,customer_id,vehicle_id,crm_additional_services,crm_bonuses,crm_observations").eq("id", orderId).single(),
       supabase.rpc("get_current_rates"),
       supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,needs_review").eq("location_code", "CABUDARE").order("sku").limit(1000),
       supabase.from("product_catalog_current").select("id,name,category,filter_code,current_price_ves,current_ref_bcv").eq("available", true).eq("active", true).order("name").limit(1000),
       supabase.rpc("get_pricing_sync_status"),
+      supabase.from("vehicles").select("id,customer_id,plate,make,model,year,current_odometer").order("plate").limit(2000),
+      supabase.from("customers").select("id,name").order("name").limit(2000),
     ]);
 
     if (orderRes.error || ratesRes.error) {
@@ -112,6 +118,9 @@ export default function OilChangePage() {
       setLoading(false);
       return;
     }
+    if (allVehiclesRes.error || ownerRes.error) setWarning("No se pudo cargar la lista de vehículos. Verifica el vehículo antes de continuar.");
+    setVehicles((allVehiclesRes.data??[]) as Vehicle[]);
+    setVehicleOwners(Object.fromEntries((ownerRes.data??[]).map(x=>[x.id,x.name||"Sin nombre"])));
     if (invRes.error || catalogRes.error || syncRes.error) setWarning("No cargó alguna fuente de precios o productos. Puedes registrar el aceite usado manualmente y continuar; revisa el precio antes de guardar.");
 
     const ord = orderRes.data as Order;
@@ -162,7 +171,7 @@ export default function OilChangePage() {
     setInventory([...stockItems, ...catalogItems] as InventoryItem[]);
 
     const [vehicleRes, customerRes] = await Promise.all([
-      supabase.from("vehicles").select("id,plate,make,model,year,current_odometer").eq("id", ord.vehicle_id).single(),
+      supabase.from("vehicles").select("id,customer_id,plate,make,model,year,current_odometer").eq("id", ord.vehicle_id).single(),
       ord.customer_id ? supabase.from("customers").select("id,name,phone").eq("id", ord.customer_id).maybeSingle() : Promise.resolve({ data: null, error: null } as any),
     ]);
 
@@ -181,6 +190,12 @@ export default function OilChangePage() {
 
   useEffect(() => { if (orderId) load(); }, [orderId]);
 
+  const visibleVehicles=useMemo(()=>vehicles.filter(v=>{
+    if (!v.customer_id) return false;
+    if (!showOtherOwners && v.customer_id!==order?.customer_id) return false;
+    const haystack=[v.plate,v.make,v.model,v.year,vehicleOwners[v.customer_id]].join(" ").toLocaleLowerCase("es-VE");
+    return haystack.includes(vehicleSearch.trim().toLocaleLowerCase("es-VE"));
+  }).slice(0,150),[vehicles,order?.customer_id,showOtherOwners,vehicleSearch,vehicleOwners]);
   const oils = useMemo(() => inventory.filter(i => isOilCandidate(i) && !i.needs_review), [inventory]);
   const filters = useMemo(() => inventory.filter(i => isOilFilter(i) && !i.needs_review), [inventory]);
   const availableCatalogIds = useMemo(() => new Set(inventory.filter(i => i.source === "CATALOG").map(i => i.product_id).filter((id): id is string => !!id)), [inventory]);
@@ -248,7 +263,8 @@ export default function OilChangePage() {
         ". El cambio de aceite todavía no se agregó.");
       return;
     }
-    const { error } = await supabase.rpc("add_oil_change_package_flexible", {
+    const { error } = await supabase.rpc("add_oil_change_package_for_vehicle", {
+      p_service_vehicle_id:vehicle.id,
       p_order_id: order.id,
       p_odometer: Number(odometer),
       p_description: description.trim() || "Cambio de aceite",
@@ -298,8 +314,29 @@ export default function OilChangePage() {
     </section>
 
     <section className="card stack">
+      <h2 className="section-title">Vehículo al que corresponde este cambio</h2>
+      <p className="muted small">Puedes registrar dos o más cambios para carros diferentes dentro de una sola orden y cobrar una sola vez con Cashea. Cada vehículo tendrá su historial y CRM individual.</p>
+      <label className="row"><input type="checkbox" checked={showOtherOwners} onChange={e=>setShowOtherOwners(e.target.checked)}/>Buscar vehículos de otros clientes pagados por esta persona</label>
+      <label><span className="label">Buscar por placa, marca, modelo o propietario</span>
+        <input className="input" value={vehicleSearch} onChange={e=>setVehicleSearch(e.target.value)} placeholder="Placa o nombre del propietario" /></label>
+      <label><span className="label">Vehículo de este servicio *</span>
+        <select className="select" value={vehicle?.id||""} onChange={e=>{
+          const v=vehicles.find(x=>x.id===e.target.value);
+          if(!v)return;
+          setVehicle(v);setOdometer(v.current_odometer!=null?String(v.current_odometer):"");
+        }}>
+          {vehicle && !visibleVehicles.some(v=>v.id===vehicle.id)&&
+            <option value={vehicle.id}>{vehicle.plate||"Sin placa"} · {vehicle.make} {vehicle.model}</option>}
+          {visibleVehicles.map(v=><option key={v.id} value={v.id}>
+            {v.plate||"Sin placa"} · {v.make} {v.model} · {vehicleOwners[v.customer_id||""]||"Propietario"}
+          </option>)}
+        </select>
+      </label>
+      {vehicle && vehicle.customer_id!==order?.customer_id&&<div className="card brand-card">
+        Esta orden la paga {customer?.name||"el cliente de caja"}, pero el CRM del servicio se enviará al propietario del vehículo: {vehicleOwners[vehicle.customer_id||""]||"sin identificar"}. Verifica que sea la persona correcta.
+      </div>}
       <div className="row-between">
-        <div><div className="muted small">VEHÍCULO</div><strong>{vehicle ? [vehicle.plate, vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" · ") : "Cargando…"}</strong></div>
+        <div><div className="muted small">VEHÍCULO SELECCIONADO</div><strong>{vehicle ? [vehicle.plate, vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" · ") : "Cargando…"}</strong></div>
         <button className="btn btn-ghost" onClick={() => router.push(`/orders/${orderId}`)}>Volver a orden</button>
       </div>
       <label><span className="label">Kilometraje actual *</span><input className="input" type="number" min="0" value={odometer} onChange={e => setOdometer(e.target.value)} placeholder="Ej. 84500" /></label>
