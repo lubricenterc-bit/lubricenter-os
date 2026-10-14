@@ -259,12 +259,12 @@ END $$;
 
 CREATE OR REPLACE FUNCTION public.crm_manual_case_save(
  p_case_id uuid,p_payload jsonb,p_expected_version integer DEFAULT NULL
-) RETURNS uuid LANGUAGE sql SET search_path=''
-AS $$ SELECT lubricenter_private.crm_manual_case_save(p_case_id,p_payload,p_expected_version) $$;
+) RETURNS uuid LANGUAGE sql SECURITY DEFINER SET search_path=''
+AS $ SELECT lubricenter_private.crm_manual_case_save(p_case_id,p_payload,p_expected_version) $$;
 CREATE OR REPLACE FUNCTION public.crm_manual_case_transition(
  p_case_id uuid,p_action text,p_expected_version integer,p_payload jsonb DEFAULT '{}'::jsonb
-) RETURNS jsonb LANGUAGE sql SET search_path=''
-AS $$ SELECT lubricenter_private.crm_manual_case_transition(p_case_id,p_action,p_expected_version,p_payload) $$;
+) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path=''
+AS $ SELECT lubricenter_private.crm_manual_case_transition(p_case_id,p_action,p_expected_version,p_payload) $$;
 REVOKE ALL ON FUNCTION public.crm_manual_case_save(uuid,jsonb,integer) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.crm_manual_case_transition(uuid,text,integer,jsonb) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.crm_manual_case_save(uuid,jsonb,integer) TO authenticated;
