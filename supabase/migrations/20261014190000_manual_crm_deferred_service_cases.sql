@@ -144,7 +144,7 @@ BEGIN
  INSERT INTO public.crm_manual_case_events(case_id,event_type,before_data,after_data,actor_id)
  SELECT c.id,'UPDATED',v_old,to_jsonb(c),auth.uid() FROM public.crm_manual_cases c WHERE c.id=p_case_id;
  RETURN p_case_id;
-END; $;
+END; $$;
 
 CREATE OR REPLACE FUNCTION lubricenter_private.crm_manual_case_transition(
  p_case_id uuid,p_action text,p_expected_version integer,p_payload jsonb DEFAULT '{}'::jsonb
@@ -255,16 +255,16 @@ BEGIN
  INSERT INTO public.crm_manual_case_events(case_id,event_type,before_data,after_data,actor_id)
  SELECT id,'COMPLETED',v_old,to_jsonb(x),auth.uid() FROM public.crm_manual_cases x WHERE id=c.id;
  RETURN jsonb_build_object('id',c.id,'status','COMPLETED','service_record_id',v_sr);
-END; $;
+END; $$;
 
 CREATE OR REPLACE FUNCTION public.crm_manual_case_save(
  p_case_id uuid,p_payload jsonb,p_expected_version integer DEFAULT NULL
 ) RETURNS uuid LANGUAGE sql SECURITY DEFINER SET search_path=''
-AS $ SELECT lubricenter_private.crm_manual_case_save(p_case_id,p_payload,p_expected_version) $$;
+AS $$ SELECT lubricenter_private.crm_manual_case_save(p_case_id,p_payload,p_expected_version) $$;
 CREATE OR REPLACE FUNCTION public.crm_manual_case_transition(
  p_case_id uuid,p_action text,p_expected_version integer,p_payload jsonb DEFAULT '{}'::jsonb
 ) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path=''
-AS $ SELECT lubricenter_private.crm_manual_case_transition(p_case_id,p_action,p_expected_version,p_payload) $$;
+AS $$ SELECT lubricenter_private.crm_manual_case_transition(p_case_id,p_action,p_expected_version,p_payload) $$;
 REVOKE ALL ON FUNCTION public.crm_manual_case_save(uuid,jsonb,integer) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.crm_manual_case_transition(uuid,text,integer,jsonb) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.crm_manual_case_save(uuid,jsonb,integer) TO authenticated;
