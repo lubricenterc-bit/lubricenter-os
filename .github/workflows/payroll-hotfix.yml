@@ -1,0 +1,27 @@
+name: Payroll adjustment and payment recovery
+on:
+  pull_request:
+    paths:
+      - 'components/payroll-review.tsx'
+      - 'supabase/migrations/20261014193000_payroll_adjustments_payment_facades.sql'
+      - 'tests/payroll-transfer-hold.test.ts'
+      - '.github/workflows/payroll-hotfix.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/payroll-transfer-hold.test.ts tests/navigation.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
