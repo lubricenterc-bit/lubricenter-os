@@ -104,6 +104,15 @@ describe("CRM manual sin orden y sin ingresos ficticios",()=>{
    await expect(db.query(transition,[r.rows[0].id,"COMPLETE",1,JSON.stringify({odometer:90,oil_brand:"SKY",next_service_odometer:5090})])).rejects.toThrow();
   }finally{await db.close();}
  },120000);
+ it("authenticated admin can call the restricted facade but cannot mutate CRM tables directly",async()=>{
+  const db=await setup();try{
+   await db.exec("grant usage on schema auth to authenticated;grant execute on function auth.uid() to authenticated;");
+   await db.exec("set role authenticated;");
+   const r=await db.query<{id:string}>(save,[null,payload(),null]);
+   expect(r.rows[0].id).toBeTruthy();
+   await expect(db.exec("delete from public.crm_manual_cases")).rejects.toThrow();
+  }finally{await db.close();}
+ },120000);
  it("requires opt-in to record a real WhatsApp send and retains an audit event",async()=>{
   const db=await setup();try{
    const r=await db.query<{id:string}>(save,[null,payload(),null]);const id=r.rows[0].id;
