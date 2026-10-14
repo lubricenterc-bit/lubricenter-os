@@ -102,7 +102,7 @@ REVOKE ALL ON FUNCTION lubricenter_private.upsert_vehicle_crm(uuid,uuid,boolean)
 CREATE OR REPLACE FUNCTION public.capture_service_records_on_close()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $$
-DECLARE rec record; v_next record;
+DECLARE rec record; v_next_km integer;v_next_date date;
 BEGIN
  IF new.status='CLOSED' AND old.status IS DISTINCT FROM 'CLOSED' THEN
   INSERT INTO public.service_records(
@@ -139,7 +139,8 @@ BEGIN
      SELECT 1 FROM public.order_items i WHERE i.order_id=new.id
        AND i.item_type='SERVICE' AND coalesce(i.service_vehicle_id,new.vehicle_id)=rec.vehicle_id
        AND i.service_odometer IS NOT NULL);
-   SELECT i.next_service_odometer,i.next_service_date INTO v_next
+   v_next_km:=null;v_next_date:=null;
+   SELECT i.next_service_odometer,i.next_service_date INTO v_next_km,v_next_date
    FROM public.order_items i WHERE i.order_id=new.id AND i.item_type='SERVICE'
      AND i.business_area='OIL_CHANGE'
      AND coalesce(i.service_vehicle_id,new.vehicle_id)=rec.vehicle_id
@@ -148,10 +149,9 @@ BEGIN
    VALUES('vehicle.service_history_updated','vehicle',rec.vehicle_id,
      jsonb_build_object('order_id',new.id,'order_number',new.order_number,
        'customer_id',new.customer_id,'vehicle_id',rec.vehicle_id,
-       'next_service_odometer',v_next.next_service_odometer,
-       'next_service_date',v_next.next_service_date,
-       'has_oil_change',v_next.next_service_odometer is not null OR v_next.next_service_date is not null));
-   v_next:=null;
+       'next_service_odometer',v_next_km,
+       'next_service_date',v_next_date,
+       'has_oil_change',v_next_km is not null OR v_next_date is not null));
   END LOOP;
  END IF;
  RETURN new;
