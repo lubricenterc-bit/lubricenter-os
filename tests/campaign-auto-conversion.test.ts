@@ -41,13 +41,13 @@ beforeAll(async()=>{
   await db.exec(`
     create or replace function public.finance_role() returns text
     language sql stable security definer set search_path = ''
-    as $
+    as $role$
       select case when exists (
         select 1 from auth.users u where u.id = auth.uid()
           and lower(u.email) = 'lubricenterc@gmail.com'
           and u.email_confirmed_at is not null
       ) then 'OWNER' else 'OPERATOR' end
-    $;
+    $role$;
   `);
   await db.exec(readFileSync('supabase/migrations/20261006203000_crm_campaigns.sql','utf8'));
   await db.exec(readFileSync('supabase/migrations/20261007143000_campaign_auto_conversion.sql','utf8'));
