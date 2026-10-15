@@ -1,4 +1,4 @@
-create or replace function public.get_exchange_rate_control_status()
+create or replace function lubricenter_private.get_exchange_rate_control_status()
 returns jsonb language plpgsql stable security definer set search_path=''
 as $$
 declare result jsonb;
@@ -10,7 +10,7 @@ begin
  'bcv_provider','bcv.today (proveedor externo)',
  'bcv_active',(select er.value from public.exchange_rates er
    where er.rate_type='BCV' and er.effective_at<=now()
-   and (not exists(select 1 from public.app_settings where key='catalog_authority' and value #>> '{}'='LUBRICENTER_OS') or er.source='BCV_API_DATE_VALUE')
+   and case when exists(select 1 from public.app_settings where key='catalog_authority' and value #>> '{}'='LUBRICENTER_OS') then er.source='BCV_API_DATE_VALUE' else er.source is distinct from 'BCV_API_DATE_VALUE' end
    order by er.effective_at desc,er.created_at desc limit 1),
  'bcv_active_since',(select er.effective_at from public.exchange_rates er
    where er.rate_type='BCV' and er.effective_at<=now()
@@ -30,5 +30,10 @@ begin
  ) into result;
  return result;
 end $$;
+create or replace function public.get_exchange_rate_control_status()
+returns jsonb language sql security invoker set search_path=''
+as $select lubricenter_private.get_exchange_rate_control_status()$;
+revoke all on function lubricenter_private.get_exchange_rate_control_status() from public,anon;
+grant execute on function lubricenter_private.get_exchange_rate_control_status() to authenticated;
 revoke all on function public.get_exchange_rate_control_status() from public,anon;
 grant execute on function public.get_exchange_rate_control_status() to authenticated;

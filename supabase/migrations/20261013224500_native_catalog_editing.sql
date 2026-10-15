@@ -129,7 +129,7 @@ begin
  then raise exception 'Tasas de cambio desactualizadas: comprueba el sistema de tasas'; end if;
 end $$;
 -- Preparing a stock reference never imports stock or assigns a cost.
-create or replace function public.catalog_prepare_inventory_item(
+create or replace function lubricenter_private.catalog_prepare_inventory_item(
  p_product_id uuid,p_sku text,p_brand text default null,p_unit text default 'UND'
 ) returns uuid language plpgsql security definer set search_path=''
 as $$
@@ -165,5 +165,10 @@ begin
  values('catalog.inventory_prepared','inventory_item',item_id,jsonb_build_object('product_id',p.id,'stock_changed',false,'actor',auth.uid()));
  return item_id;
 end $$;
+create or replace function public.catalog_prepare_inventory_item(p_product_id uuid,p_sku text,p_brand text default null,p_unit text default 'UND')
+returns uuid language sql security invoker set search_path=''
+as $select lubricenter_private.catalog_prepare_inventory_item(p_product_id,p_sku,p_brand,p_unit)$;
+revoke all on function lubricenter_private.catalog_prepare_inventory_item(uuid,text,text,text) from public,anon;
+grant execute on function lubricenter_private.catalog_prepare_inventory_item(uuid,text,text,text) to authenticated;
 revoke all on function public.catalog_prepare_inventory_item(uuid,text,text,text) from public,anon;
 grant execute on function public.catalog_prepare_inventory_item(uuid,text,text,text) to authenticated;

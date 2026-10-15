@@ -59,7 +59,7 @@ BEGIN
   SELECT er.effective_at INTO v_bcv_at
   FROM public.exchange_rates er
   WHERE er.rate_type = 'BCV' AND er.effective_at <= now()
-    AND (NOT EXISTS(SELECT 1 FROM public.app_settings WHERE key='catalog_authority' AND value #>> '{}'='LUBRICENTER_OS') OR er.source='BCV_API_DATE_VALUE')
+    AND CASE WHEN EXISTS(SELECT 1 FROM public.app_settings WHERE key='catalog_authority' AND value #>> '{}'='LUBRICENTER_OS') THEN er.source='BCV_API_DATE_VALUE' ELSE er.source IS DISTINCT FROM 'BCV_API_DATE_VALUE' END
   ORDER BY er.effective_at DESC, er.created_at DESC LIMIT 1;
   IF v_bcv_at IS NULL OR v_bcv_at < now() - interval '10 days' THEN
     RAISE EXCEPTION 'La tasa BCV está demasiado antigua. Revisa el captador';
@@ -91,11 +91,11 @@ AS $fn$
     (SELECT count(*) FROM public.products p WHERE p.active AND p.available),
     (SELECT er.value FROM public.exchange_rates er
      WHERE er.rate_type = 'BCV' AND er.effective_at <= now()
-    AND (NOT EXISTS(SELECT 1 FROM public.app_settings WHERE key='catalog_authority' AND value #>> '{}'='LUBRICENTER_OS') OR er.source='BCV_API_DATE_VALUE')
+    AND CASE WHEN EXISTS(SELECT 1 FROM public.app_settings WHERE key='catalog_authority' AND value #>> '{}'='LUBRICENTER_OS') THEN er.source='BCV_API_DATE_VALUE' ELSE er.source IS DISTINCT FROM 'BCV_API_DATE_VALUE' END
      ORDER BY er.effective_at DESC, er.created_at DESC LIMIT 1),
     (SELECT er.effective_at FROM public.exchange_rates er
      WHERE er.rate_type = 'BCV' AND er.effective_at <= now()
-    AND (NOT EXISTS(SELECT 1 FROM public.app_settings WHERE key='catalog_authority' AND value #>> '{}'='LUBRICENTER_OS') OR er.source='BCV_API_DATE_VALUE')
+    AND CASE WHEN EXISTS(SELECT 1 FROM public.app_settings WHERE key='catalog_authority' AND value #>> '{}'='LUBRICENTER_OS') THEN er.source='BCV_API_DATE_VALUE' ELSE er.source IS DISTINCT FROM 'BCV_API_DATE_VALUE' END
      ORDER BY er.effective_at DESC, er.created_at DESC LIMIT 1),
     (SELECT er.value FROM public.exchange_rates er
      WHERE er.rate_type = 'OPERATIVE' AND er.effective_at <= now()

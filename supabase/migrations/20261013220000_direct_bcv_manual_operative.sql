@@ -213,8 +213,10 @@ as $$
  (select s.last_verified_at from public.integration_sync_state s where s.source_key='notion_catalog'),
  (select count(*) from public.products p where p.catalog_source='Notion · Nuestros Productos' and p.active and p.available),
  (select r.value from public.exchange_rates r where r.rate_type='BCV' and r.effective_at<=now()
+    and case when exists(select 1 from public.app_settings where key='catalog_authority' and value #>> '{}'='LUBRICENTER_OS') then r.source='BCV_API_DATE_VALUE' else r.source is distinct from 'BCV_API_DATE_VALUE' end
   order by r.effective_at desc,r.created_at desc limit 1),
  (select r.effective_at from public.exchange_rates r where r.rate_type='BCV' and r.effective_at<=now()
+    and case when exists(select 1 from public.app_settings where key='catalog_authority' and value #>> '{}'='LUBRICENTER_OS') then r.source='BCV_API_DATE_VALUE' else r.source is distinct from 'BCV_API_DATE_VALUE' end
   order by r.effective_at desc,r.created_at desc limit 1),
  (select r.value from public.exchange_rates r where r.rate_type='OPERATIVE' and r.effective_at<=now()
   order by r.effective_at desc,r.created_at desc limit 1),

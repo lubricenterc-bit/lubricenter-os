@@ -22,7 +22,7 @@ create unique index if not exists inventory_movement_receipt_unique
   on public.inventory_movements(supplier_receipt_item_id)
   where supplier_receipt_item_id is not null;
 
-create or replace function public.inventory_receive_purchase(
+create or replace function lubricenter_private.inventory_receive_purchase(
   p_request_id uuid,
   p_invoice_id uuid,
   p_location_id uuid,
@@ -195,6 +195,12 @@ begin
 end
 $body$;
 
+create or replace function public.inventory_receive_purchase(p_request_id uuid,p_invoice_id uuid,p_location_id uuid,p_received_on date,p_items jsonb,p_notes text default null)
+returns uuid language sql security invoker set search_path=''
+as $select lubricenter_private.inventory_receive_purchase(p_request_id,p_invoice_id,p_location_id,p_received_on,p_items,p_notes)$;
+revoke all on function lubricenter_private.inventory_receive_purchase(uuid,uuid,uuid,date,jsonb,text) from public,anon;
+grant execute on function lubricenter_private.inventory_receive_purchase(uuid,uuid,uuid,date,jsonb,text) to authenticated;
+
 -- Secure the callable surface. Other modules must use the new explicit,
 -- idempotent RPC, never the old implicit-location receiving endpoint.
 revoke all on function public.inventory_receive_purchase(uuid,uuid,uuid,date,jsonb,text)
@@ -205,7 +211,7 @@ revoke all on function public.receive_supplier_invoice(uuid,date,jsonb,uuid,text
   from public,anon,authenticated;
 
 -- Return explicit destination and immutable cost snapshots on every receipt.
-create or replace function public.purchase_receipt_history(p_invoice_id uuid)
+create or replace function lubricenter_private.purchase_receipt_history(p_invoice_id uuid)
 returns jsonb language plpgsql stable security definer set search_path=''
 as $$
 begin
@@ -224,10 +230,15 @@ begin
  from public.supplier_receipts r join public.locations l on l.id=r.location_id
  where r.supplier_invoice_id=p_invoice_id),'[]'::jsonb);
 end $$;
+create or replace function public.purchase_receipt_history(p_invoice_id uuid)
+returns jsonb language sql security invoker set search_path=''
+as $select lubricenter_private.purchase_receipt_history(p_invoice_id)$;
+revoke all on function lubricenter_private.purchase_receipt_history(uuid) from public,anon;
+grant execute on function lubricenter_private.purchase_receipt_history(uuid) to authenticated;
 revoke all on function public.purchase_receipt_history(uuid) from public,anon;
 grant execute on function public.purchase_receipt_history(uuid) to authenticated;
 
-create or replace function public.inventory_item_history(p_inventory_item_id uuid,p_location_id uuid)
+create or replace function lubricenter_private.inventory_item_history(p_inventory_item_id uuid,p_location_id uuid)
 returns jsonb language plpgsql stable security definer set search_path=''
 as $$
 begin
@@ -244,11 +255,16 @@ begin
    order by m.occurred_at desc,m.id desc limit 100
  ) x),'[]'::jsonb);
 end $$;
+create or replace function public.inventory_item_history(p_inventory_item_id uuid,p_location_id uuid)
+returns jsonb language sql security invoker set search_path=''
+as $select lubricenter_private.inventory_item_history(p_inventory_item_id,p_location_id)$;
+revoke all on function lubricenter_private.inventory_item_history(uuid,uuid) from public,anon;
+grant execute on function lubricenter_private.inventory_item_history(uuid,uuid) to authenticated;
 revoke all on function public.inventory_item_history(uuid,uuid) from public,anon;
 grant execute on function public.inventory_item_history(uuid,uuid) to authenticated;
 
 -- A count names its destination and refuses to overwrite a concurrent receipt.
-create or replace function public.inventory_set_count_at_location(
+create or replace function lubricenter_private.inventory_set_count_at_location(
  p_inventory_item_id uuid,p_location_id uuid,p_expected_quantity numeric,p_new_count numeric,p_note text
 ) returns numeric language plpgsql security definer set search_path=''
 as $$
@@ -280,6 +296,11 @@ begin
  update public.inventory_items set needs_review=false,updated_at=now() where id=p_inventory_item_id;
  return p_new_count;
 end $$;
+create or replace function public.inventory_set_count_at_location(p_inventory_item_id uuid,p_location_id uuid,p_expected_quantity numeric,p_new_count numeric,p_note text)
+returns numeric language sql security invoker set search_path=''
+as $select lubricenter_private.inventory_set_count_at_location(p_inventory_item_id,p_location_id,p_expected_quantity,p_new_count,p_note)$;
+revoke all on function lubricenter_private.inventory_set_count_at_location(uuid,uuid,numeric,numeric,text) from public,anon;
+grant execute on function lubricenter_private.inventory_set_count_at_location(uuid,uuid,numeric,numeric,text) to authenticated;
 revoke all on function public.inventory_set_count_at_location(uuid,uuid,numeric,numeric,text) from public,anon;
 grant execute on function public.inventory_set_count_at_location(uuid,uuid,numeric,numeric,text) to authenticated;
 
