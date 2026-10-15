@@ -9,6 +9,8 @@ on:
       - 'supabase/migrations/20261013224000_native_catalog_cutover.sql'
       - 'supabase/migrations/20261013224500_native_catalog_editing.sql'
       - 'supabase/migrations/20261013225000_catalog_invoice_intake.sql'
+      - 'supabase/migrations/20261013225500_catalog_direct_rates_compatibility.sql'
+      - 'tests/catalog-direct-rates-integration.test.ts'
       - 'tests/catalog-two-month-three-cycles.test.ts'
       - '.github/workflows/catalog-native-audit.yml'
 jobs:
@@ -25,7 +27,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - run: npx vitest run tests/catalog-two-month-three-cycles.test.ts tests/catalog.test.ts tests/catalog-technical-taxonomy.test.ts
+      - run: npx vitest run tests/catalog-two-month-three-cycles.test.ts tests/catalog-direct-rates-integration.test.ts tests/catalog.test.ts tests/catalog-technical-taxonomy.test.ts
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
