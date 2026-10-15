@@ -22,7 +22,7 @@ const groups = [
       ["/cash-close", "✓", "Cuadre diario", "Cierre de efectivo y bancos"],
       ["/receivables", "$", "Cobros", "Crédito LC y abonos"],
       ["/payroll", "%", "Nómina", "Cheo, Alexis y ajustes"],
-      ["/settings", "⚙", "Configuración", "Notion, CRM y reglas"],
+      ["/settings", "⚙", "Configuración", "Tasas, catálogo, CRM y reglas"],
     ],
   },
 ] as const;

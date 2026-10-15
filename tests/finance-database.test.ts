@@ -10,7 +10,7 @@ type CashTaskFixture = { task_key: string };
 const owner='10000000-0000-0000-0000-000000000001', operator='10000000-0000-0000-0000-000000000002', admin='10000000-0000-0000-0000-000000000003';
 const bank='20000000-0000-0000-0000-000000000001', usd='20000000-0000-0000-0000-000000000002', ves='20000000-0000-0000-0000-000000000003';
 const source='30000000-0000-0000-0000-000000000001', cashea='30000000-0000-0000-0000-000000000002';
-async function scalar<T=unknown>(sql:string,args:unknown[]=[]):Promise<T>{const r=await db.query(sql,args);return Object.values(r.rows[0] as object)[0] as T;}
+async function scalar<T=unknown>(sql:string,args:unknown[]=[]):Promise<T>{const r=await db.query(sql,args);if(!r.rows.length)throw Error('Expected a row from SQL: '+sql.slice(0,180));return Object.values(r.rows[0] as object)[0] as T;}
 async function asUser(id=owner){await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id]);await db.exec('set role authenticated');}
 async function root(){await db.exec('reset role');}
 function preview(rows:ExternalRow[],provider:Preview['provider']='BDV'):Preview{return {provider,rows,orders:[],errors:[],warnings:[],duplicates:0,balance_chain:true,observed_from:'2026-09-01',observed_to:'2026-09-30'};}
@@ -50,6 +50,7 @@ beforeAll(async()=>{
  await db.exec(readFileSync('supabase/migrations/20261001153446_finance_followup.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20261007210757_finance_weekly_reconciliation_core.sql','utf8'));
  await db.exec(readFileSync('supabase/migrations/20261007211631_finance_rules_resolve_outflows.sql','utf8'));
+ await db.exec(readFileSync('supabase/migrations/20261015210000_restore_verified_bank_residuals.sql','utf8'));
  await db.exec(`insert into auth.users values('${owner}','lubricenterc@gmail.com',now()),('${operator}','operator@example.test',now()),('${admin}','admin@example.test',now());
  insert into public.locations(code,name) values('TEST','Test location');
  insert into public.financial_accounts(id,code,name,currency,account_type) values('${bank}','BDV','Bank','VES','BANK'),('${usd}','CASH_USD','USD','USD','CASH'),('${ves}','CASH_VES','Bs','VES','CASH');

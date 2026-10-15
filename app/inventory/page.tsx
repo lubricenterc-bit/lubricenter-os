@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { InventoryHistory } from "@/components/inventory-history";
+import { catalogIsFresh } from "@/lib/catalog";
 import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
 
@@ -60,6 +62,10 @@ function formatSyncDate(value: string | null) {
 }
 
 export default function InventoryPage() {
+  const [locations,setLocations]=useState<Array<{id:string;code:string;name:string}>>([]);
+  const [locationCode,setLocationCode]=useState("CABUDARE");
+  const [canManage,setCanManage]=useState(false);
+  const [historyItem,setHistoryItem]=useState<InventoryRow|null>(null);
   const [rows, setRows] = useState<InventoryRow[]>([]);
   const [catalog, setCatalog] = useState<CatalogRow[]>([]);
   const [sync, setSync] = useState<PricingSync | null>(null);
@@ -78,14 +84,17 @@ export default function InventoryPage() {
   async function load() {
     setLoading(true);
     setError("");
-    const [invRes, catRes, syncRes] = await Promise.all([
-      supabase.rpc("get_inventory_snapshot", { p_location_code: "CABUDARE" }),
+    const [invRes, catRes, syncRes,locationRes,permissionRes] = await Promise.all([
+      supabase.rpc("get_inventory_snapshot", { p_location_code: locationCode }),
       supabase.rpc("get_catalog_snapshot"),
       supabase.rpc("get_pricing_sync_status"),
+      supabase.from("locations").select("id,code,name").eq("active",true).order("name"),
+      supabase.rpc("can_administer_orders"),
     ]);
 
-    if (invRes.error || catRes.error || syncRes.error) {
-      setError((invRes.error || catRes.error || syncRes.error)?.message ?? "No pude cargar inventario y catálogo.");
+    setLocations(locationRes.data??[]);setCanManage(permissionRes.data===true);
+    if (invRes.error || catRes.error || syncRes.error || locationRes.error) {
+      setError((invRes.error || catRes.error || syncRes.error || locationRes.error)?.message ?? "No pude cargar inventario y catálogo.");
       setLoading(false);
       return;
     }
@@ -123,7 +132,7 @@ export default function InventoryPage() {
     const refreshPricing = () => load();
     window.addEventListener("lubricenter:pricing-updated", refreshPricing);
     return () => window.removeEventListener("lubricenter:pricing-updated", refreshPricing);
-  }, []);
+  }, [locationCode]);
 
   const inventoryCategories = useMemo(() => Array.from(new Set(rows.map(r => r.category).filter(Boolean) as string[])).sort(), [rows]);
   const catalogCategories = useMemo(() => Array.from(new Set(catalog.map(r => r.category).filter(Boolean) as string[])).sort(), [catalog]);
@@ -151,10 +160,8 @@ export default function InventoryPage() {
   const positiveRefs = rows.filter(r => r.quantity_on_hand > 0).length;
   const units = rows.reduce((sum, r) => sum + Math.max(r.quantity_on_hand, 0), 0);
   const review = rows.filter(r => r.needs_review || r.quantity_on_hand < 0).length;
-  const catalogAge = sync?.catalogSyncedAt ? (Date.now() - new Date(sync.catalogSyncedAt).getTime()) / 3600000 : Infinity;
-  const rateTimes = [sync?.bcvEffectiveAt, sync?.operativeEffectiveAt].filter(Boolean) as string[];
-  const rateAge = rateTimes.length ? Math.max(...rateTimes.map(v => (Date.now() - new Date(v).getTime()) / 3600000)) : Infinity;
-  const pricingFresh = catalogAge <= 24 && rateAge <= 3;
+  const pricingFresh=catalogIsFresh(sync);
+  const selectedLocation=locations.find(x=>x.code===locationCode);
 
   function switchMode(next: "inventory" | "catalog") {
     setMode(next);
@@ -170,12 +177,14 @@ export default function InventoryPage() {
   }
 
   async function saveCount() {
-    if (!adjusting || newCount === "") return;
+    if (!adjusting || newCount === "" || !canManage || !selectedLocation || !note.trim()) return;
     const count = Number(newCount);
     if (!Number.isFinite(count) || count < 0) return setError("El conteo debe ser cero o mayor.");
     setBusy(true); setError(""); setNotice("");
-    const { error } = await supabase.rpc("set_inventory_count", {
+    const { error } = await supabase.rpc("inventory_set_count_at_location", {
       p_inventory_item_id: adjusting.id,
+      p_location_id: selectedLocation?.id,
+      p_expected_quantity: adjusting.quantity_on_hand,
       p_new_count: count,
       p_note: note.trim() || "Conteo físico desde Lubricenter OS",
     });
@@ -188,7 +197,7 @@ export default function InventoryPage() {
 
   return <main className="container stack">
     <section className="brand-hero">
-      <div><div className="eyebrow">INVENTARIO FÍSICO · CABUDARE</div><h1>Inventario</h1><p>Control de existencia física. Para consultar precios y fotografías, abre el catálogo visual de Notion.</p></div>
+      <div><div className="eyebrow">INVENTARIO FÍSICO · {selectedLocation?.name??locationCode}</div><h1>Inventario</h1><p>Control de existencia física. Para consultar precios y fotografías, abre el catálogo de productos.</p></div>
       <img src="/lubricenter-logo.png" alt="Lubricenter" />
     </section>
 
@@ -197,7 +206,7 @@ export default function InventoryPage() {
 
     <section className={`card stack ${pricingFresh ? "" : "brand-card"}`}>
       <div className="row-between">
-        <div><div className="muted small">FUENTE DE PRECIOS</div><strong>Notion · Nuestros Productos</strong></div>
+        <div><div className="muted small">FUENTE DE PRECIOS</div><strong>Catálogo de Lubricenter OS</strong></div>
         <span className={`pill ${pricingFresh ? "ok" : "warn"}`}>{pricingFresh ? "ACTUALIZADO" : "REVISAR"}</span>
       </div>
       <div className="grid grid-2">
@@ -206,10 +215,12 @@ export default function InventoryPage() {
       </div>
     </section>
 
+    <label><span className="label">Sede</span><select className="select" value={locationCode} disabled={loading} onChange={e=>{setLocationCode(e.target.value);setRows([]);setAdjusting(null);setHistoryItem(null)}}>{locations.map(l=><option key={l.id} value={l.code}>{l.name}</option>)}</select></label>
     <section className="row" style={{ gap: 10, flexWrap: "wrap" }}>
       <button className={`btn ${mode === "inventory" ? "btn-primary" : "btn-ghost"}`} onClick={() => switchMode("inventory")}>Inventario físico</button>
       <Link href="/catalog" className="btn btn-ghost">Abrir catálogo visual con fotos ↗</Link>
       <Link href="/catalog/technical" className="btn btn-primary">Clasificar aceites y filtros</Link>
+      <Link href="/catalog/manage" className="btn">Administrar artículos</Link>
       <button className="btn btn-ghost" onClick={load} disabled={loading}>{loading ? "Cargando…" : "Recargar"}</button>
     </section>
 
@@ -220,8 +231,8 @@ export default function InventoryPage() {
     </section>}
 
     {mode === "catalog" && <section className="grid grid-3">
-      <div className="card"><div className="muted small">PRODUCTOS DISPONIBLES</div><div className="kpi">{catalog.length}</div><div className="muted">Fuente: Notion</div></div>
-      <div className="card"><div className="muted small">PRECIO BASE</div><div className="kpi">USD</div><div className="muted">Precio maestro de Notion</div></div>
+      <div className="card"><div className="muted small">PRODUCTOS DISPONIBLES</div><div className="kpi">{catalog.length}</div><div className="muted">Fuente: catálogo</div></div>
+      <div className="card"><div className="muted small">PRECIO BASE</div><div className="kpi">USD</div><div className="muted">Precio maestro del catálogo</div></div>
       <div className="card"><div className="muted small">PRECIO CLIENTE</div><div className="kpi">REF + Bs</div><div className="muted">Calculado con P2P + BCV</div></div>
     </section>}
 
@@ -251,7 +262,7 @@ export default function InventoryPage() {
         </div>
         <div className="row-between">
           <div>{r.current_ref_bcv != null ? <><strong>{fmtRef(r.current_ref_bcv)}</strong><div className="muted small">{fmtVes(r.current_price_ves ?? 0)} · precio sugerido</div></> : <div className="muted small">Sin vínculo de precio · podrás escribir el precio al vender</div>}</div>
-          <button className="btn btn-ghost" onClick={() => beginAdjust(r)}>Ajustar conteo</button>
+          {canManage&&<div className="row"><button className="btn btn-ghost" onClick={()=>setHistoryItem(r)}>Movimientos y costos</button><button className="btn btn-ghost" onClick={() => beginAdjust(r)}>Ajustar conteo</button></div>}
         </div>
       </article>)}
       {!filteredInventory.length && <div className="card error">No hay productos visibles con este filtro. Pulsa “Recargar” o desactiva “solo con existencia”.</div>}
@@ -260,22 +271,23 @@ export default function InventoryPage() {
     {!loading && mode === "catalog" && <section className="stack">
       {filteredCatalog.map(r => <article className="card stack" key={r.id}>
         <div className="row-between">
-          <div><strong>{r.name}</strong><div className="muted small">{r.category || "Sin categoría"} · Notion</div></div>
+          <div><strong>{r.name}</strong><div className="muted small">{r.category || "Sin categoría"} · Catálogo</div></div>
           <div style={{ textAlign: "right" }}><strong>{fmtRef(r.current_ref_bcv ?? 0)}</strong><div className="muted small">{fmtVes(r.current_price_ves ?? 0)}</div></div>
         </div>
-        <div className="row-between"><div className="muted small">Precio base Notion: ${r.cash_usd_base_price.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div><span className="pill ok">DISPONIBLE</span></div>
+        <div className="row-between"><div className="muted small">Precio base divisas: ${r.cash_usd_base_price.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div><span className="pill ok">DISPONIBLE</span></div>
       </article>)}
-      {!filteredCatalog.length && <div className="card error">El catálogo no devolvió productos. Pulsa “Recargar” y revisa el indicador de Notion.</div>}
+      {!filteredCatalog.length && <div className="card error">El catálogo no devolvió productos. Pulsa “Recargar” y revisa el estado de precios y tasas.</div>}
     </section>}
 
-    <section className="card"><strong>Precio editable al vender</strong><div className="muted small">Notion mantiene el precio maestro. En el cambio de aceite podrás modificar el “Precio a cobrar REF” para esa orden sin alterar el catálogo global.</div></section>
+    <section className="card"><strong>Precio editable al vender</strong><div className="muted small">El catálogo mantiene el precio maestro. En el cambio de aceite podrás modificar el “Precio a cobrar REF” para esa orden sin alterar el catálogo global.</div></section>
 
+    {historyItem&&selectedLocation&&<InventoryHistory item={historyItem} location={selectedLocation} onClose={()=>setHistoryItem(null)}/>}
     {adjusting && <div className="overlay"><div className="sheet stack">
       <div className="row-between"><div><h2 style={{ margin: 0 }}>Conteo físico</h2><div className="muted small">{adjusting.sku} · {adjusting.brand}</div></div><button className="btn btn-ghost" onClick={() => setAdjusting(null)}>Cerrar</button></div>
       <div className="muted">Sistema: {adjusting.quantity_on_hand.toLocaleString("es-VE")} {adjusting.unit}</div>
       <label><span className="label">Cantidad realmente contada</span><input className="input" type="number" min="0" step="0.01" value={newCount} onChange={e => setNewCount(e.target.value)} autoFocus /></label>
       <label><span className="label">Nota</span><input className="input" value={note} onChange={e => setNote(e.target.value)} placeholder="Ej. Conteo de apertura" /></label>
-      <button className="btn btn-primary btn-block" disabled={busy || newCount === ""} onClick={saveCount}>{busy ? "Guardando…" : "Guardar conteo"}</button>
+      <button className="btn btn-primary btn-block" disabled={busy || newCount === "" || !note.trim()} onClick={saveCount}>{busy ? "Guardando…" : "Guardar conteo"}</button>
     </div></div>}
   </main>;
 }

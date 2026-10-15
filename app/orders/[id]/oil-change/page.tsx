@@ -307,10 +307,10 @@ export default function OilChangePage() {
 
     <section className={`card ${pricingFresh ? "success" : "brand-card"}`}>
       <div className="row-between">
-        <div><strong>Precio sugerido desde Notion</strong><div className="small">Catálogo {syncLabel(sync.catalogSyncedAt)} · tasas {syncLabel(sync.operativeEffectiveAt)}</div></div>
+        <div><strong>Precio sugerido del catálogo</strong><div className="small">Catálogo {syncLabel(sync.catalogSyncedAt)} · tasas {syncLabel(sync.operativeEffectiveAt)}</div></div>
         <span className={`pill ${pricingFresh ? "ok" : "warn"}`}>{pricingFresh ? "VIGENTE" : "PRECIO MANUAL"}</span>
       </div>
-      <div className="muted small">Puedes modificar el precio a cobrar en esta orden. Eso no cambia el precio maestro de Notion.</div>
+      <div className="muted small">Puedes modificar el precio a cobrar en esta orden. Eso no cambia el precio maestro del catálogo.</div>
     </section>
 
     <section className="card stack">
@@ -357,7 +357,7 @@ export default function OilChangePage() {
 
       <div className="grid grid-2">
         <label><span className="label">Unidades usadas *</span><input className="input" type="number" min="0.01" step="0.01" value={oilUnits} onChange={e => setOilUnits(e.target.value)} /></label>
-        <label><span className="label">Precio a cobrar REF *</span><input className="input" type="number" min="0.01" step="0.01" value={oilPriceRef} onChange={e => setOilPriceRef(e.target.value)} placeholder={pricingFresh ? "Precio sugerido de Notion" : "Ingresa precio manual"} /></label>
+        <label><span className="label">Precio a cobrar REF *</span><input className="input" type="number" min="0.01" step="0.01" value={oilPriceRef} onChange={e => setOilPriceRef(e.target.value)} placeholder={pricingFresh ? "Precio sugerido del catálogo" : "Ingresa precio manual"} /></label>
         <label><span className="label">Litros reales en el motor</span><input className="input" type="number" min="0" step="0.1" value={liters} onChange={e => setLiters(e.target.value)} placeholder="Ej. 4.5" /></label>
         <label><span className="label">Viscosidad</span><input className="input" value={viscosity} onChange={e => setViscosity(e.target.value)} placeholder="Ej. 15W-40" /></label>
       </div>
@@ -378,7 +378,7 @@ export default function OilChangePage() {
 
       {filter && <div className="grid grid-2">
         <label><span className="label">Cantidad</span><input className="input" type="number" min="0.01" step="0.01" value={filterUnits} onChange={e => setFilterUnits(e.target.value)} /></label>
-        <label><span className="label">Precio a cobrar REF *</span><input className="input" type="number" min="0.01" step="0.01" value={filterPriceRef} onChange={e => setFilterPriceRef(e.target.value)} placeholder={pricingFresh ? "Precio sugerido de Notion" : "Ingresa precio manual"} /></label>
+        <label><span className="label">Precio a cobrar REF *</span><input className="input" type="number" min="0.01" step="0.01" value={filterPriceRef} onChange={e => setFilterPriceRef(e.target.value)} placeholder={pricingFresh ? "Precio sugerido del catálogo" : "Ingresa precio manual"} /></label>
       </div>}
     </section>
 

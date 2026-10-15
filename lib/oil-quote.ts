@@ -89,9 +89,9 @@ export function analyzeOil(product: CatalogProduct): OilAnalysis | null {
   if (!viscosity || (!categoryOil && !nameViscosity)) return null;
   const warnings: string[] = [];
   if (nameViscosity && categoryViscosity && nameViscosity !== categoryViscosity) {
-    warnings.push("Notion clasifica " + categoryViscosity + ", pero el nombre indica " + nameViscosity + "; prevalece el nombre.");
+    warnings.push("El catálogo clasifica " + categoryViscosity + ", pero el nombre indica " + nameViscosity + "; prevalece el nombre.");
   }
-  if (!tech) warnings.push("Tecnología no indicada claramente en el nombre. Verificar en Notion.");
+  if (!tech) warnings.push("Tecnología no indicada claramente en el nombre. Verificar en el catálogo.");
   const volumeLiters = volumeFromOilName(product.name);
   if (!volumeLiters) warnings.push("Volumen no identificable. No cotizar automáticamente.");
   if (product.cash_usd_base_price == null || product.current_ref_bcv == null || product.current_price_ves == null) {
@@ -121,7 +121,7 @@ export function moneyFromCatalog(product: CatalogProduct, factor: number): Quote
   };
 }
 
-/** Convierte manuales a los mismos tres sistemas utilizados por la integración de Notion. */
+/** Convierte manuales a los mismos tres sistemas utilizados por la catálogo. */
 export function moneyFromManualUsd(usd: number, rates: CatalogSync | null): QuoteMoney {
   if (!Number.isFinite(usd) || usd < 0) throw new Error("Importe manual inválido");
   if (usd === 0) return zeroMoney();
