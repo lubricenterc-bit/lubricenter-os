@@ -1,0 +1,27 @@
+name: Purchase receipts - atomic inventory validation
+on:
+  pull_request:
+    paths:
+      - 'app/purchases/**'
+      - 'supabase/migrations/20261015214500_purchase_receipt_idempotency.sql'
+      - 'tests/purchase-receipts-v2.test.ts'
+      - '.github/workflows/purchase-receipts-audit.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/purchase-receipts-v2.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
