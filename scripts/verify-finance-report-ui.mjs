@@ -56,6 +56,7 @@ try {
  const csv=await readFile('.tmp/ui-evidence/finance-report.csv','utf8');assert(csv.includes('330,0000'));assert(csv.includes('Cashea'));
  await page.emulateMedia({media:'print'});
  assert.equal(await page.locator('.finance-controls').evaluate(e=>getComputedStyle(e).display),'none');
+ assert(await page.evaluate(()=>document.body.getBoundingClientRect().width>600),'Financial reports must not inherit the 58mm thermal receipt width');
  await page.pdf({path:'.tmp/ui-evidence/finance-report.pdf',format:'A4',printBackground:true});
  await page.emulateMedia({media:'screen'});
  fail=true;await page.getByLabel('Día del reporte',{exact:true}).fill('2026-09-11');

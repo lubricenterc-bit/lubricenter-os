@@ -15,6 +15,15 @@ required. Apply only `scripts/finance-management-report.sql`, not other pending
 migrations. The application uses the same report for its headline and currency
 detail, keeping collection and bank movement calculations separate.
 
+Production application: migration `20261016183131_finance_daily_management_report`.
+Verified on 16 October at 18:31 UTC: daily and month-to-date reports returned
+complete totals without missing-rate, overpayment or ownership warnings.
+Customer debt at cutoff matches the existing ledger.
+Cashea has no recorded opening, so the accumulated balance is intentionally null.
+Hashes of orders, payments, receivables, Cashea sales and account movements were
+identical before and after installation. Actual business amounts are not
+embedded in the application or this procedure.
+
 Closed orders are selected by `coalesce(business_at,closed_at)` with inclusive
 Caracas midnight and exclusive next midnight. Open/cancelled orders and Cashea
 belonging to another location or lacking confirmed ownership are excluded.
@@ -72,3 +81,4 @@ a failed date change. No synthetic production sale/payment/receipt is created.
 
 The two report functions are additive. Recovery can remove the new UI without
 restoring any financial data. Keep the prior functions and all business rows.
+

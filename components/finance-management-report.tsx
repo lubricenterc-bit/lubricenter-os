@@ -41,7 +41,7 @@ export function FinanceManagementReportView({ report }: { report: FinanceManagem
         return <article className="finance-channel-card" key={c.key} style={{ borderTopColor: c.color }}>
           <div className="row-between"><h3>{c.label}</h3>{share !== null && <span className="small muted">{share.toFixed(1)}%</span>}</div>
           <strong className="finance-channel-amount"><Amount value={row.equivalent} /></strong>
-          <div className="small">{c.key === "divisas" ? "USD reales de la venta" : `${fmtVes(row.ves ?? 0)} · equivalente BCV`}</div>
+          <div className="small">{c.key === "divisas" ? "USD nominales de la venta" : `${fmtVes(row.ves ?? 0)} · equivalente BCV`}</div>
           <p className="muted small">{c.note}</p><span className="finance-channel-count">{row.orders} orden(es) con participación</span>
         </article>;
       })}
