@@ -2,6 +2,14 @@
 -- This must run in the SAME transaction as the compatibility migration.
 do $guard$
 begin
+ if exists(select 1 from public.app_settings where key='exchange_rate_authority' and value #>> '{}'='NOTION') then
+  if not exists(select 1 from public.integration_sync_state where source_key='notion_rates' and last_verified_at between now()-interval '3 hours' and now()+interval '5 minutes') then
+   raise exception 'Comprueba la sincronización de tasas de Notion antes de activar el catálogo';
+  end if;
+  if not exists(select 1 from public.current_exchange_rates where bcv_rate>0 and operative_rate>0) then
+   raise exception 'Faltan tasas válidas de Notion para activar el catálogo';
+  end if;
+ else
  if to_regclass('public.bcv_rate_publications') is null
     or to_regclass('lubricenter_private.bcv_official_verifications') is null then
    raise exception 'Instala y verifica el captador BCV antes de cambiar la fuente del catálogo';
@@ -18,6 +26,7 @@ begin
      where value_date<=(now() at time zone 'America/Caracas')::date)
    and v.verified_at between now()-interval '24 hours' and now()+interval '5 minutes'
  ) then raise exception 'Falta cotejar la fecha valor vigente con la publicación oficial BCV'; end if;
+ end if;
 end
 $guard$;
 create table if not exists lubricenter_private.catalog_cutover_backups(
@@ -58,9 +67,10 @@ begin
   if p_synced_at is null or p_synced_at > now() + interval '5 minutes' then
     raise exception 'La fecha de sincronización no es válida';
   end if;
-  if pg_catalog.jsonb_typeof(p_products) <> 'array'
+  if coalesce((select value #>> '{}' from public.app_settings where key='catalog_authority'),'NOTION') <> 'LUBRICENTER_OS'
+     and (p_products is null or pg_catalog.jsonb_typeof(p_products) <> 'array'
      or pg_catalog.jsonb_array_length(p_products) < 1
-     or pg_catalog.jsonb_array_length(p_products) > 500 then
+     or pg_catalog.jsonb_array_length(p_products) > 500) then
     raise exception 'El catálogo debe contener entre 1 y 500 productos';
   end if;
 

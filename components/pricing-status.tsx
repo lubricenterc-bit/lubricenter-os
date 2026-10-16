@@ -13,7 +13,7 @@ export function PricingStatus() {
     const [{ data, error },control]=await Promise.all([supabase.rpc("get_pricing_sync_status"),supabase.rpc("get_exchange_rate_control_status")]);
     if (error||control.error) return setFresh(false);
     const row = Array.isArray(data) ? data[0] : data;
-    setFresh(catalogIsFresh(normalizeCatalogSync(row)));
+    setFresh(control.data?.rates_fresh !== false && catalogIsFresh(normalizeCatalogSync(row)));
     const version = `${control.data?.catalog_version ?? row?.catalog_products ?? ""}:${row?.bcv_effective_at ?? ""}:${row?.operative_effective_at ?? ""}`;
     if (lastVersion.current && version !== lastVersion.current) {
       window.dispatchEvent(new CustomEvent("lubricenter:pricing-updated"));

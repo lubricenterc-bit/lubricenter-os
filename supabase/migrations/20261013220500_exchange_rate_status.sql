@@ -7,14 +7,15 @@ begin
  select jsonb_build_object(
  'catalog_authority',(select value #>> '{}' from public.app_settings where key='catalog_authority'),
  'catalog_version',(select max(updated_at) from public.products),
+ 'exchange_rate_authority',public.exchange_rate_authority(),
  'bcv_provider','BCV oficial · captador propio',
  'bcv_active',(select er.value from public.exchange_rates er
    where er.rate_type='BCV' and er.effective_at<=now()
-   and case when exists(select 1 from public.app_settings where key='catalog_authority' and value #>> '{}'='LUBRICENTER_OS') then er.source='BCV_API_DATE_VALUE' else er.source is distinct from 'BCV_API_DATE_VALUE' end
+   and case when public.exchange_rate_authority()='BCV_OFFICIAL' then er.source='BCV_API_DATE_VALUE' else er.source is distinct from 'BCV_API_DATE_VALUE' end
    order by er.effective_at desc,er.created_at desc limit 1),
  'bcv_active_since',(select er.effective_at from public.exchange_rates er
    where er.rate_type='BCV' and er.effective_at<=now()
-   and case when exists(select 1 from public.app_settings where key='catalog_authority' and value #>> '{}'='LUBRICENTER_OS') then er.source='BCV_API_DATE_VALUE' else er.source is distinct from 'BCV_API_DATE_VALUE' end
+   and case when public.exchange_rate_authority()='BCV_OFFICIAL' then er.source='BCV_API_DATE_VALUE' else er.source is distinct from 'BCV_API_DATE_VALUE' end
    order by er.effective_at desc,er.created_at desc limit 1),
  'bcv_next',(select jsonb_build_object('value',r.usd_ves,'fecha_valor',r.value_date)
    from public.bcv_rate_publications r

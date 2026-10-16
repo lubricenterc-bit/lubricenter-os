@@ -42,7 +42,7 @@ type OfficialBcvStatus = {
 
 export default function SettingsPage() {
   const [nativeCatalog,setNativeCatalog]=useState(false);
-  const [control,setControl]=useState<{bcv_last_fetch?:string;bcv_next?:{value:number;fecha_valor:string}}|null>(null);
+  const [control,setControl]=useState<{exchange_rate_authority?:string;rates_fresh?:boolean;rates_verified_at?:string;bcv_last_fetch?:string;bcv_next?:{value:number;fecha_valor:string}}|null>(null);
   const [officialBcv,setOfficialBcv]=useState<OfficialBcvStatus|null>(null);
   const [bcv, setBcv] = useState(0);
   const [operative, setOperative] = useState(0);
@@ -137,10 +137,12 @@ export default function SettingsPage() {
     setMessage("Plantilla post-servicio guardada. Las próximas órdenes cerradas usarán este formato.");
   }
 
-  const rateFresh = bcv > 0 && operative > 0 && !!bcvAt && new Date(bcvAt).getTime() <= Date.now() && Date.now()-new Date(bcvAt).getTime() <= 10*86400000;
+  const notionRates = control?.exchange_rate_authority === "NOTION";
+  const manualRates = control?.exchange_rate_authority === "BCV_OFFICIAL" && nativeCatalog;
+  const rateFresh = control?.rates_fresh !== false && bcv > 0 && operative > 0 && !!bcvAt && new Date(bcvAt).getTime() <= Date.now() && Date.now()-new Date(bcvAt).getTime() <= 10*86400000;
   const catalogFresh = !!catalogAt && (nativeCatalog || Date.now() - new Date(catalogAt).getTime() <= 24 * 3600000);
   const officialFresh = !!officialBcv?.state?.last_success_at && Date.now()-new Date(officialBcv.state.last_success_at).getTime()<=26*3600000;
-  const officialInUse = nativeCatalog && officialBcv?.mode==="NATIVE_BRIDGE";
+  const officialInUse = manualRates && officialBcv?.mode==="NATIVE_BRIDGE";
 
   return <main className="container stack">
     <div><h1 style={{ marginBottom: 4 }}>Configuración</h1><div className="muted">Catálogo de productos, tasas y reglas de operación.</div></div>
@@ -170,21 +172,21 @@ export default function SettingsPage() {
 
     <section className="card stack">
       <div className="row-between">
-        <h2 className="section-title">Control independiente de tasas</h2>
+        <h2 className="section-title">Control de tasas · {notionRates?"Notion":"Lubricenter OS"}</h2>
         <span className={`pill ${rateFresh?"ok":"warn"}`}>{rateFresh?"TASAS DISPONIBLES":"REVISAR BCV"}</span>
       </div>
       <div className="grid grid-2">
         <div className="card stack">
-          <div className="label">BCV · {nativeCatalog?"captador automático":"fuente en transición"}</div>
+          <div className="label">BCV · {notionRates?"Notion":nativeCatalog?"captador automático":"fuente en transición"}</div>
           <div className="money-lg">{bcv.toLocaleString("es-VE",{maximumFractionDigits:6})}</div>
-          <div className="muted small">Fecha valor vigente: {formatDate(bcvAt)}</div>
+          <div className="muted small">{notionRates?"Última comprobación en Notion":"Fecha valor vigente"}: {formatDate(bcvAt)}</div>
           <p className="muted small">El captador guarda por separado la fecha de consulta y la fecha valor oficial. Una tasa anunciada para una fecha futura no reemplaza anticipadamente la actual.</p>
         </div>
         <div className="card stack">
-          <div className="label">Tasa operativa · manual</div>
+          <div className="label">Tasa operativa · {notionRates?"Notion":"manual"}</div>
           <div className="money-lg">{operative.toLocaleString("es-VE",{maximumFractionDigits:6})}</div>
           <div className="muted small">Último cambio: {formatDate(operativeAt)}</div>
-          <p className="muted small">{nativeCatalog?"La tasa operativa se administra manualmente.":"La fuente anterior sigue activa hasta verificar el cambio de tasas."}</p>
+          <p className="muted small">{notionRates?"BCV y operativa se actualizan desde Notion. El catálogo se administra por separado.":nativeCatalog?"La tasa operativa se administra manualmente.":"La fuente anterior sigue activa hasta verificar el cambio de tasas."}</p>
         </div>
       </div>
       <div className="muted small">Última consulta del captador: {formatDate(control?.bcv_last_fetch??null)}{control?.bcv_next?` · Próxima fecha valor: ${control.bcv_next.fecha_valor} (${control.bcv_next.value} Bs/USD)`:""}</div>
@@ -200,18 +202,18 @@ export default function SettingsPage() {
       <label><span className="label">Nueva tasa operativa (Bs por USD)</span>
         <input className="input" type="text" inputMode="decimal" value={manualOperative}
           onChange={e=>setManualOperative(e.target.value)} placeholder="Ej. 1061,32"
-          disabled={rateRole!=="OWNER"||!nativeCatalog}/>
+          disabled={rateRole!=="OWNER"||!manualRates}/>
       </label>
       <label><span className="label">Motivo o referencia (opcional)</span>
         <input className="input" value={manualReason} onChange={e=>setManualReason(e.target.value)}
           placeholder="Ej. Ajuste comercial por nuevo costo de reposición"
-          disabled={rateRole!=="OWNER"||!nativeCatalog}/>
+          disabled={rateRole!=="OWNER"||!manualRates}/>
       </label>
-      {rateRole==="OWNER"&&nativeCatalog?
+      {rateRole==="OWNER"&&manualRates?
         <button className="btn btn-primary" disabled={savingOperative} onClick={saveOperative}>
           {savingOperative?"Guardando tasa…":"Guardar nueva tasa operativa"}
         </button>:
-        <p className="muted small">La edición manual se habilita para la cuenta propietaria al completar la transición.</p>}
+        <p className="muted small">{notionRates?"Actualiza las tasas en Notion; su sincronización permanece activa.":"La edición manual se habilita para la cuenta propietaria al completar la transición."}</p>}
       <div className="muted small">El cambio afecta cálculos nuevos. Las órdenes y cobros anteriores conservan sus tasas registradas.</div>
       <button className="btn btn-ghost" disabled={checkingPrices} onClick={()=>load(true)}>
         {checkingPrices?"Comprobando…":"Actualizar estado de tasas"}

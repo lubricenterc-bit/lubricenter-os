@@ -1,3 +1,11 @@
+create or replace function public.exchange_rate_authority()
+returns text language sql stable security invoker set search_path=''
+as $$select coalesce((select value #>> '{}' from public.app_settings where key='exchange_rate_authority'),
+ case when exists(select 1 from public.app_settings where key='catalog_authority' and value #>> '{}'='LUBRICENTER_OS') then 'BCV_OFFICIAL' else 'NOTION' end)$$;
+revoke all on function public.exchange_rate_authority() from public,anon;
+grant execute on function public.exchange_rate_authority() to authenticated,service_role;
+
+
 -- Rates cutover: Notion remains catalog-only, BCV comes from dated source publication,
 -- OPERATIVE rate is changed exclusively by a finance OWNER.
 -- Historical rate rows, orders, payments and invoice snapshots are never rewritten.
@@ -118,10 +126,7 @@ create or replace function public.ignore_notion_exchange_rates()
 returns trigger language plpgsql security invoker set search_path=''
 as $$
 begin
- if new.source ilike 'Notion%' and exists (
-   select 1 from public.app_settings where key='catalog_authority'
-     and value #>> '{}'='LUBRICENTER_OS'
- ) then return null; end if;
+ if new.source ilike 'Notion%' and public.exchange_rate_authority()='BCV_OFFICIAL' then return null; end if;
  return new;
 end $$;
 drop trigger if exists ignore_notion_exchange_rates on public.exchange_rates;
@@ -133,8 +138,7 @@ create or replace view public.current_exchange_rates with (security_invoker=true
 select
  (select er.value from public.exchange_rates er
   where er.rate_type='BCV' and er.effective_at<=now()
-    and case when exists(select 1 from public.app_settings where key='catalog_authority'
-      and value #>> '{}'='LUBRICENTER_OS') then er.source='BCV_API_DATE_VALUE'
+    and case when public.exchange_rate_authority()='BCV_OFFICIAL' then er.source='BCV_API_DATE_VALUE'
       else er.source is distinct from 'BCV_API_DATE_VALUE' end
   order by er.effective_at desc,er.created_at desc limit 1) bcv_rate,
  (select er.value from public.exchange_rates er
@@ -213,10 +217,10 @@ as $$
  (select s.last_verified_at from public.integration_sync_state s where s.source_key='notion_catalog'),
  (select count(*) from public.products p where p.catalog_source='Notion · Nuestros Productos' and p.active and p.available),
  (select r.value from public.exchange_rates r where r.rate_type='BCV' and r.effective_at<=now()
-    and case when exists(select 1 from public.app_settings where key='catalog_authority' and value #>> '{}'='LUBRICENTER_OS') then r.source='BCV_API_DATE_VALUE' else r.source is distinct from 'BCV_API_DATE_VALUE' end
+    and case when public.exchange_rate_authority()='BCV_OFFICIAL' then r.source='BCV_API_DATE_VALUE' else r.source is distinct from 'BCV_API_DATE_VALUE' end
   order by r.effective_at desc,r.created_at desc limit 1),
  (select r.effective_at from public.exchange_rates r where r.rate_type='BCV' and r.effective_at<=now()
-    and case when exists(select 1 from public.app_settings where key='catalog_authority' and value #>> '{}'='LUBRICENTER_OS') then r.source='BCV_API_DATE_VALUE' else r.source is distinct from 'BCV_API_DATE_VALUE' end
+    and case when public.exchange_rate_authority()='BCV_OFFICIAL' then r.source='BCV_API_DATE_VALUE' else r.source is distinct from 'BCV_API_DATE_VALUE' end
   order by r.effective_at desc,r.created_at desc limit 1),
  (select r.value from public.exchange_rates r where r.rate_type='OPERATIVE' and r.effective_at<=now()
   order by r.effective_at desc,r.created_at desc limit 1),

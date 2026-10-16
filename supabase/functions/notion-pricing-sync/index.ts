@@ -86,16 +86,16 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const status = await supabaseRpc("get_pricing_sync_status");
-    const current = Array.isArray(status) ? status[0] : status;
-    const lastSync = current?.catalog_synced_at ? new Date(current.catalog_synced_at).getTime() : 0;
+    const current = await supabaseRpc("get_notion_pricing_job_state");
+    if (current?.rate_authority !== "NOTION") return Response.json({ok:true,skipped:true,reason:"Las tasas ya tienen otra autoridad"});
+    const lastSync = current?.rates_verified_at ? new Date(current.rates_verified_at).getTime() : 0;
     if (lastSync && Date.now() - lastSync < MIN_SYNC_INTERVAL_MS) {
       return Response.json({ ok: true, skipped: true, reason: "Sincronización reciente" });
     }
 
     const [rateResult, productPages] = await Promise.all([
       queryNotion(notionToken, RATES_DATA_SOURCE, { page_size: 10 }),
-      allAvailableProducts(notionToken),
+      current?.catalog_native ? Promise.resolve([] as NotionPage[]) : allAvailableProducts(notionToken),
     ]);
     const ratePages = rateResult.results ?? [];
     const namedRate = ratePages.find((page) => text(page.properties?.Nombre?.title) === "Tasa Actual");
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
     const normalized = products.map((product) => product.name.toLocaleLowerCase("es"));
     const duplicate = normalized.find((name, index) => normalized.indexOf(name) !== index);
     if (!(bcv > 0) || !(operative > 0)) throw new Error("Las tasas de Notion no son válidas");
-    if (!products.length || products.length > 500) throw new Error("La cantidad de productos no es válida");
+    if (!current?.catalog_native && (!products.length || products.length > 500)) throw new Error("La cantidad de productos no es válida");
     if (products.some((product) => !product.name || !Number.isFinite(product.base_usd) || product.base_usd < 0)) {
       throw new Error("Hay productos con nombre o precio inválido");
     }
