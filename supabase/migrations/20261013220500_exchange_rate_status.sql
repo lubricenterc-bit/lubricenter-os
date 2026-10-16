@@ -32,7 +32,7 @@ begin
 end $$;
 create or replace function public.get_exchange_rate_control_status()
 returns jsonb language sql security invoker set search_path=''
-as $select lubricenter_private.get_exchange_rate_control_status()$;
+as $$select lubricenter_private.get_exchange_rate_control_status()$$;
 revoke all on function lubricenter_private.get_exchange_rate_control_status() from public,anon;
 grant execute on function lubricenter_private.get_exchange_rate_control_status() to authenticated;
 revoke all on function public.get_exchange_rate_control_status() from public,anon;

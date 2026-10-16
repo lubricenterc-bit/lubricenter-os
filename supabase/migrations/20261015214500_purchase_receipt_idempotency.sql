@@ -197,7 +197,7 @@ $body$;
 
 create or replace function public.inventory_receive_purchase(p_request_id uuid,p_invoice_id uuid,p_location_id uuid,p_received_on date,p_items jsonb,p_notes text default null)
 returns uuid language sql security invoker set search_path=''
-as $select lubricenter_private.inventory_receive_purchase(p_request_id,p_invoice_id,p_location_id,p_received_on,p_items,p_notes)$;
+as $$select lubricenter_private.inventory_receive_purchase(p_request_id,p_invoice_id,p_location_id,p_received_on,p_items,p_notes)$$;
 revoke all on function lubricenter_private.inventory_receive_purchase(uuid,uuid,uuid,date,jsonb,text) from public,anon;
 grant execute on function lubricenter_private.inventory_receive_purchase(uuid,uuid,uuid,date,jsonb,text) to authenticated;
 
@@ -232,7 +232,7 @@ begin
 end $$;
 create or replace function public.purchase_receipt_history(p_invoice_id uuid)
 returns jsonb language sql security invoker set search_path=''
-as $select lubricenter_private.purchase_receipt_history(p_invoice_id)$;
+as $$select lubricenter_private.purchase_receipt_history(p_invoice_id)$$;
 revoke all on function lubricenter_private.purchase_receipt_history(uuid) from public,anon;
 grant execute on function lubricenter_private.purchase_receipt_history(uuid) to authenticated;
 revoke all on function public.purchase_receipt_history(uuid) from public,anon;
@@ -257,7 +257,7 @@ begin
 end $$;
 create or replace function public.inventory_item_history(p_inventory_item_id uuid,p_location_id uuid)
 returns jsonb language sql security invoker set search_path=''
-as $select lubricenter_private.inventory_item_history(p_inventory_item_id,p_location_id)$;
+as $$select lubricenter_private.inventory_item_history(p_inventory_item_id,p_location_id)$$;
 revoke all on function lubricenter_private.inventory_item_history(uuid,uuid) from public,anon;
 grant execute on function lubricenter_private.inventory_item_history(uuid,uuid) to authenticated;
 revoke all on function public.inventory_item_history(uuid,uuid) from public,anon;
@@ -298,7 +298,7 @@ begin
 end $$;
 create or replace function public.inventory_set_count_at_location(p_inventory_item_id uuid,p_location_id uuid,p_expected_quantity numeric,p_new_count numeric,p_note text)
 returns numeric language sql security invoker set search_path=''
-as $select lubricenter_private.inventory_set_count_at_location(p_inventory_item_id,p_location_id,p_expected_quantity,p_new_count,p_note)$;
+as $$select lubricenter_private.inventory_set_count_at_location(p_inventory_item_id,p_location_id,p_expected_quantity,p_new_count,p_note)$$;
 revoke all on function lubricenter_private.inventory_set_count_at_location(uuid,uuid,numeric,numeric,text) from public,anon;
 grant execute on function lubricenter_private.inventory_set_count_at_location(uuid,uuid,numeric,numeric,text) to authenticated;
 revoke all on function public.inventory_set_count_at_location(uuid,uuid,numeric,numeric,text) from public,anon;
