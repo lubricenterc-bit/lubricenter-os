@@ -4,7 +4,46 @@ This branch consolidates PRs #59, #60, #66 and #67 onto main commit
 `aef8aeed10e8ee101ac1e3bcd789e5fed16f888c`. It preserves subsequent CRM,
 multivehicle and payroll fixes. No production business data is seeded by tests.
 
-## Release gates
+## Current release: keep Notion rates
+
+Catalog ownership and rate ownership are separate. This release sets
+`catalog_authority=LUBRICENTER_OS` while retaining
+`exchange_rate_authority=NOTION` for BOTH BCV and the operative rate. Keep
+`notion-pricing-sync-15m` active. n8n and official BCV activation are deferred.
+
+1. Install `notion-rates-bootstrap.sql`, then deploy `notion-pricing-sync` v4.
+   It uses the real rate heartbeat for throttling; after catalog activation it
+   reads only Notion's rates and sends an empty product array. Verify an actual
+   successful fetch. Product errors in Notion no longer block rate updates.
+2. Save fresh affected-table and function backups. The 16 October snapshot has
+   78 products, 433 inventory references and 515 stock movements; legitimate
+   activity occurred after the earlier 514-movement snapshot. Never restore an
+   earlier snapshot automatically over later activity.
+3. Run CI, including isolated authenticated Chromium flows generated from the
+   real-SQL disposable database. The browser never contacts production. Cover
+   native catalog with Notion rates, supplier/invoice forms, default-zero receipt
+   quantities, lost-response recovery across reloads, partial receipts at both
+   sites, history, error states and operator restrictions.
+4. Build `.tmp/native-notion-release.sql` with
+   `node scripts/build-native-notion-release.mjs`. Its explicit manifest excludes
+   direct-rate activation and unrelated financial migrations. Apply this exact
+   transaction with the matching frontend. It refuses busy-table locks and
+   verifies unchanged product values, stock references, movements, invoices,
+   receipts, account movements, rate history AND effective rate values before
+   committing. A failure must roll back the complete transaction.
+5. Merge the accepted source and observe Railway terminal `SUCCESS`. Verify the
+   published commit, native catalog ownership, both rates remaining sourced from
+   Notion, the next actual Notion rate fetch, receipt RPC permissions and the
+   integrity report. Old tabs must refresh before receiving merchandise because
+   the unsafe legacy receiver is revoked. No synthetic invoices or receipts are
+   created in production.
+
+The original per-feature SQL files are sources for the compiled release; do not
+replay them individually after that release. Its recorded migration is the
+canonical production application. The official observer and its watchdog remain
+in observation mode and never become the active source through this release.
+
+## Future official-rate release gates
 
 1. Keep the existing production frontend and Notion job running until all gates pass.
 2. Verify backups outside Supabase: 78 products, 433 stock references and 514 stock
