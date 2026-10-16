@@ -72,7 +72,7 @@ export default function OilQuotePage() {
       supabase.rpc("get_pricing_sync_status")
     ]);
     if (productsRes.error || ratesRes.error) {
-      setError(productsRes.error?.message || ratesRes.error?.message || "No se pudo cargar Notion.");
+      setError(productsRes.error?.message || ratesRes.error?.message || "No se pudo cargar el catálogo.");
       setLoading(false);
       return;
     }
@@ -199,7 +199,7 @@ export default function OilQuotePage() {
       <div>
         <p className="oq-kicker"><OsIcon name="receipt" size={15}/> VENTAS / HERRAMIENTAS</p>
         <h1><span className="mesa-commerce-number" aria-hidden="true">01 /</span> Comparar aceites<span className="mesa-commerce-dot">.</span></h1>
-        <p>Una sola búsqueda, todas las marcas compatibles. Precios de Notion con filtro y mano de obra separados.</p>
+        <p>Una sola búsqueda, todas las marcas compatibles. Precios del catálogo con filtro y mano de obra separados.</p>
       </div>
       <div className="oq-heading-actions"><Link href="/quote" className="oq-button"><OsIcon name="right" size={17}/> Cotizador general</Link><button className="oq-button oq-reload" onClick={() => void load()} disabled={loading}>
         <OsIcon name="refresh" size={17}/>{loading ? "Actualizando…" : "Actualizar precios"}
@@ -209,7 +209,7 @@ export default function OilQuotePage() {
     <div className={"oq-status" + (fresh ? " is-fresh" : " is-stale")} role="status">
       <OsIcon name={fresh ? "check" : "alert"} size={17}/>
       <div>
-        <strong>{fresh ? "Precios sincronizados con Notion" : "Verifica las tasas antes de enviar una cotización"}</strong>
+        <strong>{fresh ? "Catálogo y tasas disponibles" : "Verifica las tasas antes de enviar una cotización"}</strong>
         <small>{syncedAt} · BCV {sync?.bcv ? fmtVes(sync.bcv) : "—"} · Operativa {sync?.operative ? fmtVes(sync.operative) : "—"}</small>
       </div>
       <Link href="/catalog">Ver catálogo <OsIcon name="arrow" size={15}/></Link>
@@ -290,7 +290,7 @@ export default function OilQuotePage() {
             <span>{loading && !catalog.length ? "Cargando…" :
               quotes.length + " opciones de aceite " + (quotes.length ? "ordenadas por menor precio" : "compatibles")}</span>
           </div>
-          <div className="oq-results-pill"><OsIcon name="clock" size={15}/> Precios de Notion</div>
+          <div className="oq-results-pill"><OsIcon name="clock" size={15}/> Precios del catálogo</div>
         </div>
         <div className="oq-results-tools">
           <label className="oq-results-search"><OsIcon name="search" size={17}/>
@@ -300,12 +300,12 @@ export default function OilQuotePage() {
           <button onClick={()=>{setSelectedIds(quotes.slice(0,3).map(q=>q.oil.product.id));setCopyResult("idle");}} className="oq-mini-action">3 económicas</button>
         </div>
 
-        {loading && !catalog.length && <div className="oq-empty"><OsIcon name="refresh" size={25}/><strong>Buscando productos en Notion…</strong></div>}
+        {loading && !catalog.length && <div className="oq-empty"><OsIcon name="refresh" size={25}/><strong>Buscando productos…</strong></div>}
 
         {!loading && valid && quotes.length===0 && <div className="oq-empty">
           <OsIcon name="search" size={30}/>
           <strong>No hay opciones con esta combinación</strong>
-          <p>Prueba otra viscosidad o tecnología. Solo cotizamos automáticamente aceites cuya clasificación y precios están claros en Notion.</p>
+          <p>Prueba otra viscosidad o tecnología. Solo cotizamos automáticamente aceites cuya clasificación y precios están claros en el catálogo.</p>
         </div>}
 
         {quotes.length > 0 && displayed.length===0 && <div className="oq-empty"><strong>No encontramos esa marca</strong><p>Intenta otra búsqueda.</p></div>}
@@ -356,11 +356,11 @@ export default function OilQuotePage() {
 
         {unclassified.length>0 && <details className="oq-catalog-attention">
           <summary><OsIcon name="alert" size={16}/> {unclassified.length} productos {viscosity} requieren clasificar la tecnología</summary>
-          <p>No los mezclamos con mineral, semi o full para evitar errores. Corrige sus nombres en Notion si deben aparecer.</p>
+          <p>No los mezclamos con mineral, semi o full para evitar errores. Corrige sus nombres en Administrar catálogo si deben aparecer.</p>
           <ul>{unclassified.map(item => <li key={item.product.id}>{item.product.name}</li>)}</ul>
         </details>}
         {inconsistent.length>0 && <p className="oq-small-warning"><OsIcon name="alert" size={14}/>
-          {inconsistent.length} opciones tienen categoría contradictoria en Notion. Para ellas se usa la viscosidad escrita en el nombre; revísalas antes de vender.
+          {inconsistent.length} opciones tienen categoría contradictoria en el catálogo. Para ellas se usa la viscosidad escrita en el nombre; revísalas antes de vender.
         </p>}
 
         {quotes.length>0 && <aside className="oq-share">

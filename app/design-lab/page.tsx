@@ -16,7 +16,7 @@ const PREVIEW: MesaDashboard = {
 const LABELS: Record<string, string> = {
   "/": "Inicio", "/quote": "Cotizador general", "/quote/oil": "Comparador de aceites",
   "/quick-sale": "Venta rápida", "/orders/new": "Recibir vehículo", "/orders": "Órdenes",
-  "/workshop": "Taller", "/catalog": "Catálogo Notion", "/customers": "Clientes",
+  "/workshop": "Taller", "/catalog": "Catálogo de productos", "/customers": "Clientes",
   "/cash-close": "Caja", "/finance": "Finanzas", "/settings": "Configuración",
   "/receivables": "Crédito LC", "/reminders": "Recordatorios", "/expenses": "Compras",
   "/finance/reconcile": "Conciliación", "/finance/inbox": "Casos financieros",

@@ -1,0 +1,55 @@
+name: Catalog and purchasing coordinated release
+on:
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'lib/**'
+      - 'supabase/**'
+      - 'tests/**'
+      - 'automations/**'
+      - 'scripts/**'
+      - '.github/workflows/catalog-purchasing-release.yml'
+permissions:
+  contents: read
+jobs:
+  release-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test -- --maxWorkers=1 --testTimeout=120000
+        env:
+          E2E_FIXTURE_DIR: .tmp/ui-fixtures
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+      - run: npm install --prefix .tmp/browser-runtime --no-save --package-lock=false playwright@1.64.1
+      - run: .tmp/browser-runtime/node_modules/.bin/playwright install --with-deps chromium
+      - name: Isolated authenticated UI acceptance
+        run: |
+          npm start > .tmp/ui-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID"' EXIT
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:3000/login > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/verify-release-ui.mjs
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: isolated-ui-evidence
+          path: |
+            .tmp/ui-evidence
+            .tmp/ui-server.log

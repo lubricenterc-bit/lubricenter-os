@@ -40,7 +40,8 @@ export const NAV_MODULES: readonly NavModule[] = [
   ] },
   { id: "inventory", label: "Inventario", icon: "inventory", defaultHref: "/inventory", links: [
     { href: "/inventory", label: "Inventario físico", description: "Existencias, códigos y conteos" },
-    { href: "/catalog", label: "Catálogo de precios", description: "Fotografías y precios en Bs, $ BCV y divisas desde Notion", keywords: "notion foto productos catalogo lista" },
+    { href: "/catalog", label: "Catálogo de precios", description: "Fotografías y precios en Bs, $ BCV y divisas", keywords: "notion foto productos catalogo lista" },
+    { href: "/catalog/manage", label: "Administrar catálogo", description: "Crear, editar y auditar artículos", ownerOnly: true, keywords: "precios productos factura compras" },
     { href: "/expenses", label: "Compras y proveedores", description: "Facturas, mercancía, deudas y pagos", keywords: "egresos" }
   ] },
   { id: "finance", label: "Finanzas", icon: "finance", defaultHref: "/cash-close", links: [
@@ -88,6 +89,8 @@ export function moduleForPath(path: string): NavModule {
 }
 
 export function pageLabelForPath(path: string) {
+  if(path.startsWith("/purchases/"))return "Factura de proveedor";
+  if(path.startsWith("/suppliers/"))return "Proveedor";
   const current = NAV_MODULES.flatMap(m => m.links)
     .filter(link => path === link.href || (link.href !== "/" && path.startsWith(link.href + "/")))
     .sort((a, b) => b.href.length - a.href.length)[0];

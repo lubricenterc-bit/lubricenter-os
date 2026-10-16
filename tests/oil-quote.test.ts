@@ -61,10 +61,10 @@ describe("Cotizador de cambio de aceite",()=>{
     expect(volumeFromOilName("1/2 LITRO")).toBe(0.5);
     expect(oilBrandFromName("GALON 20W50 SEMISINTETICO FANFARO")).toBe("FANFARO");
   });
-  it("da prioridad a viscosidad del nombre sobre categorías inconsistentes en Notion",()=>{
+  it("da prioridad a viscosidad del nombre sobre categorías inconsistentes en el catálogo",()=>{
     const inca=analyzeOil(products[3]);
     expect(inca?.viscosity).toBe("20W50");
-    expect(inca?.warnings[0]).toContain("Notion clasifica 15W40");
+    expect(inca?.warnings[0]).toContain("El catálogo clasifica 15W40");
     expect(availableViscosities(products)).toContain("20W50");
   });
   it("no cotiza aceite de motos, valvulina, filtros ni tecnología ambigua",()=>{

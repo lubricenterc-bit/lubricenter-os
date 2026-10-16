@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { FinanceNotifications } from '@/components/finance-notifications';
 
@@ -32,9 +33,23 @@ function formatDate(value: string | null) {
   });
 }
 
+type OfficialBcvStatus = {
+  mode: "OBSERVER" | "NATIVE_BRIDGE";
+  state?: {last_success_at:string|null;last_error:string|null};
+  current?: {usd_ves:number;value_date:string};
+  next?: {usd_ves:number;value_date:string};
+};
+
 export default function SettingsPage() {
+  const [nativeCatalog,setNativeCatalog]=useState(false);
+  const [control,setControl]=useState<{exchange_rate_authority?:string;rates_fresh?:boolean;rates_verified_at?:string;bcv_last_fetch?:string;bcv_next?:{value:number;fecha_valor:string}}|null>(null);
+  const [officialBcv,setOfficialBcv]=useState<OfficialBcvStatus|null>(null);
   const [bcv, setBcv] = useState(0);
   const [operative, setOperative] = useState(0);
+  const [manualOperative, setManualOperative] = useState("");
+  const [manualReason, setManualReason] = useState("");
+  const [rateRole, setRateRole] = useState("");
+  const [savingOperative, setSavingOperative] = useState(false);
   const [bcvAt, setBcvAt] = useState<string | null>(null);
   const [operativeAt, setOperativeAt] = useState<string | null>(null);
   const [catalogAt, setCatalogAt] = useState<string | null>(null);
@@ -51,19 +66,27 @@ export default function SettingsPage() {
   async function load(showConfirmation = false) {
     if (showConfirmation) setCheckingPrices(true);
     setError("");
-    const [{ data: sync, error: sy }, { data: settings, error: se }, { data: cr, error: ce }] = await Promise.all([
+    const [{ data: sync, error: sy }, { data: settings, error: se }, { data: cr, error: ce }, { data: financeRole },{data:rateControl,error:rateError},{data:officialStatus,error:officialError}] = await Promise.all([
       supabase.rpc("get_pricing_sync_status"),
-      supabase.from("app_settings").select("key,value").in("key", ["price_rounding_step", "price_rounding_mode", "crm_post_service_template"]),
+      supabase.from("app_settings").select("key,value").in("key", ["price_rounding_step", "price_rounding_mode", "crm_post_service_template","catalog_authority"]),
       supabase.from("compensation_rules").select("id,employee_id,rule_type,value,valid_from,valid_to,employees(name,code)").order("valid_from", { ascending: false }),
+      supabase.rpc("finance_role"),
+      supabase.rpc("get_exchange_rate_control_status"),
+      supabase.rpc("get_bcv_official_status"),
     ]);
-    if (sy || se || ce) setError(sy?.message || se?.message || ce?.message || "Error cargando configuración");
+    setControl(rateControl);
+    setOfficialBcv(officialStatus);
+    if (sy || se || ce || rateError || officialError) setError(sy?.message || se?.message || ce?.message || rateError?.message || officialError?.message || "Error cargando configuración");
     const row = Array.isArray(sync) ? sync[0] : sync;
     setBcv(Number(row?.bcv_rate ?? 0));
     setOperative(Number(row?.operative_rate ?? 0));
+    setManualOperative(String(row?.operative_rate ?? ""));
+    setRateRole(String(financeRole ?? ""));
     setBcvAt(row?.bcv_effective_at ?? null);
     setOperativeAt(row?.operative_effective_at ?? null);
     setCatalogAt(row?.catalog_synced_at ?? null);
     setCatalogProducts(Number(row?.catalog_products ?? 0));
+    setNativeCatalog(settings?.some(s=>s.key==="catalog_authority"&&s.value==="LUBRICENTER_OS")??false);
     for (const s of settings ?? []) {
       if (s.key === "price_rounding_step") setStep(Number(s.value));
       if (s.key === "price_rounding_mode") setMode(String(s.value).replaceAll('"', ''));
@@ -72,7 +95,7 @@ export default function SettingsPage() {
     setRules(cr ?? []);
     if (showConfirmation) {
       setCheckingPrices(false);
-      if (!(sy || se || ce)) setMessage("Estado actualizado con los últimos precios recibidos de Notion.");
+      if (!(sy || se || ce || rateError || officialError)) setMessage("Tasas y estado del catálogo actualizados.");
     }
   }
   useEffect(() => {
@@ -86,7 +109,24 @@ export default function SettingsPage() {
     setMessage(""); setError("");
     const { error } = await supabase.rpc("set_pricing_settings", { p_rounding_step: step, p_rounding_mode: mode });
     if (error) return setError(error.message);
-    setMessage("Política de redondeo actualizada. Verifica que siga coincidiendo con la fórmula de Notion.");
+    setMessage("Política de redondeo actualizada. Los nuevos cálculos usarán esta política.");
+  }
+
+  async function saveOperative() {
+    const next=Number(manualOperative.replace(",","."));
+    setError("");setMessage("");
+    if(!Number.isFinite(next)||next<=0||next>=1000000){
+      setError("Escribe una tasa operativa positiva válida.");return;
+    }
+    setSavingOperative(true);
+    const {error:saveError,data}=await supabase.rpc("set_operative_manual",{
+      p_value:next,p_note:manualReason.trim()||null
+    });
+    setSavingOperative(false);
+    if(saveError){setError(saveError.message);return;}
+    setManualReason("");
+    setMessage(data?.changed?"Tasa operativa actualizada y registrada en auditoría.":"La tasa operativa ya tenía ese valor.");
+    await load();
   }
 
   async function saveCrmTemplate() {
@@ -97,12 +137,15 @@ export default function SettingsPage() {
     setMessage("Plantilla post-servicio guardada. Las próximas órdenes cerradas usarán este formato.");
   }
 
-  const rateTimes = [bcvAt, operativeAt].filter(Boolean) as string[];
-  const rateFresh = rateTimes.length === 2 && Math.max(...rateTimes.map(v => Date.now() - new Date(v).getTime())) <= 3 * 3600000;
-  const catalogFresh = !!catalogAt && Date.now() - new Date(catalogAt).getTime() <= 24 * 3600000;
+  const notionRates = control?.exchange_rate_authority === "NOTION";
+  const manualRates = control?.exchange_rate_authority === "BCV_OFFICIAL" && nativeCatalog;
+  const rateFresh = control?.rates_fresh !== false && bcv > 0 && operative > 0 && !!bcvAt && new Date(bcvAt).getTime() <= Date.now() && Date.now()-new Date(bcvAt).getTime() <= 10*86400000;
+  const catalogFresh = !!catalogAt && (nativeCatalog || Date.now() - new Date(catalogAt).getTime() <= 24 * 3600000);
+  const officialFresh = !!officialBcv?.state?.last_success_at && Date.now()-new Date(officialBcv.state.last_success_at).getTime()<=26*3600000;
+  const officialInUse = manualRates && officialBcv?.mode==="NATIVE_BRIDGE";
 
   return <main className="container stack">
-    <div><h1 style={{ marginBottom: 4 }}>Configuración</h1><div className="muted">Notion manda sobre catálogo y tasas. Lubricenter OS controla operación, CRM y trazabilidad.</div></div>
+    <div><h1 style={{ marginBottom: 4 }}>Configuración</h1><div className="muted">Catálogo de productos, tasas y reglas de operación.</div></div>
     {error && <div className="error">{error}</div>}{message && <div className="success">{message}</div>}
 
     <FinanceNotifications />
@@ -128,18 +171,60 @@ export default function SettingsPage() {
     </section>
 
     <section className="card stack">
-      <div className="row-between"><h2 className="section-title">Tasas maestras · Notion</h2><span className={`pill ${rateFresh ? "ok" : "warn"}`}>{rateFresh ? "SINCRONIZADAS" : "REVISAR"}</span></div>
-      <div className="grid grid-2">
-        <div className="card"><div className="label">BCV oficial</div><div className="money-lg">{bcv.toLocaleString("es-VE", { maximumFractionDigits: 6 })}</div><div className="muted small">{formatDate(bcvAt)}</div></div>
-        <div className="card"><div className="label">Operativa / P2P</div><div className="money-lg">{operative.toLocaleString("es-VE", { maximumFractionDigits: 6 })}</div><div className="muted small">{formatDate(operativeAt)}</div></div>
+      <div className="row-between">
+        <h2 className="section-title">Control de tasas · {notionRates?"Notion":"Lubricenter OS"}</h2>
+        <span className={`pill ${rateFresh?"ok":"warn"}`}>{rateFresh?"TASAS DISPONIBLES":"REVISAR BCV"}</span>
       </div>
-      <div className="muted small">Se comprueban automáticamente cada 15 minutos. Al detectar un cambio, las pantallas abiertas reciben los precios nuevos sin recargarlas. Las ventas ya cerradas conservan sus importes originales.</div>
-      <button className="btn" disabled={checkingPrices} onClick={() => load(true)}>{checkingPrices ? "Comprobando…" : "Actualizar estado ahora"}</button>
+      <div className="grid grid-2">
+        <div className="card stack">
+          <div className="label">BCV · {notionRates?"Notion":nativeCatalog?"captador automático":"fuente en transición"}</div>
+          <div className="money-lg">{bcv.toLocaleString("es-VE",{maximumFractionDigits:6})}</div>
+          <div className="muted small">{notionRates?"Última comprobación en Notion":"Fecha valor vigente"}: {formatDate(bcvAt)}</div>
+          <p className="muted small">El captador guarda por separado la fecha de consulta y la fecha valor oficial. Una tasa anunciada para una fecha futura no reemplaza anticipadamente la actual.</p>
+        </div>
+        <div className="card stack">
+          <div className="label">Tasa operativa · {notionRates?"Notion":"manual"}</div>
+          <div className="money-lg">{operative.toLocaleString("es-VE",{maximumFractionDigits:6})}</div>
+          <div className="muted small">Último cambio: {formatDate(operativeAt)}</div>
+          <p className="muted small">{notionRates?"BCV y operativa se actualizan desde Notion. El catálogo se administra por separado.":nativeCatalog?"La tasa operativa se administra manualmente.":"La fuente anterior sigue activa hasta verificar el cambio de tasas."}</p>
+        </div>
+      </div>
+      <div className="muted small">Última consulta del captador: {formatDate(control?.bcv_last_fetch??null)}{control?.bcv_next?` · Próxima fecha valor: ${control.bcv_next.fecha_valor} (${control.bcv_next.value} Bs/USD)`:""}</div>
+      {officialBcv && <div className="card stack">
+        <div className="row-between"><strong>Publicación oficial BCV · captador propio</strong><span className={`pill ${officialBcv.state?.last_error||!officialFresh?"warn":"ok"}`}>{!officialFresh?"REVISAR CAPTADOR":officialInUse?"CONECTADO AL SISTEMA":"EN OBSERVACIÓN"}</span></div>
+        <div>Última captura válida: {formatDate(officialBcv.state?.last_success_at??null)}</div>
+        {officialBcv.current && <div>Fecha valor {officialBcv.current.value_date}: <strong>{Number(officialBcv.current.usd_ves).toLocaleString("es-VE",{maximumFractionDigits:8})} Bs/USD</strong></div>}
+        {officialBcv.next && <div>Próxima fecha valor {officialBcv.next.value_date}: {Number(officialBcv.next.usd_ves).toLocaleString("es-VE",{maximumFractionDigits:8})} Bs/USD</div>}
+        {officialBcv.state?.last_error && <div className="error">Última consulta fallida: {officialBcv.state.last_error}. Se conserva la última publicación válida.</div>}
+        <p className="muted small">{!officialInUse?"Esta captura se comprueba en paralelo y todavía no cambia la tasa utilizada en caja.":"La tasa proviene directamente de la publicación oficial. Se conserva su evidencia y se aplica según su fecha valor."}</p>
+        <a href="https://www.bcv.org.ve/" target="_blank" rel="noreferrer">Consultar publicación del BCV</a>
+      </div>}
+      <label><span className="label">Nueva tasa operativa (Bs por USD)</span>
+        <input className="input" type="text" inputMode="decimal" value={manualOperative}
+          onChange={e=>setManualOperative(e.target.value)} placeholder="Ej. 1061,32"
+          disabled={rateRole!=="OWNER"||!manualRates}/>
+      </label>
+      <label><span className="label">Motivo o referencia (opcional)</span>
+        <input className="input" value={manualReason} onChange={e=>setManualReason(e.target.value)}
+          placeholder="Ej. Ajuste comercial por nuevo costo de reposición"
+          disabled={rateRole!=="OWNER"||!manualRates}/>
+      </label>
+      {rateRole==="OWNER"&&manualRates?
+        <button className="btn btn-primary" disabled={savingOperative} onClick={saveOperative}>
+          {savingOperative?"Guardando tasa…":"Guardar nueva tasa operativa"}
+        </button>:
+        <p className="muted small">{notionRates?"Actualiza las tasas en Notion; su sincronización permanece activa.":"La edición manual se habilita para la cuenta propietaria al completar la transición."}</p>}
+      <div className="muted small">El cambio afecta cálculos nuevos. Las órdenes y cobros anteriores conservan sus tasas registradas.</div>
+      <button className="btn btn-ghost" disabled={checkingPrices} onClick={()=>load(true)}>
+        {checkingPrices?"Comprobando…":"Actualizar estado de tasas"}
+      </button>
+      <p className="muted small">Para días no hábiles la pantalla operativa utiliza la última fecha valor ya vigente. Los criterios tributarios de facturación en feriados pueden ser distintos y deben revisarse por separado.</p>
     </section>
 
     <section className="card stack">
-      <div className="row-between"><h2 className="section-title">Catálogo maestro · Notion</h2><span className={`pill ${catalogFresh ? "ok" : "warn"}`}>{catalogFresh ? "ACTUALIZADO" : "REVISAR"}</span></div>
-      <div className="grid grid-2"><div><div className="label">Productos disponibles</div><div className="money-lg">{catalogProducts}</div></div><div><div className="label">Última sincronización</div><strong>{formatDate(catalogAt)}</strong></div></div>
+      <div className="row-between"><h2 className="section-title">Catálogo maestro · {nativeCatalog?"Lubricenter OS":"Notion (transición)"}</h2><span className={`pill ${catalogFresh ? "ok" : "warn"}`}>{catalogFresh ? "ACTUALIZADO" : "REVISAR"}</span></div>
+      <div className="grid grid-2"><div><div className="label">Productos disponibles</div><div className="money-lg">{catalogProducts}</div></div><div><div className="label">{nativeCatalog?"Estado del catálogo":"Última sincronización"}</div><strong>{formatDate(catalogAt)}</strong></div></div>
+      <div className="row"><Link className="btn" href="/catalog/manage">Administrar catálogo</Link><Link className="btn btn-ghost" href="/expenses">Compras y proveedores</Link></div>
       {!catalogFresh && <div className="error">Los productos automáticos se bloquean cuando el catálogo está demasiado viejo para evitar precios silenciosamente desactualizados.</div>}
     </section>
 

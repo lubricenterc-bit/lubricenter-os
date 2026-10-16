@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { catalogIsFresh, normalizeCatalogSync } from "@/lib/catalog";
 import { supabase } from "@/lib/supabase";
 
 export function PricingStatus() {
@@ -9,14 +10,11 @@ export function PricingStatus() {
   const lastVersion = useRef("");
 
   const check = useCallback(async () => {
-    const { data, error } = await supabase.rpc("get_pricing_sync_status");
-    if (error) return setFresh(false);
+    const [{ data, error },control]=await Promise.all([supabase.rpc("get_pricing_sync_status"),supabase.rpc("get_exchange_rate_control_status")]);
+    if (error||control.error) return setFresh(false);
     const row = Array.isArray(data) ? data[0] : data;
-    const catalogAt = row?.catalog_synced_at ? new Date(row.catalog_synced_at).getTime() : 0;
-    const bcvAt = row?.bcv_effective_at ? new Date(row.bcv_effective_at).getTime() : 0;
-    const operativeAt = row?.operative_effective_at ? new Date(row.operative_effective_at).getTime() : 0;
-    setFresh(Date.now() - catalogAt <= 24 * 3600000 && Date.now() - Math.min(bcvAt, operativeAt) <= 3 * 3600000);
-    const version = `${row?.catalog_synced_at ?? ""}:${row?.bcv_effective_at ?? ""}:${row?.operative_effective_at ?? ""}`;
+    setFresh(control.data?.rates_fresh !== false && catalogIsFresh(normalizeCatalogSync(row)));
+    const version = `${control.data?.catalog_version ?? row?.catalog_products ?? ""}:${row?.bcv_effective_at ?? ""}:${row?.operative_effective_at ?? ""}`;
     if (lastVersion.current && version !== lastVersion.current) {
       window.dispatchEvent(new CustomEvent("lubricenter:pricing-updated"));
     }
@@ -37,7 +35,7 @@ export function PricingStatus() {
     };
   }, [check]);
 
-  return <Link href="/settings" className={`pill ${fresh === false ? "warn" : "ok"}`} title="Estado de precios y tasas de Notion">
+  return <Link href="/settings" className={`pill ${fresh === false ? "warn" : "ok"}`} title="Estado del catálogo y tasas">
     {fresh === null ? "Precios…" : fresh ? "Precios al día ✓" : "Precios ⚠"}
   </Link>;
 }
