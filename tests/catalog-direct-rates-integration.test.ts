@@ -41,6 +41,9 @@ async function scenario(verified = true) {
       ('notion_catalog',now()-interval '40 days'),
       ('notion_rates',now()-interval '40 days');
   `);
+  const authoritySql=readFileSync("scripts/notion-rates-bootstrap.sql","utf8").match(/create or replace function public\.exchange_rate_authority\(\)[\s\S]*?\$\$;/)?.[0];
+  if(!authoritySql)throw Error("Missing exchange-rate authority definition");
+  await db.exec(authoritySql);
   if (verified) await db.exec(
     "INSERT INTO public.integration_sync_state VALUES('bcv_direct',now())"
   );

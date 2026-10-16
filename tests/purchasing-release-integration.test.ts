@@ -56,7 +56,7 @@ it.each(["OFFICIAL","NOTION"])("runs catalog → supplier → VES invoice → pa
  expect(await scalar(db,"select catalog_prepare_inventory_item($1,'TEST-OIL','Prueba','UND')",[product.id])).toBe(sku);
  expect(Number(await scalar(db,"select count(*) from inventory_movements"))).toBe(0);
  const supplier=await scalar(db,"select upsert_supplier(null,'Proveedor de prueba',null,null,null,null,null,null,null,'VES',0,null,true)");
- const invoice=await scalar(db,"select create_supplier_invoice($1,'SIM-01',(now() at time zone 'America/Caracas')::date,null,'VES',$2::jsonb,0,0,0,null)",[supplier,JSON.stringify([{line_type:"INVENTORY",inventory_item_id:sku,description:"Aceite",quantity:12,unit_cost:3516}])]);
+ const invoice=await scalar(db,"select create_supplier_invoice($1,'SIM-01',(now() at time zone 'America/Caracas')::date,null,'VES',$2::jsonb,0,0,0,null)",[supplier,JSON.stringify([{line_type:"INVENTORY",inventory_item_id:sku,description:"Aceite de prueba",quantity:12,unit_cost:3516}])]);
  const line=await scalar(db,"select id from supplier_invoice_items where supplier_invoice_id=$1",[invoice]);
  const cab=await scalar(db,"select id from locations where code='CABUDARE'"),cuji=await scalar(db,"select id from locations where code='EL_CUJI'");
  const exportUi=async(stage:string)=>{
@@ -68,7 +68,7 @@ it.each(["OFFICIAL","NOTION"])("runs catalog → supplier → VES invoice → pa
    history:await scalar(db,"select purchase_receipt_history($1)",[invoice]),
    pricing:(await db.query("select * from get_pricing_sync_status()")).rows,
    control:await scalar(db,"select get_exchange_rate_control_status()"),
-   catalog:await scalar(db,"select get_catalog_snapshot()"),
+   catalog:(await db.query("select * from get_catalog_snapshot()")).rows,
    products:(await db.query("select * from products")).rows,inventory:(await db.query("select * from inventory_items")).rows,
    settings:(await db.query("select * from app_settings")).rows,locations:(await db.query("select * from locations order by code")).rows};
   writeFileSync(`${directory}/${stage}.json`,JSON.stringify(data));
