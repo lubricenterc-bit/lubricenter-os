@@ -1,0 +1,42 @@
+{
+  "name": "Lubricenter OS · BCV oficial diario",
+  "nodes": [
+    {
+      "id": "daily", "name": "Cada día Caracas", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2,
+      "position": [0, 0], "parameters": {"rule": {"interval": [{"field": "cronExpression", "expression": "0 8,18,20 * * *"}]}}
+    },
+    {
+      "id": "manual", "name": "Comprobar ahora", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1,
+      "position": [0, 180], "parameters": {}
+    },
+    {
+      "id": "webhook", "name": "Comprobación protegida", "type": "n8n-nodes-base.webhook", "typeVersion": 2,
+      "position": [0, 360], "webhookId": "lubricenter-bcv-official-check",
+      "parameters": {"httpMethod": "POST", "path": "lubricenter-bcv-official-check", "authentication": "headerAuth", "responseMode": "lastNode", "options": {}},
+      "credentials": {"httpHeaderAuth": {"id": "CONFIGURAR_WEBHOOK", "name": "Lubricenter BCV · comprobación"}}
+    },
+    {
+      "id": "collect", "name": "Capturar BCV oficial", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+      "position": [320, 180], "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "POST", "url": "https://ysvcbbnwandoizczehtk.supabase.co/functions/v1/bcv-rate-sync",
+        "authentication": "genericCredentialType", "genericAuthType": "httpCustomAuth",
+        "sendBody": true, "specifyBody": "json", "jsonBody": "{}",
+        "options": {"timeout": 45000, "response": {"response": {"responseFormat": "json"}}}
+      },
+      "credentials": {"httpCustomAuth": {"id": "CONFIGURAR_CAPTADOR", "name": "Lubricenter BCV · captador oficial"}}
+    },
+    {
+      "id": "verify", "name": "Confirmar registro oficial", "type": "n8n-nodes-base.code", "typeVersion": 2,
+      "position": [640, 180],
+      "parameters": {"jsCode": "const result = $input.first().json;\nif (result.ok !== true || result.provider !== 'BCV_OFFICIAL' || !['OBSERVER','NATIVE_BRIDGE'].includes(result.mode) || !/^[a-f0-9]{64}$/.test(result.evidence_sha256 || '') || !/^\\d{4}-\\d{2}-\\d{2}$/.test(result.fecha_valor || '') || !Number.isFinite(Number(result.usd_ves)) || Number(result.usd_ves) <= 0) throw Error('El captador no confirmó una publicación oficial guardada');\nreturn [{json: result}];"}
+    }
+  ],
+  "connections": {
+    "Cada día Caracas": {"main": [[{"node": "Capturar BCV oficial", "type": "main", "index": 0}]]},
+    "Comprobar ahora": {"main": [[{"node": "Capturar BCV oficial", "type": "main", "index": 0}]]},
+    "Comprobación protegida": {"main": [[{"node": "Capturar BCV oficial", "type": "main", "index": 0}]]},
+    "Capturar BCV oficial": {"main": [[{"node": "Confirmar registro oficial", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1", "timezone": "America/Caracas", "executionTimeout": 180, "saveDataErrorExecution": "all", "saveDataSuccessExecution": "all"}
+}

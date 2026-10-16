@@ -13,14 +13,17 @@ multivehicle and payroll fixes. No production business data is seeded by tests.
 3. Run full tests, typecheck, build and the release integration test. The latter uses
    the structure-only production fixture, actual invoice constraints, VES cost
    conversion, two sites, replay, history, unchanged prices and operator denials.
-4. Install the direct-rate migration and control-status migration in an isolated
-   environment, deploy `bcv-rate-sync` with JWT verification, and configure Cron
-   using `scripts/configure-bcv-cron.sql`. Check an actual HTTP 200 response and
-   `bcv_direct.last_verified_at`; a successful cron SQL statement alone is insufficient.
-5. Compare the current dated third-party publication against the official BCV page.
-   Save the official page evidence and SHA-256, date and value in the private
-   `bcv_official_verifications` table. Never manufacture verification evidence from
-   the third-party response. The cutover refuses to run without this evidence.
+4. The independent observer migration `20261016143000` and JWT-protected
+   `bcv-rate-sync` may run in parallel with the current system. It fetches ONLY
+   `https://www.bcv.org.ve/`, validates TLS using the reviewed missing Sectigo
+   intermediate, and retains the original HTML, SHA-256, value and Fecha Valor.
+   It writes no operational rates until the native bridge is installed.
+5. In the isolated release environment, install the direct-rate/status migrations,
+   the observer, and `20261016143500_bcv_official_native_bridge.sql` BEFORE native
+   cutover. Trigger the collector and verify HTTP 200, its official evidence and
+   `bcv_direct.last_verified_at`. The bridge stages the effective-dated rate and
+   verification atomically. Then proceed with cutover. The third-party writer is
+   revoked. A successful cron SQL statement alone is insufficient.
 6. Stage the frontend built from this exact branch against an isolated database;
    test login, role restrictions, quotes, checkout, orders, Cashea and oil changes.
 7. Coordinate the production release in a maintenance window. Apply the catalog
@@ -57,10 +60,31 @@ General invoice taxes, freight and discounts are visible separately; they are no
 allocated to unit inventory cost in this release. Existing historical costs are
 not reconstructed. Preparing an inventory reference creates no stock movement.
 
-## Current operational block
+## Parallel observer and n8n
 
-At the start of this session the direct collector and native migrations were not
-installed. The official BCV site was unreachable from both retrieval paths, so
-the external rate could not be certified against the official dated publication.
-Do not treat successful unit tests or the availability of `bcv.today` as release
-approval. Check the current deployment report for final CI and infrastructure state.
+The official TLS chain issue was resolved on 16 October by supplying its missing
+Sectigo DV R36 intermediate after verifying its signature against the built-in R46
+root. TLS verification remains enabled. The independent observer is deployed and
+has captured the official publication. Native cutover and the purchasing/frontend
+release remain gated by isolated authenticated acceptance.
+
+`automations/n8n-bcv-official.json` schedules 08:00, 18:00 and 20:00 Caracas, retries
+transient errors, verifies the stored official result and provides a protected
+test webhook. No secrets are in the workflow. `scripts/install-n8n-bcv.mjs` creates
+its two encrypted credentials and a draft without overwriting existing workflows.
+It publishes only with `N8N_PUBLISH=true` and unpublishes if the webhook test fails.
+It needs authenticated n8n API access, the observer job token and the Supabase anon
+JWT. Never give n8n the Supabase service-role key. Railway OAuth exposes variable
+names only and does not authenticate to n8n. Do not reset its owner account or
+edit its database to get around that boundary.
+
+Run `scripts/configure-bcv-official-watchdog.sql` for a backup at 08:15, 18:15 and
+20:15 Caracas; it skips if n8n already recorded a success in the last 30 minutes.
+It is the active scheduler until n8n access is available. The old 15-minute script
+is retired. Keep the watchdog after n8n activation as recovery for missed runs.
+Before enabling n8n schedules, disable Railway application sleeping for that n8n
+service and verify an actual successful execution. Do not redeploy the shared
+unversioned n8n image just to import a workflow.
+
+An official-site or parsing failure records an error and preserves the last valid
+publication; it never falls back to another provider or updates the operative rate.

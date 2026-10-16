@@ -33,9 +33,17 @@ function formatDate(value: string | null) {
   });
 }
 
+type OfficialBcvStatus = {
+  mode: "OBSERVER" | "NATIVE_BRIDGE";
+  state?: {last_success_at:string|null;last_error:string|null};
+  current?: {usd_ves:number;value_date:string};
+  next?: {usd_ves:number;value_date:string};
+};
+
 export default function SettingsPage() {
   const [nativeCatalog,setNativeCatalog]=useState(false);
   const [control,setControl]=useState<{bcv_last_fetch?:string;bcv_next?:{value:number;fecha_valor:string}}|null>(null);
+  const [officialBcv,setOfficialBcv]=useState<OfficialBcvStatus|null>(null);
   const [bcv, setBcv] = useState(0);
   const [operative, setOperative] = useState(0);
   const [manualOperative, setManualOperative] = useState("");
@@ -58,15 +66,17 @@ export default function SettingsPage() {
   async function load(showConfirmation = false) {
     if (showConfirmation) setCheckingPrices(true);
     setError("");
-    const [{ data: sync, error: sy }, { data: settings, error: se }, { data: cr, error: ce }, { data: financeRole },{data:rateControl,error:rateError}] = await Promise.all([
+    const [{ data: sync, error: sy }, { data: settings, error: se }, { data: cr, error: ce }, { data: financeRole },{data:rateControl,error:rateError},{data:officialStatus,error:officialError}] = await Promise.all([
       supabase.rpc("get_pricing_sync_status"),
       supabase.from("app_settings").select("key,value").in("key", ["price_rounding_step", "price_rounding_mode", "crm_post_service_template","catalog_authority"]),
       supabase.from("compensation_rules").select("id,employee_id,rule_type,value,valid_from,valid_to,employees(name,code)").order("valid_from", { ascending: false }),
       supabase.rpc("finance_role"),
       supabase.rpc("get_exchange_rate_control_status"),
+      supabase.rpc("get_bcv_official_status"),
     ]);
     setControl(rateControl);
-    if (sy || se || ce || rateError) setError(sy?.message || se?.message || ce?.message || rateError?.message || "Error cargando configuración");
+    setOfficialBcv(officialStatus);
+    if (sy || se || ce || rateError || officialError) setError(sy?.message || se?.message || ce?.message || rateError?.message || officialError?.message || "Error cargando configuración");
     const row = Array.isArray(sync) ? sync[0] : sync;
     setBcv(Number(row?.bcv_rate ?? 0));
     setOperative(Number(row?.operative_rate ?? 0));
@@ -85,7 +95,7 @@ export default function SettingsPage() {
     setRules(cr ?? []);
     if (showConfirmation) {
       setCheckingPrices(false);
-      if (!(sy || se || ce)) setMessage("Tasas y estado del catálogo actualizados.");
+      if (!(sy || se || ce || rateError || officialError)) setMessage("Tasas y estado del catálogo actualizados.");
     }
   }
   useEffect(() => {
@@ -128,7 +138,9 @@ export default function SettingsPage() {
   }
 
   const rateFresh = bcv > 0 && operative > 0 && !!bcvAt && new Date(bcvAt).getTime() <= Date.now() && Date.now()-new Date(bcvAt).getTime() <= 10*86400000;
-  const catalogFresh = !!catalogAt && Date.now() - new Date(catalogAt).getTime() <= 24 * 3600000;
+  const catalogFresh = !!catalogAt && (nativeCatalog || Date.now() - new Date(catalogAt).getTime() <= 24 * 3600000);
+  const officialFresh = !!officialBcv?.state?.last_success_at && Date.now()-new Date(officialBcv.state.last_success_at).getTime()<=26*3600000;
+  const officialInUse = nativeCatalog && officialBcv?.mode==="NATIVE_BRIDGE";
 
   return <main className="container stack">
     <div><h1 style={{ marginBottom: 4 }}>Configuración</h1><div className="muted">Catálogo de productos, tasas y reglas de operación.</div></div>
@@ -166,7 +178,7 @@ export default function SettingsPage() {
           <div className="label">BCV · {nativeCatalog?"captador automático":"fuente en transición"}</div>
           <div className="money-lg">{bcv.toLocaleString("es-VE",{maximumFractionDigits:6})}</div>
           <div className="muted small">Fecha valor vigente: {formatDate(bcvAt)}</div>
-          <p className="muted small">El captador guarda por separado la fecha de publicación y la fecha valor. Una tasa anunciada para una fecha futura no reemplaza anticipadamente la actual.</p>
+          <p className="muted small">El captador guarda por separado la fecha de consulta y la fecha valor oficial. Una tasa anunciada para una fecha futura no reemplaza anticipadamente la actual.</p>
         </div>
         <div className="card stack">
           <div className="label">Tasa operativa · manual</div>
@@ -176,6 +188,15 @@ export default function SettingsPage() {
         </div>
       </div>
       <div className="muted small">Última consulta del captador: {formatDate(control?.bcv_last_fetch??null)}{control?.bcv_next?` · Próxima fecha valor: ${control.bcv_next.fecha_valor} (${control.bcv_next.value} Bs/USD)`:""}</div>
+      {officialBcv && <div className="card stack">
+        <div className="row-between"><strong>Publicación oficial BCV · captador propio</strong><span className={`pill ${officialBcv.state?.last_error||!officialFresh?"warn":"ok"}`}>{!officialFresh?"REVISAR CAPTADOR":officialInUse?"CONECTADO AL SISTEMA":"EN OBSERVACIÓN"}</span></div>
+        <div>Última captura válida: {formatDate(officialBcv.state?.last_success_at??null)}</div>
+        {officialBcv.current && <div>Fecha valor {officialBcv.current.value_date}: <strong>{Number(officialBcv.current.usd_ves).toLocaleString("es-VE",{maximumFractionDigits:8})} Bs/USD</strong></div>}
+        {officialBcv.next && <div>Próxima fecha valor {officialBcv.next.value_date}: {Number(officialBcv.next.usd_ves).toLocaleString("es-VE",{maximumFractionDigits:8})} Bs/USD</div>}
+        {officialBcv.state?.last_error && <div className="error">Última consulta fallida: {officialBcv.state.last_error}. Se conserva la última publicación válida.</div>}
+        <p className="muted small">{!officialInUse?"Esta captura se comprueba en paralelo y todavía no cambia la tasa utilizada en caja.":"La tasa proviene directamente de la publicación oficial. Se conserva su evidencia y se aplica según su fecha valor."}</p>
+        <a href="https://www.bcv.org.ve/" target="_blank" rel="noreferrer">Consultar publicación del BCV</a>
+      </div>}
       <label><span className="label">Nueva tasa operativa (Bs por USD)</span>
         <input className="input" type="text" inputMode="decimal" value={manualOperative}
           onChange={e=>setManualOperative(e.target.value)} placeholder="Ej. 1061,32"

@@ -21,9 +21,11 @@ it("runs catalog → supplier → VES invoice → partial receipts in two sites 
  insert into public.exchange_rates(rate_type,value,effective_at,source) values('BCV',879,now()-interval '1 day','Notion · Tasas'),('OPERATIVE',1061,now()-interval '20 days','Notion · Tasas');
  set app.role='service_role';`);
  await db.exec(mig("20261013220000_direct_bcv_manual_operative.sql"));
- await db.exec("select public.bcv_accept_publication(879,(now() at time zone 'America/Caracas')::date,now())");
- // Synthetic official evidence exists only inside this disposable database.
- await db.exec(`insert into lubricenter_private.bcv_official_verifications(value_date,usd_ves,official_url,evidence_sha256) values((now() at time zone 'America/Caracas')::date,879,'https://www.bcv.org.ve/',repeat('a',64));`);
+ await db.exec(mig("20261016143000_bcv_official_observer.sql"));
+ await db.exec(mig("20261016143500_bcv_official_native_bridge.sql"));
+ // Synthetic evidence exists only inside this disposable database. The bridge
+ // must stage the native rate and verification before the cutover can proceed.
+ await db.query("select public.bcv_official_record(879,(now() at time zone 'America/Caracas')::date,$1)",["<html>Official BCV fixture, disposable database only</html>"]);
  for(const name of ["20261013220500_exchange_rate_status.sql","20261013224000_native_catalog_cutover.sql","20261013224500_native_catalog_editing.sql","20261013225000_catalog_invoice_intake.sql","20261013225500_catalog_direct_rates_compatibility.sql","20261015214500_purchase_receipt_idempotency.sql"])await db.exec(mig(name));
  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
  await db.exec("set role authenticated");

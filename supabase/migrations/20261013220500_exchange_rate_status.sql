@@ -7,7 +7,7 @@ begin
  select jsonb_build_object(
  'catalog_authority',(select value #>> '{}' from public.app_settings where key='catalog_authority'),
  'catalog_version',(select max(updated_at) from public.products),
- 'bcv_provider','bcv.today (proveedor externo)',
+ 'bcv_provider','BCV oficial · captador propio',
  'bcv_active',(select er.value from public.exchange_rates er
    where er.rate_type='BCV' and er.effective_at<=now()
    and case when exists(select 1 from public.app_settings where key='catalog_authority' and value #>> '{}'='LUBRICENTER_OS') then er.source='BCV_API_DATE_VALUE' else er.source is distinct from 'BCV_API_DATE_VALUE' end
