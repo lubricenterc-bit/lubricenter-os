@@ -2,7 +2,9 @@
 // real-SQL integration fixture. Network access to production is blocked.
 import {readFile,mkdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
-import {chromium} from 'playwright';
+import {createRequire} from 'node:module';
+const require=createRequire(new URL('../.tmp/browser-runtime/package.json',import.meta.url));
+const {chromium}=require('playwright');
 const directory=process.env.E2E_FIXTURE_DIR||'.tmp/ui-fixtures';
 const fixtures=await Promise.all(['before','partial','full'].map(async stage=>JSON.parse(await readFile(`${directory}/${stage}.json`,'utf8'))));
 const base='http://127.0.0.1:3000';

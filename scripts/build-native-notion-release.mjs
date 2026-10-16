@@ -7,7 +7,7 @@ const files=[
  'supabase/migrations/20261015214500_purchase_receipt_idempotency.sql',
 ];
 const tables=['products','inventory_items','inventory_movements','exchange_rates','supplier_invoices','supplier_receipts','supplier_receipt_items','account_movements'];
-const digest='select jsonb_build_object('+tables.map(table=>`'${table}',(select md5(coalesce(jsonb_agg(to_jsonb(t)${table==='products'?"-'catalog_source'-'updated_at'":table==='supplier_receipt_items'?"-'average_cost_before'-'average_cost_after'-'quantity_before'":''} order by id),'[]'::jsonb)::text) from public.${table} t)`).join(',')+') as value';
+const digest='select jsonb_build_object('+tables.map(table=>`'${table}',(select md5(coalesce(jsonb_agg(to_jsonb(t)${table==='products'?"-'catalog_source'-'updated_at'":table==='supplier_receipt_items'?"-'average_cost_before'-'average_cost_after'-'quantity_before'":''} order by id),'[]'::jsonb)::text) from public.${table} t)`).join(',')+",'effective_rates',(select to_jsonb(r) from public.current_exchange_rates r)) as value";
 const sql=`-- Coordinated release: catalog and purchasing, both rates retained in Notion.
 begin;
 set local lock_timeout='3s';

@@ -31,8 +31,8 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
-      - run: npm install --no-save --package-lock=false playwright@1.64.1
-      - run: npx playwright install --with-deps chromium
+      - run: npm install --prefix .tmp/browser-runtime --no-save --package-lock=false playwright@1.64.1
+      - run: .tmp/browser-runtime/node_modules/.bin/playwright install --with-deps chromium
       - name: Isolated authenticated UI acceptance
         run: |
           npm start > .tmp/ui-server.log 2>&1 &
