@@ -13,7 +13,7 @@ multivehicle and payroll fixes. No production business data is seeded by tests.
 3. Run full tests, typecheck, build and the release integration test. The latter uses
    the structure-only production fixture, actual invoice constraints, VES cost
    conversion, two sites, replay, history, unchanged prices and operator denials.
-4. The independent observer migration `20261016143000` and JWT-protected
+4. The independent observer migration `20261016141112` and JWT-protected
    `bcv-rate-sync` may run in parallel with the current system. It fetches ONLY
    `https://www.bcv.org.ve/`, validates TLS using the reviewed missing Sectigo
    intermediate, and retains the original HTML, SHA-256, value and Fecha Valor.

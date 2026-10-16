@@ -39,7 +39,7 @@ it("stores official evidence once per date, rejects conflicts and leaves operati
    create table exchange_rates(value numeric);insert into exchange_rates values(879);
    create table inventory_movements(id integer);insert into inventory_movements values(1);
    set app.role='service_role';`);
-  await db.exec(readFileSync("supabase/migrations/20261016143000_bcv_official_observer.sql","utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261016141112_bcv_official_observer.sql","utf8"));
   const sql="select public.bcv_official_record($1,(now() at time zone 'America/Caracas')::date,$2) as result";
   await db.exec("set role service_role");
   const first=(await db.query<{result:{mode:string,evidence_sha256:string}}>(sql,[880.1159,sample()])).rows[0].result;

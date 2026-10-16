@@ -21,7 +21,7 @@ it("runs catalog → supplier → VES invoice → partial receipts in two sites 
  insert into public.exchange_rates(rate_type,value,effective_at,source) values('BCV',879,now()-interval '1 day','Notion · Tasas'),('OPERATIVE',1061,now()-interval '20 days','Notion · Tasas');
  set app.role='service_role';`);
  await db.exec(mig("20261013220000_direct_bcv_manual_operative.sql"));
- await db.exec(mig("20261016143000_bcv_official_observer.sql"));
+ await db.exec(mig("20261016141112_bcv_official_observer.sql"));
  await db.exec(mig("20261016143500_bcv_official_native_bridge.sql"));
  // Synthetic evidence exists only inside this disposable database. The bridge
  // must stage the native rate and verification before the cutover can proceed.
