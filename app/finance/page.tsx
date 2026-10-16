@@ -6,9 +6,12 @@ import { FinanceCashAlerts } from "@/components/finance-cash-alerts";
 import { ExpenseSheet, type ExpenseAccount } from "@/components/expense-sheet";
 import { fmtRef, fmtVes } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
+import { FinanceManagementReportView } from "@/components/finance-management-report";
+import { financeToday, financeDateStep, validFinancePeriod, type FinanceManagementReport } from "@/lib/finance/management-report";
+import "./report.css";
 
 type CurrencyView = "VES" | "BCV" | "USD";
-type Preset = "WEEK" | "MONTH" | "30D" | "CUSTOM";
+type Preset = "DAY" | "WEEK" | "MONTH" | "30D" | "CUSTOM";
 type Values = Record<string, number | string | null>;
 type FinanceAccount = ExpenseAccount & {
   code: string; name: string; currency: "VES" | "USD"; account_type: string;
@@ -36,20 +39,20 @@ const VIEWS: { code: CurrencyView; label: string }[] = [
 ];
 const METRICS: Record<CurrencyView, Metric[]> = {
   VES: [
-    { title: "Ventas facturadas en Bs", key: "sales_assigned", help: "Ventas correspondientes a Bs, incluso las partes pendientes y financiadas en Cashea; se excluye la porción atribuida a divisas.", formula: "Total de cada factura en Bs menos su porción cobrada en USD/Zelle/Binance. Se filtra por fecha de factura, sin depender del día del cobro." },
+    { title: "Facturación Cashea, Bs y crédito", key: "sales_assigned", help: "Cashea completo, contado en Bs y crédito LC del reporte. Las ventas directas en divisas se muestran aparte.", formula: "Suma de esas tres categorías, por fecha de factura. La inicial Cashea pertenece a Cashea aunque se haya pagado en divisas." },
     { title: "Cobros de ventas", key: "collections", help: "Dinero recibido por ventas en Bs en el período, aunque la factura sea anterior.", formula: "Entradas de movimientos PAYMENT en cuentas VES; no incluye transferencias internas." },
     { title: "Entradas a cuentas", key: "entries", help: "Todos los créditos en Bs de bancos y caja, incluso transferencias entre cuentas propias.", formula: "Suma de movimientos IN en cuentas VES, por fecha real del movimiento." },
     { title: "Salidas de cuentas", key: "outflows", help: "Todos los débitos en Bs. Las transferencias no son gastos del negocio.", formula: "Suma de movimientos OUT en cuentas VES; los egresos externos se presentan por separado." },
   ],
   BCV: [
-    { title: "Ventas facturadas $ BCV", key: "sales_bcv", help: "Todas las ventas de las órdenes cerradas correspondientes a bolívares, incluidas las partes Cashea financiadas. Excluye lo pagado en efectivo USD, Zelle o Binance.", formula: "Cada factura en Bs menos su porción efectivamente atribuida a divisas, convertida a la tasa BCV histórica de esa factura. Se muestra por fecha de venta, no de cobro." },
+    { title: "Facturación Cashea, Bs y crédito · $ BCV", key: "sales_bcv", help: "Equivalente de Cashea completo, contado en Bs y crédito LC del reporte.", formula: "Bs de cada categoría / BCV histórico de factura. Las ventas directas en divisas se muestran aparte; los abonos de crédito no reclasifican la venta." },
     { title: "Cobros de ventas $ BCV", key: "collections", help: "Pagos recibidos en Bs, incluso si la factura es anterior.", formula: "Cobros Bs / tasa BCV de cada cobro; no es facturación." },
     { title: "Entradas equivalentes", key: "entries", help: "Todas las entradas en Bs convertidas a tasa histórica BCV; no son dólares disponibles.", formula: "Suma por movimiento IN de Bs / BCV efectivo del movimiento." },
     { title: "Salidas equivalentes", key: "outflows", help: "Salidas en bolívares convertidas a tasa BCV histórica.", formula: "Suma por movimiento OUT de Bs / BCV efectivo del movimiento." },
     { title: "Entradas externas", key: "external_entries", help: "Entradas no procedentes de una transferencia entre cuentas propias.", formula: "Movimientos IN de Bs sin TRANSFER, convertidos individualmente; no equivale solo a ventas." },
   ],
   USD: [
-    { title: "Ventas facturadas en divisas", key: "sales_assigned", help: "Porciones de órdenes cerradas pagadas en efectivo USD, Zelle o Binance (USDT 1:1), por fecha de factura.", formula: "Suma de pagos originales USD vinculados a órdenes facturadas en el período; no convierte pagos Bs." },
+    { title: "Ventas directas en divisas", key: "sales_assigned", help: "Porciones de ventas directas pagadas en USD, Zelle, Binance o saldo a favor USD, por fecha de factura.", formula: "USD nominales de la venta, sin iniciales Cashea ni abonos de crédito posteriores. No convierte pagos Bs." },
     { title: "Cobros de ventas", key: "collections", help: "USD reales o USDT cobrados por ventas durante el período.", formula: "Suma de movimientos PAYMENT en cuentas USD; Binance USDT se presenta nominalmente 1:1." },
     { title: "Entradas en divisas", key: "entries", help: "Dinero recibido en cuentas USD, incluyendo transferencias propias identificadas.", formula: "Suma de movimientos IN en cuentas USD, sin bolívares convertidos." },
     { title: "Salidas en divisas", key: "outflows", help: "Salidas reales de cuentas de divisas, separando traspasos de gastos.", formula: "Suma de movimientos OUT en cuentas USD." },
@@ -63,16 +66,14 @@ const INFO_PANEL = {
 };
 
 function dateToday() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  return financeToday();
 }
 function dateStep(v: string, days: number) {
-  const d = new Date(v + "T12:00:00-04:00");
-  d.setDate(d.getDate() + days);
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  return financeDateStep(v, days);
 }
 function weekStart(v: string) {
-  const d = new Date(v + "T12:00:00-04:00");
-  return dateStep(v, -((d.getDay() + 6) % 7));
+  const d = new Date(v + "T12:00:00Z");
+  return dateStep(v, -((d.getUTCDay() + 6) % 7));
 }
 function valueFor(row: Values, key: string): number | null {
   const value = row[key];
@@ -104,9 +105,12 @@ function MetricCard({ metric, row, currency }: { metric: Metric; row: Values; cu
 
 export default function FinancePage() {
   const today = dateToday();
-  const [from, setFrom] = useState(today.slice(0, 7) + "-01");
+  const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
-  const [preset, setPreset] = useState<Preset>("MONTH");
+  const [preset, setPreset] = useState<Preset>("DAY");
+  const [datesReady, setDatesReady] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  const [report, setReport] = useState<FinanceManagementReport | null>(null);
   const [view, setView] = useState<CurrencyView>("USD");
   const [includeVes, setIncludeVes] = useState(false);
   const [data, setData] = useState<CurrencySummary | null>(null);
@@ -117,23 +121,45 @@ export default function FinancePage() {
   const [expenseOpen, setExpenseOpen] = useState(false);
 
   useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const start = query.get("from") ?? today, end = query.get("to") ?? start;
+    if (validFinancePeriod(start, end, today)) {
+      setFrom(start); setTo(end); setPreset(start === end ? "DAY" : "CUSTOM");
+    }
+    setDatesReady(true);
+  }, []); // Initial shared report dates; subsequent edits stay in this page.
+
+  useEffect(() => {
+    if (!datesReady) return;
     let live = true;
     (async () => {
-      setLoading(true); setError("");
-      const [summary, billing, financeRole] = await Promise.all([
+      setData(null); setInvoiceSales(null); setReport(null); setError("");
+      if (!validFinancePeriod(from, to, today)) {
+        setLoading(false); setError("Selecciona fechas válidas, hasta hoy y de máximo 367 días"); return;
+      }
+      const url = new URL(window.location.href); url.searchParams.set("from", from); url.searchParams.set("to", to);
+      window.history.replaceState(null, "", url);
+      setLoading(true);
+      const [summary, financeRole, management] = await Promise.all([
         supabase.rpc("finance_currency_summary", { p_from: from, p_to: to }),
-        supabase.rpc("finance_sales_bcv", { p_from: from, p_to: to }),
         supabase.rpc("finance_role"),
+        supabase.rpc("finance_management_report", { p_from: from, p_to: to }),
       ]);
       if (!live) return;
       setLoading(false);
       setRole(String(financeRole.data ?? ""));
-      if (summary.error || billing.error) { setData(null); setInvoiceSales(null); setError(summary.error?.message ?? billing.error?.message ?? "Error de facturación"); return; }
+      if (summary.error || management.error || !management.data || !summary.data) { setError(summary.error?.message ?? management.error?.message ?? "Error de facturación"); return; }
       setData(summary.data as CurrencySummary);
-      setInvoiceSales(billing.data as InvoiceSales);
-    })();
+      const m = management.data as FinanceManagementReport;
+      setInvoiceSales({ orders: m.totals.orders,
+        sales_ves: Number(m.channels.cashea.ves ?? 0) + Number(m.channels.contado.ves ?? 0) + Number(m.channels.credito.ves ?? 0),
+        sales_bcv: m.totals.sales_equivalent === null ? null : m.totals.sales_equivalent - Number(m.channels.divisas.usd ?? 0),
+        sales_divisas_usd: Number(m.channels.divisas.usd ?? 0),
+        warnings: { missing_order_bcv: m.warnings.missing_invoice_rates, usd_overpayment: m.warnings.overpaid_orders, excluded_cashea_other_or_unresolved: m.warnings.excluded_cashea } });
+      setReport(m);
+    })().catch(() => { if (live) { setLoading(false); setError("No se pudo conectar. Reintenta cargar el reporte"); } });
     return () => { live = false; };
-  }, [from, to]);
+  }, [from, to, refresh, datesReady]);
 
   const ownAccounts = useMemo(() => (data?.accounts ?? []).filter(a => a.account_type !== "RELATED"), [data]);
   const selectedAccounts = ownAccounts.filter(a => (view === "USD" ? "USD" : "VES") === a.currency);
@@ -143,6 +169,7 @@ export default function FinancePage() {
 
   function choose(v: Preset) {
     setPreset(v);
+    if (v === "DAY") setFrom(today);
     if (v === "WEEK") setFrom(weekStart(today));
     if (v === "MONTH") setFrom(today.slice(0,7) + "-01");
     if (v === "30D") setFrom(dateStep(today,-29));
@@ -151,36 +178,48 @@ export default function FinancePage() {
 
   function onExpenseDone() {
     setExpenseOpen(false);
-    // Re-fetch the selected dates without mutating existing transactions.
-    setFrom(v => v);
-    window.location.reload();
+    setRefresh(v => v + 1);
   }
+  function selectDay(day: string) { setPreset("DAY"); setFrom(day); setTo(day); }
 
   const opIn = data ? valueFor(data.operative,"external_entries") : null;
   const opOut = data ? valueFor(data.operative,"external_outflows") : null;
   const dollarsIn = data ? valueFor(data.usd,"external_entries") : null;
   const dollarsOut = data ? valueFor(data.usd,"external_outflows") : null;
 
-  return <main className="container stack">
+  return <main className="container stack finance-page">
     <section className="brand-hero">
       <div><div className="eyebrow">FINANZAS · CONTROL DEL NEGOCIO</div>
         <h1>Resumen financiero</h1>
-        <p>Tres vistas independientes. Ventas, cobros, movimientos y saldos no se duplican ni convierten silenciosamente.</p>
+        <p>Lo vendido, cómo se vendió y lo que queda por cobrar. Consulta un día o un período y lleva el reporte a administración.</p>
       </div>
       <img src="/lubricenter-logo.png" alt="Lubricenter" />
     </section>
-    {role === "OWNER" && <FinanceCashAlerts />}
-    <section className="card stack">
+    {role === "OWNER" && <div className="finance-cash-alerts"><FinanceCashAlerts /></div>}
+    <section className="card stack finance-controls" aria-label="Fechas del reporte">
       <div className="finance-presets">
-        {(["WEEK","MONTH","30D","CUSTOM"] as Preset[]).map(p =>
+        {(["DAY","WEEK","MONTH","30D","CUSTOM"] as Preset[]).map(p =>
           <button key={p} className={"btn " + (preset === p ? "btn-primary" : "btn-ghost")} onClick={() => choose(p)}>
-            {p === "WEEK" ? "Esta semana" : p === "MONTH" ? "Este mes" : p === "30D" ? "Últimos 30 días" : "Personalizado"}
+            {p === "DAY" ? "Un día" : p === "WEEK" ? "Esta semana" : p === "MONTH" ? "Este mes" : p === "30D" ? "Últimos 30 días" : "Rango de fechas"}
           </button>)}
+        <button className="btn btn-ghost finance-refresh" onClick={() => setRefresh(v => v + 1)} disabled={loading}>Actualizar</button>
       </div>
-      <div className="grid grid-2">
+      {preset === "DAY" ? <div className="finance-daily-input">
+        <button className="btn btn-ghost" onClick={() => selectDay(dateStep(from, -1))} disabled={!from} aria-label="Día anterior">←</button>
+        <label><span className="label">Día del reporte</span><input className="input" type="date" value={from} max={today} onChange={e => selectDay(e.target.value)} /></label>
+        <button className="btn btn-ghost" onClick={() => selectDay(dateStep(from, 1))} disabled={!from || from >= today} aria-label="Día siguiente">→</button>
+        <button className="btn btn-ghost" onClick={() => selectDay(today)}>Hoy</button>
+        <button className="btn btn-ghost" onClick={() => selectDay(dateStep(today, -1))}>Ayer</button>
+      </div> : <div className="grid grid-2">
         <label><span className="label">Desde</span><input type="date" className="input" value={from} max={to} onChange={e => { setPreset("CUSTOM"); setFrom(e.target.value); }} /></label>
         <label><span className="label">Hasta</span><input type="date" className="input" value={to} min={from} max={today} onChange={e => { setPreset("CUSTOM"); setTo(e.target.value); }} /></label>
-      </div>
+      </div>}
+    </section>
+    {loading && <div className="card muted finance-report-loading" role="status">Preparando el reporte financiero…</div>}
+    {error && <div className="error finance-error-row" role="alert"><span>No se pudo cargar el reporte: {error}.</span><button className="btn btn-ghost" onClick={() => setRefresh(v => v + 1)}>Reintentar</button></div>}
+    {data && invoiceSales && report && !loading && <>
+      <FinanceManagementReportView report={report} />
+      <details className="finance-extra"><summary>Movimientos, cobros, bancos y detalle por moneda</summary><div className="stack">
       <div className="row" role="tablist" aria-label="Moneda del resumen financiero" style={{ flexWrap: "wrap", gap: 8 }}>
         {VIEWS.map(v => <button key={v.code} type="button" role="tab" aria-selected={view === v.code}
           onClick={() => setView(v.code)} className={"btn " + (view === v.code ? "btn-primary" : "btn-ghost")}>{v.label}</button>)}
@@ -189,10 +228,6 @@ export default function FinancePage() {
         <input type="checkbox" checked={includeVes} onChange={e => setIncludeVes(e.target.checked)} />
         <span className="small">Incluir equivalente de Bs a tasa operativa (solo consulta)</span>
       </label>}
-    </section>
-    {loading && <div className="card muted">Calculando el período…</div>}
-    {error && <div className="error">No se pudo cargar el nuevo resumen: {error}. Ningún saldo fue modificado.</div>}
-    {data && invoiceSales && !loading && <>
       <section className="stack">
         <div className="row-between">
           <h2 className="section-title" style={{ margin: 0 }}>{view === "VES" ? "Movimientos en bolívares" : view === "BCV" ? "Equivalentes a tasa BCV" : "Dinero real en divisas"}</h2>
@@ -204,9 +239,9 @@ export default function FinancePage() {
         </section>
         {(view === "BCV" || view === "VES") && <div className="card stack" style={{ gap: 6 }}>
           <div className="row-between"><strong className="small">Facturación del período</strong>
-            <Info title="Facturación, no cobros" help="La facturación incluye el total de ventas atribuido a Bs, también cuando Cashea financia una parte que todavía no se ha acreditado." formula="Valor facturado Bs − pagos en divisas de esas órdenes. Conversión $ BCV a tasa de venta; los cobros se calculan por separado a la tasa de cobro." /></div>
+            <Info title="Facturación, no cobros" help="El mismo reparto del reporte superior: Cashea completo, contado Bs y crédito LC; divisas directas aparte." formula="Conversión BCV histórica por factura. La inicial Cashea no se duplica y los cobros se calculan por separado a la tasa de cobro." /></div>
           <div className="row-between small"><span>Órdenes cerradas</span><strong>{invoiceSales.orders}</strong></div>
-          <div className="row-between small"><span>Ventas en bolívares</span><strong>{fmtVes(invoiceSales.sales_ves)}</strong></div>
+          <div className="row-between small"><span>Cashea, contado Bs y crédito LC</span><strong>{fmtVes(invoiceSales.sales_ves)}</strong></div>
           <div className="row-between small"><span>Equivalente a tasa BCV de venta</span><strong><Money value={invoiceSales.sales_bcv} currency="USD" /></strong></div>
           <div className="row-between small"><span>Ventas en divisas excluidas</span><strong>{fmtRef(invoiceSales.sales_divisas_usd)}</strong></div>
           <div className="muted small">Ventas por fecha de factura; cobros por fecha de pago. El equivalente no representa dinero recibido en dólares.</div>
@@ -286,6 +321,7 @@ export default function FinancePage() {
       </section>
       <div className="row"><button className="btn btn-primary" onClick={() => setExpenseOpen(true)}>+ Registrar gasto</button></div>
       {expenseOpen && <ExpenseSheet accounts={ownAccounts} onCancel={() => setExpenseOpen(false)} onDone={onExpenseDone} />}
+      </div></details>
     </>}
   </main>;
 }
