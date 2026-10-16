@@ -16,14 +16,16 @@ async function setup(){
  create function public.gen_random_bytes(integer) returns bytea language sql as $$select decode(repeat('ab',$1),'hex')$$;
  create function vault.create_secret(text,text) returns uuid language plpgsql as $$begin insert into vault.secrets values($2,$1);return gen_random_uuid();end$$;
  create table public.app_settings(key text primary key,value jsonb);
- create table public.products(id uuid default gen_random_uuid(),active boolean,available boolean,catalog_source text,catalog_synced_at timestamptz);
+ create table public.products(id uuid default gen_random_uuid(),active boolean,available boolean,catalog_source text,catalog_synced_at timestamptz,updated_at timestamptz default now());
  create table public.exchange_rates(id uuid primary key default gen_random_uuid(),rate_type text,value numeric,effective_at timestamptz,source text,created_at timestamptz default now(),created_by uuid);
  create table public.integration_sync_state(source_key text primary key,last_verified_at timestamptz,last_success_payload jsonb,updated_at timestamptz);
  create table public.audit_events(id uuid default gen_random_uuid(),event_type text,entity_type text,entity_id uuid,data jsonb,actor_id uuid);
  insert into public.exchange_rates(rate_type,value,effective_at,source) values('BCV',879,now()-interval '1 day','Notion · Tasas'),('OPERATIVE',1061,now()-interval '20 days','Notion · Tasas');
  set app.role='service_role';set app.identity='OWNER';
  `);
- await db.exec(migration);return db;
+ await db.exec(migration);
+ await db.exec(readFileSync("supabase/migrations/20261013220500_exchange_rate_status.sql","utf8"));
+ return db;
 }
 const capture="select public.bcv_accept_publication($1,(now() at time zone 'America/Caracas')::date+$2::integer,now())";
 describe("BCV SQL and transition safety",()=>{
@@ -46,6 +48,10 @@ describe("BCV SQL and transition safety",()=>{
    expect(Number((await db.query<{bcv_rate:number}>("select * from current_exchange_rates")).rows[0].bcv_rate)).toBe(890);
    await db.exec(`insert into app_settings values('catalog_authority','"LUBRICENTER_OS"');`);
    expect(Number((await db.query<{bcv_rate:number}>("select * from current_exchange_rates")).rows[0].bcv_rate)).toBe(879);
+   const status=(await db.query<{status:{bcv_active:number;bcv_active_since:string}}>("select get_exchange_rate_control_status() as status")).rows[0].status;
+   const active=(await db.query<{effective_at:Date}>("select effective_at from exchange_rates where source='BCV_API_DATE_VALUE' and value=879")).rows[0];
+   expect(Number(status.bcv_active)).toBe(879);
+   expect(new Date(status.bcv_active_since).toISOString()).toBe(new Date(active.effective_at).toISOString());
    await db.exec("insert into exchange_rates(rate_type,value,effective_at,source) values('BCV',999,now(),'Notion · Tasas')");
    expect((await db.query("select * from exchange_rates where value=999")).rows).toHaveLength(0);
   }finally{await db.close();}
