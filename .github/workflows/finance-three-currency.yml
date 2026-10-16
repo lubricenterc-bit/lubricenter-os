@@ -2,7 +2,11 @@ name: Finance three-currency checks
 on:
   pull_request:
     paths:
-      - 'app/finance/page.tsx'
+      - 'app/finance/**'
+      - 'components/finance-management-report.tsx'
+      - 'lib/finance/management-report.ts'
+      - 'scripts/finance-management-report.sql'
+      - 'tests/finance-management-client.test.ts'
       - 'app/cash/page.tsx'
       - 'tests/finance-three-currency.test.ts'
       - 'supabase/migrations/20261013170000_finance_three_currency_views.sql'
@@ -20,7 +24,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - run: npx vitest run tests/finance-three-currency.test.ts
+      - run: npx vitest run tests/finance-three-currency.test.ts tests/finance-management-client.test.ts
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co

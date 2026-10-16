@@ -27,6 +27,7 @@ jobs:
       - run: npm test -- --maxWorkers=1 --testTimeout=120000
         env:
           E2E_FIXTURE_DIR: .tmp/ui-fixtures
+          E2E_FINANCE_FIXTURE_DIR: .tmp/finance-fixtures
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
@@ -43,6 +44,7 @@ jobs:
             sleep 1
           done
           node scripts/verify-release-ui.mjs
+          node scripts/verify-finance-report-ui.mjs
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
