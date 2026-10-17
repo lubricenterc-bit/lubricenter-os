@@ -80,7 +80,7 @@ BEGIN
    THEN RAISE EXCEPTION 'Cada pago bancario necesita al menos los últimos cuatro dígitos'; END IF;
    IF v_method IN ('ZELLE','BINANCE') AND length(coalesce(ref,''))<4
    THEN RAISE EXCEPTION 'El cobro electrónico necesita referencia'; END IF;
-   currency_code:=CASE WHEN method IN ('CASH_USD','ZELLE','BINANCE') THEN 'USD' ELSE 'VES' END;
+   currency_code:=CASE WHEN v_method IN ('CASH_USD','ZELLE','BINANCE') THEN 'USD' ELSE 'VES' END;
    account_code:=CASE WHEN v_method='TRANSFER_BDV' THEN 'BDV'
                       WHEN v_method='TRANSFER_BNC' THEN 'BNC' ELSE v_method END;
    SELECT id INTO account_uuid FROM public.financial_accounts WHERE code=account_code AND active;
