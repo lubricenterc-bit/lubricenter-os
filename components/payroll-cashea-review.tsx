@@ -4,7 +4,7 @@ import {supabase} from "@/lib/supabase";
 import {fmtRef} from "@/lib/format";
 export type CasheaPayrollOption={
  accrual_id:string;employee_id:string;order_id:string;order_number:string;description:string;
- full_commission_ref:number;cashea_sale_id:string;gross_ref:number;initial_ref:number;financed_ref:number;
+ full_commission_ref:number;cashea_sale_id:string;gross_ref:number;cashea_service_fee_ref:number;initial_ref:number;financed_ref:number;
  cashea_reference:string;commission_from_collections:number;amount_to_advance:number;
  mode:"AS_COLLECTED"|"FULL_UPFRONT";advance_adjustment_id:string|null;
  advance_already_liquidated:boolean;
@@ -38,6 +38,7 @@ export function CasheaPayrollChoices({employeeId,options,periodEnd,disabled,onUp
     </div>
     <div>Por cobros registrados: <strong>{fmtRef(item.commission_from_collections)}</strong> · Restante: <strong>{fmtRef(item.amount_to_advance)}</strong></div>
     <div className="muted small">Venta Cashea {fmtRef(item.gross_ref)} · inicial {fmtRef(item.initial_ref)} · financiado {fmtRef(item.financed_ref)}</div>
+    <div className="muted small"><strong>Cargo de Cashea: {fmtRef(item.cashea_service_fee_ref)} · lo asume Lubricenter.</strong> No se descuenta del 40% del mecánico ni del bono del ayudante.</div>
     <div><strong>Decisión:</strong> {item.mode==="FULL_UPFRONT"?"Adelanto completo":"Pago conforme lleguen cuotas"}
       {item.advance_already_liquidated?" · Ya liquidado (bloqueado)":""}</div>
     <details><summary>Ver vencimientos Cashea</summary>
