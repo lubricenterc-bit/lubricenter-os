@@ -1,0 +1,27 @@
+name: Payroll Cheo quote regression
+on:
+  pull_request:
+    paths:
+      - 'components/payroll-review.tsx'
+      - 'lib/payroll-quote.ts'
+      - 'lib/payroll-draft-pdf.ts'
+      - 'tests/payroll-quote.test.ts'
+      - '.github/workflows/payroll-quote.yml'
+jobs:
+  quote_and_build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/payroll-quote.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
