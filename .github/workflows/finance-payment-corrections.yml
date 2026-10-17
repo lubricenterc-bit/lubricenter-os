@@ -1,0 +1,30 @@
+name: Financial payment corrections
+on:
+  pull_request:
+    paths:
+      - 'app/orders/**/correct-payment/**'
+      - 'components/finance-bank-auto-repair.tsx'
+      - 'components/order-workspace.tsx'
+      - 'app/finance/reconcile/page.tsx'
+      - 'supabase/migrations/20261017180000_cashea_initial_safe_correction.sql'
+      - 'supabase/migrations/20261017181000_finance_bank_mismatch_advisor.sql'
+      - 'tests/finance-payment-corrections.test.ts'
+      - '.github/workflows/finance-payment-corrections.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/finance-payment-corrections.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import {FinanceBankAutoRepair} from '@/components/finance-bank-auto-repair';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { parseBdv, type Preview } from '@/lib/finance/importers';
@@ -27,6 +28,7 @@ type AccountRef = { id: string; code: string; name: string; currency: 'USD'|'VES
 type PendingData = { total: number; rows: PendingRow[]; categories: Category[]; accounts: AccountRef[] };
 
 const localDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(new Date());
+function weekEnd(value:string){const d=new Date(value+'T12:00:00-04:00');d.setUTCDate(d.getUTCDate()+6);return d.toISOString().slice(0,10);}
 function monday(value = localDate()) {
   const d = new Date(`${value}T12:00:00-04:00`);
   const day = d.getDay() || 7;
@@ -126,6 +128,8 @@ export default function WeeklyReconciliationPage() {
       <div><strong>Semana</strong><div className="muted small">{status ? `${status.start} → ${status.end}` : week}</div></div>
       <input className="input" type="date" value={week} onChange={e=>setWeek(monday(e.target.value))} />
     </section>
+
+    <FinanceBankAutoRepair from={week} to={weekEnd(week)} onApplied={load}/>
 
     {status?.status==='NEEDS_OPENING' && <OpenWeek openings={openings} setOpenings={setOpenings} busy={busy} onOpen={()=>run(openWeek)} week={week} today={today} />}
 
