@@ -17,6 +17,15 @@ BEGIN
  ), run_cards AS (
    SELECT r.*,
      coalesce((SELECT sum(p.usd_equivalent) FROM public.payroll_payments p WHERE p.payroll_run_id=r.id),0) paid_usd,
+     coalesce((SELECT sum(x.usd_applied) FROM public.payroll_advance_applications x WHERE x.payroll_run_id=r.id),0) advance_applied_usd,
+     coalesce((SELECT jsonb_agg(jsonb_build_object(
+       'id',a.id,'employee_id',a.employee_id,'paid_on',a.paid_on,'usd_equivalent',a.usd_equivalent,
+       'applied_usd',x.usd_applied,'currency',a.currency,'amount_original',a.amount_original,
+       'account_code',fa.code,'reference',a.reference,'note',a.note,'movement_id',a.account_movement_id
+      ) ORDER BY a.paid_on,a.id)
+      FROM public.payroll_advance_applications x
+      JOIN public.payroll_advances a ON a.id=x.advance_id
+      JOIN public.financial_accounts fa ON fa.id=a.account_id WHERE x.payroll_run_id=r.id),'[]'::jsonb) advances,
      coalesce((SELECT jsonb_agg(jsonb_build_object(
        'id',p.id,'paid_on',p.paid_on,'currency',p.currency,'amount_original',p.amount_original,
        'usd_equivalent',p.usd_equivalent,'payment_mode',p.payment_mode,'component',p.component,
@@ -67,7 +76,9 @@ BEGIN
    'period_start',r.period_start,'period_end',r.period_end,
    'created_at',r.created_at,'status',r.status,'payroll_version',r.payroll_version,
    'fixed_ref',r.fixed_ref,'variable_ref',r.variable_ref,'adjustments_ref',r.adjustments_ref,
-   'total_ref',r.total_ref,'paid_usd',r.paid_usd,'outstanding_usd',greatest(r.total_ref-r.paid_usd,0),
+   'total_ref',r.total_ref,'paid_usd',r.paid_usd,'advances_applied_usd',r.advance_applied_usd,
+   'outstanding_usd',greatest(r.total_ref-r.paid_usd-r.advance_applied_usd,0),
+   'advances',r.advances,
    'payments',r.payments,'admin_snapshot',r.admin_snapshot,
    'work',coalesce((SELECT jsonb_agg(jsonb_build_object(
        'id',w.work_id,'order_id',w.order_id,'order_number',w.order_number,
