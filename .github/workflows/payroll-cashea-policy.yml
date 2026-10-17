@@ -1,0 +1,28 @@
+name: Payroll Cashea commission policy
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20261017195000_payroll_cashea_commission_policy.sql'
+      - 'components/payroll-review.tsx'
+      - 'components/payroll-cashea-review.tsx'
+      - 'lib/payroll-draft-pdf.ts'
+      - 'tests/payroll-cashea-commission.test.ts'
+      - '.github/workflows/payroll-cashea-policy.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/payroll-cashea-commission.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
