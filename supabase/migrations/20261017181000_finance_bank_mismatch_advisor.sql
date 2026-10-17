@@ -47,7 +47,7 @@ CREATE OR REPLACE FUNCTION public.finance_exact_bank_mismatches(
  recorded_account text, actual_account text, reference text,
  recorded_ves numeric, verified_ves numeric, paid_at timestamptz
 )
-LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path=''
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=''
 AS $body$
 BEGIN
  PERFORM lubricenter_private.require_order_admin();
@@ -138,7 +138,7 @@ REVOKE ALL ON FUNCTION lubricenter_private.finance_exact_bank_mismatches(date,da
 REVOKE ALL ON FUNCTION public.finance_exact_bank_mismatches(date,date) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION lubricenter_private.finance_autofix_bank_mismatches(date,date) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.finance_autofix_bank_mismatches(date,date) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION lubricenter_private.finance_exact_bank_mismatches(date,date) TO authenticated;
+-- Internal evidence query has no direct authenticated grant; public wrapper checks administrator.
 GRANT EXECUTE ON FUNCTION public.finance_exact_bank_mismatches(date,date) TO authenticated;
 GRANT EXECUTE ON FUNCTION lubricenter_private.finance_autofix_bank_mismatches(date,date) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.finance_autofix_bank_mismatches(date,date) TO authenticated;
