@@ -3,6 +3,8 @@ import Link from "next/link";
 import {useEffect,useState} from "react";
 import {supabase} from "@/lib/supabase";
 import {fmtRef,fmtVes,fmtRate} from "@/lib/format";
+import {CasheaPayrollChoices,PayrollOrderPeek,type CasheaPayrollOption,type PayrollOrderItem} from "@/components/payroll-cashea-review";
+import {downloadPayrollDraftPdf,type DraftPayrollInput} from "@/lib/payroll-draft-pdf";
 type Work={id:string;employee_id:string;order_id:string;order_number:string;description:string;currency:string;original_amount:number;amount:number;obligation_usd:number|null;payout_mode:'HARD_USD'|'BCV_VES'|null;decision:string;reason:string|null;version:number;earned_at:string;reversal_of:string|null};
 type OrderTotal={id:string;total_ves:number;total_ref:number;total_cash_usd_equivalent:number};
 function money(n:number,c:string){return c==='USD'?`$${Number(n).toFixed(2)} USD`:fmtVes(n);}
@@ -15,6 +17,9 @@ export default function PayrollReview(){
  const [paymentDate,setPaymentDate]=useState(today);
  const [bcv,setBcv]=useState<{value:number;effective_at:string}|null>(null);
  const [orders,setOrders]=useState<Record<string,OrderTotal>>({});
+ const [orderItems,setOrderItems]=useState<PayrollOrderItem[]>([]);
+ const [casheaOptions,setCasheaOptions]=useState<CasheaPayrollOption[]>([]);
+ const [orderPeek,setOrderPeek]=useState<string|null>(null);
  const [work,setWork]=useState<Work[]>([]),[employees,setEmployees]=useState<any[]>([]),[rules,setRules]=useState<any[]>([]),[adjustments,setAdjustments]=useState<any[]>([]),[runs,setRuns]=useState<any[]>([]);
  const [balances,setBalances]=useState<Record<string,number>>({});
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[ready,setReady]=useState(false),[latest,setLatest]=useState('');
@@ -26,7 +31,22 @@ export default function PayrollReview(){
  const [advances,setAdvances]=useState<any[]>([]);
  const [editAdjType,setEditAdjType]=useState('BONUS');
  const [editAdj,setEditAdj]=useState<any>(null),[editAdjDecision,setEditAdjDecision]=useState('PAY'),[editAdjAmount,setEditAdjAmount]=useState(''),[editAdjReason,setEditAdjReason]=useState('');
- async function load(){setReady(false);setError('');const [w,e,r,a,c]=await Promise.all([supabase.rpc('payroll_review',{p_end:end}),supabase.from('employees').select('id,name').eq('active',true).order('name'),supabase.from('payroll_runs').select('*,employees(name)').order('created_at',{ascending:false}).limit(20),supabase.from('payroll_adjustments').select('*').is('payroll_run_id',null).lte('occurred_on',end),supabase.from('compensation_rules').select('*').eq('rule_type','FIXED_WEEKLY').lte('valid_from',end).order('valid_from',{ascending:false})]);const bad=[w,e,r,a,c].find(x=>x.error);if(bad?.error)return setError(bad.error.message);const balancePairs=await Promise.all((e.data??[]).map(async(emp:any)=>{const result=await supabase.rpc('payroll_employee_open_balance',{p_employee_id:emp.id});return[emp.id,result.error?0:Number(result.data??0)] as const;}));setBalances(Object.fromEntries(balancePairs));const ids=[...new Set((w.data??[]).map((row:Work)=>row.order_id))];if(ids.length){const result=await supabase.from('orders').select('id,total_ves,total_ref,total_cash_usd_equivalent').in('id',ids);if(result.error)return setError(result.error.message);setOrders(Object.fromEntries((result.data??[]).map(row=>[row.id,row])));}else setOrders({});setWork(w.data??[]);setEmployees(e.data??[]);setRuns(r.data??[]);setAdjustments(a.data??[]);setRules(c.data??[]);
+ async function load(){setReady(false);setError('');const [w,e,r,a,c]=await Promise.all([supabase.rpc('payroll_review',{p_end:end}),supabase.from('employees').select('id,name').eq('active',true).order('name'),supabase.from('payroll_runs').select('*,employees(name)').order('created_at',{ascending:false}).limit(20),supabase.from('payroll_adjustments').select('*').is('payroll_run_id',null).lte('occurred_on',end),supabase.from('compensation_rules').select('*').eq('rule_type','FIXED_WEEKLY').lte('valid_from',end).order('valid_from',{ascending:false})]);const bad=[w,e,r,a,c].find(x=>x.error);if(bad?.error)return setError(bad.error.message);const balancePairs=await Promise.all((e.data??[]).map(async(emp:any)=>{const result=await supabase.rpc('payroll_employee_open_balance',{p_employee_id:emp.id});return[emp.id,result.error?0:Number(result.data??0)] as const;}));setBalances(Object.fromEntries(balancePairs));const ids=[...new Set((w.data??[]).map((row:Work)=>row.order_id))];if(ids.length){
+  const [result,orderLines]=await Promise.all([
+   supabase.from('orders').select('id,total_ves,total_ref,total_cash_usd_equivalent').in('id',ids),
+   supabase.from('order_items').select('id,order_id,description,item_type,business_area,charged_ref_amount,worker_share_ref_snapshot,assistant_bonus_ref_snapshot,worker_employee_id').in('order_id',ids)
+  ]);
+  if(result.error||orderLines.error)return setError((result.error||orderLines.error)!.message);
+  setOrders(Object.fromEntries((result.data??[]).map(row=>[row.id,row])));
+  setOrderItems(orderLines.data??[]);
+ }else {setOrders({});setOrderItems([]);}
+ const [p,ar]=await Promise.all([
+  supabase.rpc('payroll_cashea_options',{p_end:end}),
+  supabase.rpc('payroll_advance_admin_history')
+ ]);
+ if(p.error||ar.error)return setError((p.error||ar.error)!.message);
+ setCasheaOptions((p.data??[]) as CasheaPayrollOption[]);
+ setAdvances(ar.data??[]);setWork(w.data??[]);setEmployees(e.data??[]);setRuns(r.data??[]);setAdjustments(a.data??[]);setRules(c.data??[]);
  const runIds=(r.data??[]).map(x=>x.id);
  if(runIds.length){const paid=await supabase.from('payroll_payments').select('payroll_run_id,usd_equivalent').in('payroll_run_id',runIds);
   if(paid.error)return setError(paid.error.message);
@@ -39,6 +59,43 @@ export default function PayrollReview(){
  function summary(id:string){const availableAdvances=advances.filter(a=>a.employee_id===id&&a.intended_period_end<=end&&Number(a.unapplied_usd)>0.009);
   const advanceReady=availableAdvances.reduce((sum,a)=>sum+Number(a.unapplied_usd),0);
   const rows=work.filter(w=>w.employee_id===id),pay=rows.filter(w=>w.decision==='PAY'),empAdj=adjustments.filter(a=>a.employee_id===id);return{rows,advanceReady,availableAdvances,totalUsd:pay.reduce((s,w)=>s+Number(w.obligation_usd??0),0),hardUsd:pay.filter(w=>w.payout_mode==='HARD_USD').reduce((s,w)=>s+Number(w.obligation_usd??0),0),bcvUsd:pay.filter(w=>w.payout_mode==='BCV_VES').reduce((s,w)=>s+Number(w.obligation_usd??0),0),hold:rows.filter(w=>w.decision==='HOLD').length,exclude:rows.filter(w=>w.decision==='EXCLUDE').length,fixed:Number(rules.find(r=>r.employee_id===id&&(!r.valid_to||r.valid_to>=end))?.value??0),adj:empAdj.filter(a=>a.decision==='PAY').reduce((s,a)=>s+Number(a.amount_ref),0),adjHold:empAdj.filter(a=>a.decision==='HOLD').length,adjustments:empAdj,prior:Number(balances[id]??0)};}
+ async function downloadDraft(emp:{id:string;name:string}){
+  const sum=summary(emp.id),current=casheaOptions.filter(o=>o.employee_id===emp.id);
+  const jobs=sum.rows.map(w=>{
+    const details=orderItems.filter(i=>i.order_id===w.order_id).map(i=>
+      (i.item_type==="SERVICE"?"Servicio: ":"Producto: ")+i.description+" | Venta "+fmtRef(i.charged_ref_amount)+
+      (i.worker_share_ref_snapshot!=null?" | Parte mecánico "+fmtRef(i.worker_share_ref_snapshot):""));
+    const cashea=current.find(o=>o.order_id===w.order_id);
+    return {order:w.order_number,description:w.description,
+     earnedOn:new Date(w.earned_at).toLocaleDateString("es-VE",{timeZone:"America/Caracas"}),
+     decision:w.decision,commission:w.decision==="PAY"?Number(w.obligation_usd||0):0,
+     detail:details,cashea:cashea?"Venta "+fmtRef(cashea.gross_ref)+"; inicial "+fmtRef(cashea.initial_ref)+
+       "; futura "+fmtRef(cashea.financed_ref):undefined
+    };
+  });
+  const fixed=sum.fixed,netGross=fixed+sum.totalUsd+sum.adj;
+  const proposed=Math.max(0,netGross-Math.min(netGross,sum.advanceReady));
+  const pdf:DraftPayrollInput={
+   employee:emp.name,start:start(end),end,createdOn:new Date().toLocaleString("es-VE",{timeZone:"America/Caracas"}),
+   fixed,commissions:sum.totalUsd,adjustments:sum.adj,
+   advances:Math.min(netGross,sum.advanceReady),priorDue:sum.prior,draftNet:proposed,
+   notes:[sum.hold+" comisiones prorrogadas; "+sum.exclude+" excluidas; "+sum.adjHold+" ajustes prorrogados.",
+      "Importes sujetos a revisión conjunta; no representan desembolsos realizados.",
+      "La comisión de Cashea (4% de la venta total, salvo tarifa documentada diferente) es gasto de Lubricenter. No reduce la comisión del mecánico.",
+      ...(emp.name.toLowerCase()==="cheo"&&end==="2026-10-17"&&sum.adj>-15?
+        ["Descuento comunicado de $15: verificar contra descuentos registrados ("+fmtRef(sum.adj)+")."] : [])],
+   orders:jobs,
+   adjustmentLines:sum.adjustments.map(a=>({label:a.note||a.adjustment_type,amount:Number(a.amount_ref),
+    state:a.decision==="PAY"?"Se aplica":a.decision==="HOLD"?"Prorrogado":"Excluido"})),
+   casheaPolicies:current.map(o=>({order:o.order_number,description:o.description,mode:o.mode,
+     full:Number(o.full_commission_ref),collected:Number(o.commission_from_collections),
+     advance:o.mode==="FULL_UPFRONT"?Number(o.amount_to_advance):0,
+     installments:o.installments.map(t=>"Cuota "+t.installment_no+": "+fmtRef(t.amount_ref)+
+       " | recibida "+fmtRef(t.paid_ref)+" | vence "+t.due_date+" | "+t.status)}))
+  };
+  downloadPayrollDraftPdf(pdf);
+ }
+
  async function save(){if(!edit)return;setBusy(true);const {error}=await supabase.rpc('payroll_review_work_v3',{p_id:edit.id,p_version:edit.version,p_decision:decision,p_obligation_usd:Number(amount),p_reason:reason});setBusy(false);if(error)return setError(error.message);setEdit(null);await load();}
  async function settle(){setBusy(true);const expected=summary(confirm.id).rows.filter(w=>w.decision!=='HOLD').sort((a,b)=>a.id.localeCompare(b.id)).map(w=>({id:w.id,version:w.version}));const{data,error}=await supabase.rpc('payroll_settle',{p_employee_id:confirm.id,p_period_start:start(end),p_period_end:end,p_expected:{work:expected,fixed_ref:summary(confirm.id).fixed,adjustments:adjustments.filter(a=>a.employee_id===confirm.id&&a.decision!=='HOLD').sort((a,b)=>a.id.localeCompare(b.id)).map(a=>({id:a.id,version:Number(a.version??1),decision:a.decision??'PAY',amount_ref:Number(a.amount_ref)}))}});setBusy(false);setConfirm(null);if(error)return setError(error.message);setLatest(data);await load();}
  async function showHistory(id:string){const{data,error}=await supabase.from('payroll_work_history').select('*').eq('work_item_id',id).order('occurred_at',{ascending:false});if(error)return setError(error.message);setHistory(data??[]);}
@@ -81,14 +138,28 @@ export default function PayrollReview(){
   </Link>
   <span className="muted small">Período {lastRunFor(emp.id).period_start} a {lastRunFor(emp.id).period_end}</span></div>}{s.prior>0&&<div className="error"><strong>Saldo anterior a favor: ${s.prior.toFixed(2)}</strong><div className="muted small">Ya fue liquidado antes; falta pagarlo.</div></div>}<strong>Comisiones acumuladas: ${s.totalUsd.toFixed(2)}</strong><div className="muted small">En USD reales: ${s.hardUsd.toFixed(2)} · En Bs al BCV del pago: ${s.bcvUsd.toFixed(2)}{bcv?` ≈ ${fmtVes(s.bcvUsd*bcv.value)}`:''}</div>
  <div>Sueldo fijo: {fmtRef(s.fixed)} de referencia {bcv&&s.fixed>0?`≈ ${fmtVes(s.fixed*bcv.value)} si se paga el ${paymentDate}`:''}</div>
- <div>Ajustes aplicados: {fmtRef(s.adj)} de referencia</div>
+ <div>Ajustes aplicados: <strong>{fmtRef(s.adj)}</strong> de referencia</div>
+ <div className="card stack" style={{borderLeft:"5px solid #d66b22"}}>
+   <strong>PRELIQUIDACIÓN · resumen neto</strong>
+   <div className="row-between"><span>Sueldo fijo + comisiones</span><strong>{fmtRef(s.fixed+s.totalUsd)}</strong></div>
+   <div className="row-between"><span>Bonos y descuentos netos</span><strong>{s.adj<0?"−":"+"}{fmtRef(Math.abs(s.adj))}</strong></div>
+   <div className="row-between"><span>Anticipos ya entregados (hasta el total)</span><strong>−{fmtRef(Math.min(Math.max(0,s.fixed+s.totalUsd+s.adj),s.advanceReady))}</strong></div>
+   <div className="divider"/>
+   <div className="row-between"><strong>NETO PROPUESTO A PAGAR ESTA SEMANA</strong>
+     <strong style={{fontSize:"1.35rem"}}>{fmtRef(Math.max(0,s.fixed+s.totalUsd+s.adj-s.advanceReady))}</strong></div>
+   {bcv&&<div className="muted small">Equivalente orientativo a BCV: {fmtVes(Math.max(0,s.fixed+s.totalUsd+s.adj-s.advanceReady)*bcv.value)}. No sustituye el cálculo real por moneda.</div>}
+ </div>
+ {emp.name.toLowerCase()==="cheo"&&end==="2026-10-17"&&s.adj>-15&&
+   <div className="error">Mencionaste una deducción de $15 esta semana, pero los ajustes activos suman {fmtRef(s.adj)}.
+     No añadí los $5 de diferencia sin evidencia. Puedes ajustar el descuento antes de liquidar.</div>}
   <div><strong>Anticipos reales aún por aplicar:</strong> ${s.advanceReady.toFixed(2)}
     {s.advanceReady>0&&<span className="muted small"> · Se descuentan del saldo al liquidar; NO reducen las comisiones y NO crean otro egreso.</span>}</div>
   {s.availableAdvances.map(a=><div className="muted small" key={a.id}>• Anticipo del {a.paid_on}, {a.account_code} · ${Number(a.unapplied_usd).toFixed(2)} · {a.note}</div>)}
  <div className="muted small">{s.adjHold} ajuste(s) prorrogado(s) · {s.hold} trabajo(s) pendientes · {s.exclude} excluido(s).</div>
  <details><summary>Ver trabajos y órdenes ({s.rows.length})</summary><div className="stack" style={{marginTop:12}}>
  {grouped(s.rows).map(group=>{const total=orders[group.id];return <article className="card stack" key={group.id}>
- <div><Link href={`/orders/${group.id}`}><strong>{group.number}</strong></Link></div>
+ <div className="row-between" style={{flexWrap:"wrap"}}><strong>{group.number}</strong>
+ <button className="btn" onClick={()=>setOrderPeek(group.id)}>Ver detalles aquí (sin salir)</button></div>
  {total&&<div>Total de la orden: <strong>{fmtVes(total.total_ves)}</strong> · {fmtRef(total.total_ref)} de referencia{Number(total.total_cash_usd_equivalent)>0?` · ${fmtRef(total.total_cash_usd_equivalent)} pactados en divisas`:''}</div>}
  {group.rows.map(w=><div className="stack" key={w.id} style={{borderTop:'1px solid var(--border, #ddd)',paddingTop:8}}>
  <div><strong>{w.description}</strong> · {new Date(w.earned_at).toLocaleDateString('es-VE',{timeZone:'America/Caracas'})} · {{PAY:'Pagar',HOLD:'Pendiente',EXCLUDE:'Excluido'}[w.decision]}{new Date(w.earned_at).toLocaleDateString('en-CA',{timeZone:'America/Caracas'}) < start(end)?' · ARRASTRADO':''}</div>
@@ -100,6 +171,8 @@ export default function PayrollReview(){
  {!s.rows.length&&<p>Sin comisiones cobradas pendientes.</p>}
  {/* Los ajustes aparecen visibles directamente debajo, sin esconderse entre órdenes. */}
  </div></details>
+ <CasheaPayrollChoices employeeId={emp.id} options={casheaOptions} periodEnd={end}
+  disabled={busy||!canClose} onUpdated={load}/>
  <div className="stack"><h3>Bonos y descuentos del empleado</h3>
  {s.adjustments.length===0&&<p className="muted small">No tiene ajustes pendientes de esta nómina.</p>}
  {s.adjustments.map(a=><div className="card stack" key={a.id}>
@@ -109,7 +182,11 @@ export default function PayrollReview(){
  {a.transfer_id?' · Vinculado con otro empleado':''}</div>
  {!a.transfer_id&&<button className="btn" disabled={busy} onClick={()=>{setEditAdj(a);setEditAdjType(Number(a.amount_ref)>0?'BONUS':'DEBT');setEditAdjDecision(a.decision??'PAY');setEditAdjAmount(String(Math.abs(Number(a.amount_ref))));setEditAdjReason(a.note??'');setError('');}}>Editar / aplazar / quitar de la nómina</button>}
  </div>)}</div>
- <button className="btn btn-primary" disabled={busy||!canClose||(!s.rows.some(w=>w.decision!=="HOLD")&&!s.fixed&&!s.adj)} onClick={()=>setConfirm(emp)}>Revisar factura y liquidar</button><p className="muted small">Liquidar congela la factura; el pago se registra aparte y puede ser parcial.</p>
+ <div className="row" style={{flexWrap:"wrap"}}>
+  <button className="btn" disabled={busy} onClick={()=>void downloadDraft(emp)}>
+   <span>Descargar PDF para revisar con {emp.name} · sin liquidar</span></button>
+  <button className="btn btn-primary" disabled={busy||!canClose||(!s.rows.some(w=>w.decision!=="HOLD")&&!s.fixed&&!s.adj)} onClick={()=>setConfirm(emp)}>
+   Revisar factura y liquidar</button></div><p className="muted small">Liquidar congela la factura; el pago se registra aparte y puede ser parcial.</p>
  </section>;})}
  <section className="card stack"><h2>Agregar bono o descuento</h2>
  <p className="muted">Escribe siempre el importe positivo. Selecciona si <strong>SUMA</strong> o <strong>RESTA</strong>; el sistema aplica el signo automáticamente.</p>
@@ -151,7 +228,10 @@ export default function PayrollReview(){
  <div className="muted small">{due>0.01?'LIQUIDADA, AÚN POR PAGAR / PAGO PARCIAL':'PAGADA'} · Total ${Number(r.total_ref).toFixed(2)} · Abonado ${paid.toFixed(2)} · Pendiente ${due.toFixed(2)}</div></div>
  <Link className={due>0.01?'btn btn-primary':'btn'} href={`/payroll/${r.id}/receipt`}>{due>0.01?'Registrar pago':'Ver recibo'}</Link></div>;})}</section>
  {edit&&<div className="overlay"><section className="sheet stack" role="dialog" aria-modal="true" aria-label="Revisar trabajo"><h2>{edit.description}</h2><div>Obligación actual: ${Number(edit.obligation_usd??0).toFixed(2)} · {edit.payout_mode==='HARD_USD'?'pago en USD':'pago en Bs a BCV'}</div><label><span className="label">Decisión</span><select className="select" value={decision} onChange={e=>setDecision(e.target.value)}><option value="PAY">Pagar</option><option value="HOLD">Dejar pendiente</option><option value="EXCLUDE">Excluir del pago</option></select></label><label><span className="label">Monto adeudado en USD</span><input className="input" type="number" step="0.01" value={amount} disabled={!!edit.reversal_of} onChange={e=>setAmount(e.target.value)}/></label><label><span className="label">Motivo obligatorio</span><textarea className="input" value={reason} onChange={e=>setReason(e.target.value)}/></label>{error&&<div className="error">{error}</div>}<button className="btn btn-primary" disabled={busy||reason.trim().length<5||amount===''||!Number.isFinite(Number(amount))} onClick={save}>Guardar con historial</button><button className="btn" disabled={busy} onClick={()=>setEdit(null)}>Cancelar</button></section></div>}
- {confirm&&<div className="overlay"><section className="sheet stack" role="dialog" aria-modal="true" aria-label="Resumen de nómina"><h2>{confirm.name} · resumen</h2><strong>Comisiones: ${summary(confirm.id).totalUsd.toFixed(2)}</strong><div>USD reales: ${summary(confirm.id).hardUsd.toFixed(2)}</div><div>Convertibles a Bs al BCV del pago: ${summary(confirm.id).bcvUsd.toFixed(2)}{bcv?` ≈ ${fmtVes(summary(confirm.id).bcvUsd*bcv.value)}`:''}</div><div>Sueldo fijo: {fmtRef(summary(confirm.id).fixed)} REF</div><div>Ajustes: {fmtRef(summary(confirm.id).adj)} REF</div><p>{summary(confirm.id).hold} trabajos quedan pendientes. {summary(confirm.id).exclude} se excluyen sin pagarlos.</p><button className="btn btn-primary" disabled={busy} onClick={settle}>Confirmar liquidación</button><button className="btn" disabled={busy} onClick={()=>setConfirm(null)}>Volver a revisar</button></section></div>}
+ {confirm&&<div className="overlay"><section className="sheet stack" role="dialog" aria-modal="true" aria-label="Resumen de nómina"><h2>{confirm.name} · resumen</h2><strong>Comisiones: ${summary(confirm.id).totalUsd.toFixed(2)}</strong><div>USD reales: ${summary(confirm.id).hardUsd.toFixed(2)}</div><div>Convertibles a Bs al BCV del pago: ${summary(confirm.id).bcvUsd.toFixed(2)}{bcv?` ≈ ${fmtVes(summary(confirm.id).bcvUsd*bcv.value)}`:''}</div><div>Sueldo fijo: {fmtRef(summary(confirm.id).fixed)} REF</div><div>Ajustes: {fmtRef(summary(confirm.id).adj)} REF</div>
+ <div><strong>Total bruto:</strong> {fmtRef(summary(confirm.id).fixed+summary(confirm.id).totalUsd+summary(confirm.id).adj)}</div>
+ <div>Anticipos ya entregados: {fmtRef(summary(confirm.id).advanceReady)}</div>
+ <div><strong>Neto propuesto a pagar: {fmtRef(Math.max(0,summary(confirm.id).fixed+summary(confirm.id).totalUsd+summary(confirm.id).adj-summary(confirm.id).advanceReady))}</strong></div><p>{summary(confirm.id).hold} trabajos quedan pendientes. {summary(confirm.id).exclude} se excluyen sin pagarlos.</p><button className="btn btn-primary" disabled={busy} onClick={settle}>Confirmar liquidación</button><button className="btn" disabled={busy} onClick={()=>setConfirm(null)}>Volver a revisar</button></section></div>}
  {editAdj&&<div className="overlay"><section className="sheet stack" role="dialog" aria-modal="true" aria-label="Editar ajuste"><h2>Editar / anular ajuste no liquidado</h2><label><span className="label">Tipo</span>
  <select className="select" value={editAdjType} onChange={e=>setEditAdjType(e.target.value)}>
  <option value="BONUS">+ Bono</option><option value="DEBT">− Descuento</option></select></label>
@@ -166,6 +246,7 @@ export default function PayrollReview(){
  <button className="btn" disabled={busy||transferEvidence.trim().length<12} onClick={()=>void decideTransfer(transferReview,'REJECT')}>Descartar ambos (sin efecto económico)</button>
  <button className="btn" onClick={()=>setTransferReview(null)}>Cerrar sin decidir</button>
  </section></div>}
+ {orderPeek&&<PayrollOrderPeek id={orderPeek} onClose={()=>setOrderPeek(null)} employees={employees}/>}
  {history&&<div className="overlay"><section className="sheet stack" role="dialog" aria-modal="true" aria-label="Historial"><h2>Historial</h2>{!history.length&&<p>Sin ajustes manuales.</p>}{history.map(h=><div className="card" key={h.id}><strong>{h.reason}</strong><div>{h.before_data.decision} → {h.after_data.decision} · {money(h.before_data.amount,h.before_data.currency)} → {money(h.after_data.amount,h.after_data.currency)}</div><div className="muted small">{new Date(h.occurred_at).toLocaleString('es-VE')} · Usuario {h.actor_id}</div></div>)}<button className="btn" onClick={()=>setHistory(null)}>Cerrar</button></section></div>}
  </main>;
 }
