@@ -127,7 +127,7 @@ BEGIN
  SELECT coalesce(jsonb_agg(jsonb_build_object(
     'accrual_id',a.id,'employee_id',a.employee_id,'order_id',o.id,'order_number',o.order_number,
     'description',a.description,'full_commission_ref',a.amount_ref,'cashea_sale_id',s.id,
-    'gross_ref',s.gross_ref,'initial_ref',s.initial_ref,'financed_ref',s.financed_ref,
+    'gross_ref',s.gross_ref,'cashea_service_fee_ref',s.commission_ref,'initial_ref',s.initial_ref,'financed_ref',s.financed_ref,
     'cashea_reference',s.cashea_reference,
     'commission_from_collections',coalesce(col.collected,0),
     'amount_to_advance',greatest(round(a.amount_ref-coalesce(col.collected,0),2),0),
