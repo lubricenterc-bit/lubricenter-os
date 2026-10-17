@@ -29,7 +29,7 @@ async function setup(){
  await db.exec(sql("20261017190000_payroll_carryover_snapshot.sql"));
  await db.exec(sql("20261017192000_payroll_advance_ledger.sql"));
  await db.exec(sql("20261017193000_payroll_advance_application.sql"));
- await db.exec(sql("20261017191000_payroll_admin_history_report.sql"));
+ await db.exec(sql("20261017194000_payroll_admin_history_report.sql"));
  await db.exec(`
   INSERT INTO financial_accounts(code,name,currency,account_type,active) VALUES ('BDV','Banco de Venezuela','VES','BANK',true),('CASH_USD','Caja USD','USD','CASH',true);
   INSERT INTO exchange_rates(rate_type,value,effective_at) VALUES('BCV',879.1225,'2026-10-13 12:00+00'),('OPERATIVE',900,'2026-10-13 12:00+00');
