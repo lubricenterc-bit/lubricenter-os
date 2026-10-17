@@ -33,6 +33,7 @@ DECLARE
  target_adjustment uuid;
 BEGIN
  PERFORM lubricenter_private.require_order_admin();
+ PERFORM set_config('lubricenter.cashea_policy_edit','yes',true);
  PERFORM pg_advisory_xact_lock(240924,1);
  IF v_mode NOT IN ('AS_COLLECTED','FULL_UPFRONT') THEN
    RAISE EXCEPTION 'Modo Cashea inválido'; END IF;
@@ -55,6 +56,11 @@ BEGIN
    AND EXISTS(SELECT 1 FROM public.payroll_adjustments a WHERE a.id=existing.advance_adjustment_id
       AND a.payroll_run_id IS NOT NULL)
  THEN RAISE EXCEPTION 'La comisión adelantada ya fue liquidada. La política histórica está bloqueada'; END IF;
+ IF existing.mode='FULL_UPFRONT' AND v_mode='AS_COLLECTED'
+   AND EXISTS(SELECT 1 FROM public.payroll_work_items w WHERE w.accrual_id=p_accrual_id
+       AND w.reason LIKE 'Comisión ya cubierta por adelanto Cashea%'
+       AND w.decision='EXCLUDE')
+ THEN RAISE EXCEPTION 'Ya hay cuotas cubiertas por esta decisión. Para revertirla se requiere una rectificación auditada'; END IF;
  IF EXISTS(SELECT 1 FROM public.payroll_work_items w WHERE w.accrual_id=p_accrual_id
   AND w.reversal_of IS NULL AND w.decision IN ('HOLD','EXCLUDE') AND w.payroll_run_id IS NULL)
  THEN RAISE EXCEPTION 'Hay cuotas de esta comisión retenidas o excluidas; revísalas antes de adelantar el saldo'; END IF;
@@ -262,3 +268,4 @@ REVOKE ALL ON FUNCTION public.payroll_cashea_set_policy(uuid,text,date,text) FRO
 REVOKE ALL ON FUNCTION public.payroll_cashea_options(date) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.payroll_cashea_set_policy(uuid,text,date,text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.payroll_cashea_options(date) TO authenticated;
+REVOKE ALL ON FUNCTION public.payroll_cashea_advance_integrity() FROM PUBLIC,anon,authenticated;
