@@ -7,8 +7,9 @@ import {supabase} from "@/lib/supabase";
 type Change={occurred_at:string;reason:string|null;before_decision:string|null;after_decision:string|null;before_amount:string|null;after_amount:string|null;before_reason:string|null;after_reason:string|null};
 type Work={id:string;order_id:string;order_number:string;description:string;earned_at:string;source_type:string;payout_mode:string|null;decision_at_settlement:string;reason_at_settlement:string|null;amount_at_settlement:number;late_posting:boolean;carried_from_prior_week:boolean;settled_in_this_run:boolean;timeline:Change[]};
 type Adjustment={id:string;type:string;amount_ref:number;note:string;decision:string;occurred_on:string;included_in_run:boolean;late_posting:boolean};
+type Advance={id:string;paid_on:string;usd_equivalent:number;applied_usd:number;currency:string;amount_original:number;account_code:string;reference:string|null;note:string;movement_id:string};
 type Payment={id:string;paid_on:string;currency:string;amount_original:number;usd_equivalent:number;payment_mode:string;component:string|null;reference:string|null;note:string|null;account_code:string|null;ledger_movement_id:string|null};
-type AdminRun={id:string;employee_id:string;employee_name:string;period_start:string;period_end:string;created_at:string;fixed_ref:number;variable_ref:number;adjustments_ref:number;total_ref:number;paid_usd:number;outstanding_usd:number;work:Work[];adjustments:Adjustment[];payments:Payment[];admin_snapshot:any|null};
+type AdminRun={id:string;employee_id:string;employee_name:string;period_start:string;period_end:string;created_at:string;fixed_ref:number;variable_ref:number;adjustments_ref:number;total_ref:number;paid_usd:number;advances_applied_usd:number;advances:Advance[];outstanding_usd:number;work:Work[];adjustments:Adjustment[];payments:Payment[];admin_snapshot:any|null};
 type WeekReport={start:string;end:string;runs:AdminRun[]};
 type RunOption={period_end:string;employee_id:string};
 function dateOnly(value:string){return new Date(value).toLocaleString("es-VE",{timeZone:"America/Caracas",year:"numeric",month:"short",day:"numeric"});}
@@ -19,6 +20,7 @@ function fileCsv(report:WeekReport,run:AdminRun){
  const rows=[
  ...run.work.map(w=>[report.start+"–"+report.end,run.employee_name,"Trabajo",w.order_number,w.description,statusOf(w),w.amount_at_settlement,w.reason_at_settlement||"",w.earned_at]),
  ...run.adjustments.map(a=>[report.start+"–"+report.end,run.employee_name,"Ajuste","",a.type,a.late_posting?"Registrado después del cierre":a.decision,a.included_in_run?a.amount_ref:0,a.note,a.occurred_on]),
+ ...run.advances.map(a=>[report.start+"–"+report.end,run.employee_name,"Anticipo",a.account_code,a.note,"Entregado antes de liquidar",a.applied_usd,a.reference||"",a.paid_on]),
  ...run.payments.map(p=>[report.start+"–"+report.end,run.employee_name,"Pago",p.account_code||"",p.component||p.payment_mode,p.payment_mode,p.usd_equivalent,p.note||"",p.paid_on])
  ];
  const csv=[columns,...rows].map(row=>row.map(s=>'"'+String(s??"").replaceAll('"','""')+'"').join(",")).join("\r\n");
@@ -79,7 +81,7 @@ export default function PayrollHistory(){
       <div className="grid grid-3">
        <div className="card"><span className="muted small">Total liquidado</span><strong>{usd(run.total_ref)}</strong></div>
        <div className="card"><span className="muted small">Pagado registrado</span><strong>{usd(run.paid_usd)}</strong></div>
-       <div className="card"><span className="muted small">Saldo pendiente</span><strong>{usd(run.outstanding_usd)}</strong></div>
+       <div className="card"><span className="muted small">Anticipos aplicados</span><strong>{usd(run.advances_applied_usd||0)}</strong></div><div className="card"><span className="muted small">Saldo pendiente</span><strong>{usd(run.outstanding_usd)}</strong></div>
       </div>
       <div className="muted small">Sueldo fijo {usd(run.fixed_ref)} · comisiones {usd(run.variable_ref)} · ajustes netos {usd(run.adjustments_ref)}</div>
       <div><strong>¿Qué se hizo esta semana?</strong><p className="muted small">
@@ -111,8 +113,12 @@ export default function PayrollHistory(){
        {run.adjustments.length===0&&<p className="muted">Sin ajustes.</p>}
        </div>
       </details>
-      <details open><summary><strong>Pagos y constancias ({run.payments.length})</strong></summary>
-       <div className="stack" style={{marginTop:10}}>{run.payments.map(p=><div className="card" key={p.id}>
+      <details open><summary><strong>Anticipos (egresos separados) y pagos ({run.advances?.length||0} + {run.payments.length})</strong></summary>
+       <div className="stack" style={{marginTop:10}}>{(run.advances||[]).map(a=><div className="card" key={a.id}>
+   <strong>Anticipo entregado {a.paid_on} · aplicado {usd(a.applied_usd)}</strong>
+   <div className="muted small">{a.account_code} · {a.currency==="VES"?"Bs ":"$"}{Number(a.amount_original).toFixed(2)} · Ref. {a.reference||"Sin referencia"}</div>
+   <div>{a.note}</div><div className="muted small">Salida de caja registrada una sola vez; no se genera al liquidar.</div>
+  </div>)}{run.payments.map(p=><div className="card" key={p.id}>
          <div className="row-between"><strong>{usd(p.usd_equivalent)} · {p.paid_on}</strong><span>{p.payment_mode==="HISTORICAL_MANUAL"?"Regularización histórica":"Pago registrado"}</span></div>
          <div className="muted small">{p.currency==="VES"?`Bs ${Number(p.amount_original).toFixed(2)}`:`${p.currency} ${Number(p.amount_original).toFixed(2)}`} · {p.account_code||"Sin cuenta de caja"} · Ref. {p.reference||"No aplica"}</div>
          {p.payment_mode==="HISTORICAL_MANUAL"&&<div className="muted small">No generó movimiento bancario retroactivo.</div>}
