@@ -81,6 +81,7 @@ export default function PayrollReview(){
    advances:Math.min(netGross,sum.advanceReady),priorDue:sum.prior,draftNet:proposed,
    notes:[sum.hold+" comisiones prorrogadas; "+sum.exclude+" excluidas; "+sum.adjHold+" ajustes prorrogados.",
       "Importes sujetos a revisión conjunta; no representan desembolsos realizados.",
+      "La comisión de Cashea (4% de la venta total, salvo tarifa documentada diferente) es gasto de Lubricenter. No reduce la comisión del mecánico.",
       ...(emp.name.toLowerCase()==="cheo"&&end==="2026-10-17"&&sum.adj>-15?
         ["Descuento comunicado de $15: verificar contra descuentos registrados ("+fmtRef(sum.adj)+")."] : [])],
    orders:jobs,
