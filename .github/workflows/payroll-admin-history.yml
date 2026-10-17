@@ -1,0 +1,30 @@
+name: Payroll administrative history
+on:
+  pull_request:
+    paths:
+      - 'app/payroll/**'
+      - 'components/payroll-review.tsx'
+      - 'supabase/migrations/20261017190000_payroll_carryover_snapshot.sql'
+      - 'supabase/migrations/20261017194000_payroll_admin_history_report.sql'
+      - 'supabase/migrations/20261017192000_payroll_advance_ledger.sql'
+      - 'supabase/migrations/20261017193000_payroll_advance_application.sql'
+      - 'tests/payroll-admin-history.test.ts'
+      - '.github/workflows/payroll-admin-history.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/payroll-admin-history.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
