@@ -16,7 +16,7 @@ async function setup(){
   CREATE TABLE public.payroll_work_items(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),employee_id uuid,order_id uuid,order_number text,description text,source_type text,payout_mode text,
    earned_at timestamptz,created_at timestamptz,decision text,reason text,obligation_usd numeric,payroll_run_id uuid,version integer DEFAULT 1);
   CREATE TABLE public.payroll_work_history(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),work_item_id uuid,occurred_at timestamptz,reason text,before_data jsonb,after_data jsonb);
-  CREATE TABLE public.payroll_adjustments(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),employee_id uuid,amount_ref numeric,adjustment_type text,note text,decision text,occurred_on date,payroll_run_id uuid,created_at timestamptz);
+  CREATE TABLE public.payroll_adjustments(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),employee_id uuid,amount_ref numeric,adjustment_type text,note text,decision text,occurred_on date,payroll_run_id uuid,created_at timestamptz,version integer DEFAULT 1,updated_at timestamptz);
   CREATE TABLE public.financial_accounts(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),code text,currency text,account_type text,active boolean DEFAULT true,name text);
   CREATE TABLE public.account_movements(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),account_id uuid,direction text,movement_type text,currency text,
       amount_original numeric,value_ves numeric,category text,payee text,note text,reference text,occurred_at timestamptz,finance_nature text);
