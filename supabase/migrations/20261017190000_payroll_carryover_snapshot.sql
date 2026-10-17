@@ -23,7 +23,7 @@ begin
 
   return result;
 end
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION lubricenter_private.payroll_settle(p_employee_id uuid, p_period_start date, p_period_end date, p_expected jsonb)
  RETURNS uuid
@@ -178,5 +178,4 @@ begin
 
   return run_id;
 end
-$function$
-
+$function$;
