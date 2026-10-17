@@ -6,7 +6,8 @@ export type DraftPayrollLine={
 };
 export type DraftPayrollInput={
   employee:string;start:string;end:string;createdOn:string;
-  fixed:number;commissions:number;adjustments:number;advances:number;priorDue:number;
+  fixed:number;commissions:number;adjustments:number;casheaCommissionAdvances:number;otherBonuses:number;
+  deductions:number;advances:number;priorDue:number;
   draftNet:number;notes:string[];
   orders:DraftPayrollLine[];
   adjustmentLines:{label:string;amount:number;state:string}[];
@@ -56,10 +57,13 @@ export function buildPayrollDraftPdf(data:DraftPayrollInput):Uint8Array{
  line("Empleado: "+data.employee+"     Semana: "+data.start+" al "+data.end,{bold:true,size:10.5}); 
  line("Preparado: "+data.createdOn+". Sujeto a correcciones antes de confirmar.",{size:8.5});
  heading("RESUMEN PROPUESTO");
- line("Sueldo fijo: "+money(data.fixed)+"    Comisiones: "+money(data.commissions));
- line("Ajustes netos: "+money(data.adjustments)+"    Adelantos ya entregados: -"+money(data.advances));
+ line("Sueldo fijo: "+money(data.fixed)+"    Comisiones por cobros: "+money(data.commissions));
+ line("Comisiones Cashea adelantadas: +"+money(data.casheaCommissionAdvances));
+ if(data.otherBonuses>0)line("Otros bonos: +"+money(data.otherBonuses));
+ line("Descuentos: "+money(data.deductions)+"    Adelantos ya entregados: -"+money(data.advances));
  rule();
  line("NETO DE ESTA SEMANA PROPUESTO: "+money(data.draftNet),{bold:true,size:12});
+ line("Los cargos comerciales de Cashea son gasto de Lubricenter, no descuentos del mecanico.",{size:8.5});
  if(data.priorDue>0)line("Saldo liquidado de semanas anteriores (separado): "+money(data.priorDue),{size:9});
  line("Este resumen es previo a la liquidacion; el monto final puede cambiar.",{size:8.5});
  heading("TRABAJOS Y ORDENES");
