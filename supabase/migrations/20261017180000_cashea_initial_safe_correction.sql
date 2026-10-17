@@ -12,7 +12,7 @@ DECLARE
  old_s jsonb; old_payments jsonb; old_installments jsonb;
  line jsonb; pay public.payments%ROWTYPE; movement public.account_movements%ROWTYPE;
  account_uuid uuid; pay_uuid uuid; old_id uuid;
- method text; ref text; currency_code text; account_code text;
+ v_method text; ref text; currency_code text; account_code text;
  input_amount numeric; equivalent numeric; new_initial numeric; new_ves numeric; new_financed numeric;
  amount_1 numeric; amount_3 numeric; gross_paid numeric:=0;
  updated_count integer:=0; created_count integer:=0; deleted_count integer:=0;
@@ -70,19 +70,19 @@ BEGIN
    (CASE WHEN i.installment_no=3 THEN amount_3 ELSE amount_1 END)<i.paid_ref)
  THEN RAISE EXCEPTION 'La nueva inicial reduciría una cuota por debajo de lo ya pagado'; END IF;
  FOR line IN SELECT value FROM jsonb_array_elements(p_lines) LOOP
-   method:=line->>'method'; ref:=nullif(btrim(coalesce(line->>'reference','')),'');
-   IF method NOT IN ('TRANSFER_BDV','TRANSFER_BNC','CASH_VES','CASH_USD','ZELLE','BINANCE')
+   v_method:=line->>'method'; ref:=nullif(btrim(coalesce(line->>'reference','')),'');
+   IF v_method NOT IN ('TRANSFER_BDV','TRANSFER_BNC','CASH_VES','CASH_USD','ZELLE','BINANCE')
    THEN RAISE EXCEPTION 'Método de cobro de inicial no admitido'; END IF;
    input_amount:=(line->>'amount')::numeric;
    IF input_amount IS NULL OR input_amount<=0 OR input_amount::text IN ('NaN','Infinity','-Infinity')
        OR round(input_amount,2)<>input_amount THEN RAISE EXCEPTION 'Monto de inicial inválido'; END IF;
-   IF method IN ('TRANSFER_BDV','TRANSFER_BNC') AND coalesce(ref,'') !~ '^\d{4,32}$'
+   IF v_method IN ('TRANSFER_BDV','TRANSFER_BNC') AND coalesce(ref,'') !~ '^\d{4,32}$'
    THEN RAISE EXCEPTION 'Cada pago bancario necesita al menos los últimos cuatro dígitos'; END IF;
-   IF method IN ('ZELLE','BINANCE') AND length(coalesce(ref,''))<4
+   IF v_method IN ('ZELLE','BINANCE') AND length(coalesce(ref,''))<4
    THEN RAISE EXCEPTION 'El cobro electrónico necesita referencia'; END IF;
    currency_code:=CASE WHEN method IN ('CASH_USD','ZELLE','BINANCE') THEN 'USD' ELSE 'VES' END;
-   account_code:=CASE WHEN method='TRANSFER_BDV' THEN 'BDV'
-                      WHEN method='TRANSFER_BNC' THEN 'BNC' ELSE method END;
+   account_code:=CASE WHEN v_method='TRANSFER_BDV' THEN 'BDV'
+                      WHEN v_method='TRANSFER_BNC' THEN 'BNC' ELSE v_method END;
    SELECT id INTO account_uuid FROM public.financial_accounts WHERE code=account_code AND active;
    IF account_uuid IS NULL THEN RAISE EXCEPTION 'Cuenta financiera no disponible: %',account_code; END IF;
    equivalent:=CASE WHEN currency_code='USD' THEN round(input_amount*s.bcv_rate_snapshot,2) ELSE input_amount END;
@@ -93,7 +93,7 @@ BEGIN
      THEN RAISE EXCEPTION 'Cobro inicial repetido o ajeno a esta venta'; END IF;
      line_ids:=array_append(line_ids,old_id);
      SELECT * INTO pay FROM public.payments WHERE id=old_id FOR UPDATE;
-     UPDATE public.payments SET method=method, currency=currency_code,amount_original=input_amount,
+     UPDATE public.payments SET method=v_method, currency=currency_code,amount_original=input_amount,
          value_ves=equivalent,value_ref=round(equivalent/s.bcv_rate_snapshot,4),
          reference=ref,financial_account_id=account_uuid
        WHERE id=old_id;
@@ -106,7 +106,7 @@ BEGIN
      INSERT INTO public.payments(order_id,method,currency,amount_original,
        bcv_rate_snapshot,operative_rate_snapshot,value_ves,value_ref,reference,
        financial_account_id,paid_at,created_by)
-     VALUES(o.id,method,currency_code,input_amount,s.bcv_rate_snapshot,
+     VALUES(o.id,v_method,currency_code,input_amount,s.bcv_rate_snapshot,
        coalesce(operative_rate,s.bcv_rate_snapshot),equivalent,
        round(equivalent/s.bcv_rate_snapshot,4),ref,account_uuid,
        coalesce(snapshot_date,s.created_at),auth.uid())
