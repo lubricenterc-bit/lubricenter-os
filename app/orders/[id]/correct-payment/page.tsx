@@ -20,7 +20,7 @@ export default function CorrectInitialPage(){
  const {id}=useParams<{id:string}>(),router=useRouter();
  const [order,setOrder]=useState<Invoice|null>(null),[sale,setSale]=useState<Sale|null>(null);
  const [lines,setLines]=useState<InitialLine[]>([]);
- const [percent,setPercent]=useState("40"),[reason,setReason]=useState(""),[confirmed,setConfirmed]=useState(false);
+ const [percent,setPercent]=useState("40"),[initialUsdInput,setInitialUsdInput]=useState(""),[reason,setReason]=useState(""),[confirmed,setConfirmed]=useState(false);
  const [error,setError]=useState(""),[notice,setNotice]=useState(""),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false);
  const [duplicateReference,setDuplicateReference]=useState(false);
  useEffect(()=>{let alive=true;(async()=>{try{
@@ -39,7 +39,7 @@ export default function CorrectInitialPage(){
    const initial=(p.data??[]).filter(x=>!installmentIds.has(x.id)&&methods.has(x.method));
    if(initial.length===0)throw new Error("No se encontraron cobros de la inicial.");
    if(alive){
-     setSale(c.data as Sale);setOrder(o.data as Invoice);setPercent(String(c.data.initial_percent));
+     setSale(c.data as Sale);setOrder(o.data as Invoice);setPercent(String(c.data.initial_percent));setInitialUsdInput(Number(c.data.initial_ref).toFixed(2));
      setLines(initial.map(x=>({id:x.id,source_id:x.id,method:x.method as CasheaInitialMethod,amount:String(x.amount_original),reference:x.reference||""})));
    }
    const prior=await supabase.from("cashea_sales").select("id,status,order_id").eq("cashea_reference",c.data.cashea_reference).neq("order_id",id);
@@ -56,8 +56,8 @@ export default function CorrectInitialPage(){
    const tolerance=Math.max(1,Math.round(rate*0.5*100)/100);
    const methodsValid=lines.length>=1&&lines.length<=8&&lines.every(l=>{
      const amount=Number(l.amount);const ref=l.reference.trim();
-     return methods.has(l.method)&&Number.isFinite(amount)&&amount>0&&/^\\d+(?:\\.\\d{1,2})?$/.test(l.amount)&&
-       (["TRANSFER_BDV","TRANSFER_BNC"].includes(l.method)?/^\\d{4,32}$/.test(ref):
+     return methods.has(l.method)&&Number.isFinite(amount)&&amount>0&&/^\d+(?:\.\d{1,2})?$/.test(l.amount)&&
+       (["TRANSFER_BDV","TRANSFER_BNC"].includes(l.method)?/^\d{4,32}$/.test(ref):
         ["ZELLE","BINANCE"].includes(l.method)?ref.length>=4:true);
    });
    return {initialRef,initialVes,financedRef:sale.gross_ref-initialRef,paidVes,difference,tolerance,
@@ -97,10 +97,10 @@ export default function CorrectInitialPage(){
        <div className="row-between"><span>Inicial registrada</span><strong>{fmtRef(sale.initial_ref)} · {sale.initial_percent}%</strong></div>
        {duplicateReference&&<div className="muted small">Hay otro registro con este mismo número Cashea (posiblemente una orden anulada). No se creará ninguna operación nueva.</div>}
        <div className="grid grid-2"><label><span className="label">Nueva inicial (%)</span>
-          <input className="input" type="number" min="0.000001" max="99.999999" step="any" value={percent} onChange={e=>{setPercent(e.target.value);setConfirmed(false);}}/>
+          <input className="input" type="number" min="0.000001" max="99.999999" step="any" value={percent} onChange={e=>{setPercent(e.target.value);const v=Number(e.target.value);setInitialUsdInput(v>0?(Number(sale.gross_ref)*v/100).toFixed(2):"");setConfirmed(false);}}/>
        </label><label><span className="label">Inicial USD · importe acordado en Cashea</span>
-          <input className="input" type="number" min="0.01" step="0.01" value={quote?.initialRef.toFixed(2)||""}
-          onChange={e=>{const v=Number(e.target.value);setPercent(v>0?(v/Number(sale.gross_ref)*100).toFixed(8):"0");setConfirmed(false);}}/>
+          <input className="input" type="number" min="0.01" step="0.01" value={initialUsdInput}
+          onChange={e=>{setInitialUsdInput(e.target.value);const v=Number(e.target.value);setPercent(v>0?(v/Number(sale.gross_ref)*100).toFixed(8):"0");setConfirmed(false);}}/>
        </label></div>
        <div className="row-between"><span>Inicial calculada</span><strong>{fmtRef(quote?.initialRef||0)} · {fmtVes(quote?.initialVes||0)}</strong></div>
        <div className="row-between"><span>Queda en 3 cuotas</span><strong>{fmtRef(quote?.financedRef||0)}</strong></div>
