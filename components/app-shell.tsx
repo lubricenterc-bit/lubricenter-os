@@ -21,6 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const currentPage = pageLabelForPath(pathname);
   const [role, setRole] = useState<NavigationRole>("OPERATOR");
   const [roleLoaded, setRoleLoaded] = useState(false);
+  const [permissions, setPermissions] = useState<string[] | null>(null);
   const [locationName, setLocationName] = useState("Cabudare");
   const [otherLocations, setOtherLocations] = useState(false);
   const [expanded, setExpanded] = useState(currentModule.id);
@@ -33,20 +34,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const commandRef = useRef<HTMLElement>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const owner = role === "OWNER" || role === "ADMIN";
-  const results = useMemo(() => navigationSearch(search, role), [search, role]);
+  const results = useMemo(() => navigationSearch(search, role, permissions), [search, role, permissions]);
 
   useEffect(() => {
     if (publicDesignLab) return;
     let active = true;
     async function loadIdentity() {
-      const [member, locations] = await Promise.all([
+      const [member, locations, access] = await Promise.all([
         supabase.rpc("finance_role"),
         supabase.from("locations").select("id,name").eq("active", true).order("created_at").limit(2),
+        supabase.rpc("staff_my_permissions"),
       ]);
       if (!active) return;
       const value = member.data;
       setRole(value === "OWNER" || value === "ADMIN" ? value : "OPERATOR");
       setRoleLoaded(true);
+      setPermissions(Array.isArray(access.data) ? access.data : []);
       if (!locations.error && locations.data?.length) {
         setLocationName(locations.data[0].name.replace(/^Lubricenter\s*/i, "") || "Cabudare");
         setOtherLocations(locations.data.length > 1);
@@ -142,7 +145,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.replace("/login");
   }
 
-  if (pathname === "/login") return <>{children}</>;
+  if (pathname === "/login" || pathname === "/accept-invite") return <>{children}</>;
 
   function linkActive(href: string) {
     if (href === "/") return pathname === "/";
@@ -158,14 +161,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div ref={workspaceRef} className="mesa-workspace">
           <a className="mesa-skip-link" href="#mesa-main">Ir al contenido</a>
           <MesaHeader pathname={pathname} onSearch={() => setSearchOpen(true)} onMenu={() => setMobileMenu(true)}
-            role={role} roleLoaded={roleLoaded} locationName={locationName} unread={unread} menuOpen={mobileMenu}>
+            role={role} permissions={permissions} roleLoaded={roleLoaded} locationName={locationName} unread={unread} menuOpen={mobileMenu}>
             <PricingStatus />
           </MesaHeader>
           <div id="mesa-main" className="mesa-workspace-content" tabIndex={-1}>
             {pathname !== "/" && <div className="mesa-page-path"><Link href="/">Mesa LC</Link><OsIcon name="right" size={13}/><span>{currentModule.label}</span>{currentPage !== currentModule.label && <><OsIcon name="right" size={13}/><strong>{currentPage}</strong></>}</div>}
             {children}
           </div>
-          <MesaDock pathname={pathname} onSearch={() => setSearchOpen(true)} onMenu={() => setMobileMenu(true)} menuOpen={mobileMenu} />
+          <MesaDock pathname={pathname} permissions={permissions} onSearch={() => setSearchOpen(true)} onMenu={() => setMobileMenu(true)} menuOpen={mobileMenu} />
         </div>
 
         {mobileMenu && <div className="mesa-drawer-scrim" onMouseDown={event => { if (event.target === event.currentTarget) setMobileMenu(false); }}>
@@ -180,7 +183,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <nav className="mesa-navigation" aria-label="Todos los módulos">
             {NAV_MODULES.map(module => {
-              const links = linksForModule(module, role);
+              const links = linksForModule(module, role, permissions);
               if (!links.length) return null;
               const isExpanded = expanded === module.id;
               const isCurrent = currentModule.id === module.id;
