@@ -1,12 +1,14 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { loginReturnPath } from "@/lib/login-return";
 
 export default function LoginPage() {
   const router = useRouter();
+  const params = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -38,6 +40,8 @@ export default function LoginPage() {
         <form className="stack" onSubmit={submit}>
           <label><span className="label">Email</span><input className="input" type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required /></label>
           <label><span className="label">Contraseña</span><input className="input" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required /></label>
+          {params.get("invited") === "1" && <div className="success">Cuenta activada. Ingresa con tu correo y tu nueva contraseña.</div>}
+          {params.get("error") === "unauthorized" && <div className="error">Tu usuario no está autorizado o ha sido suspendido. Consulta al propietario.</div>}
           {error && <div className="error">{error}</div>}
           <button className="btn btn-primary btn-block" disabled={busy}>{busy ? "Entrando…" : "Entrar"}</button>
         </form>
