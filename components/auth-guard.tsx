@@ -11,7 +11,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const publicDesignLab = pathname === "/design-lab" && process.env.NEXT_PUBLIC_DESIGN_LAB_PUBLIC === "1";
 
   useEffect(() => {
-    if (pathname === "/login" || publicDesignLab) {
+    if (pathname === "/login" || pathname === "/accept-invite" || publicDesignLab) {
       setReady(true);
       return;
     }
@@ -30,7 +30,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       setReady(true);
     });
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session && pathname !== "/login") router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      if (!session && pathname !== "/login" && pathname !== "/accept-invite") router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     });
     return () => {
       mounted = false;
