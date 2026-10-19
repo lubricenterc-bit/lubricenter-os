@@ -18,6 +18,7 @@ import "./mesa-shell.css";
 import "./mesa-home.css";
 import "./mesa-commerce.css";
 import "./mesa-login.css";
+import "./team/team.css";
 import { AuthGuard } from "@/components/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { PwaRegister } from "@/components/pwa-register";
