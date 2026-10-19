@@ -3,10 +3,11 @@
 import Link from "next/link";
 import type { MouseEvent, ReactNode } from "react";
 import { OsIcon, type OsIconName } from "@/components/os-icon";
-import { NAV_MODULES, linksForModule, type NavigationRole } from "@/lib/navigation";
+import { NAV_MODULES, linksForModule, permissionForPath, type NavigationRole } from "@/lib/navigation";
 
 type MesaNavigationProps = {
   pathname: string;
+  permissions?: readonly string[] | null;
   onSearch: () => void;
   onMenu: () => void;
   /** Intercepts navigation only when a presentation preview supplies it. */
@@ -34,11 +35,11 @@ function activePath(pathname: string, href: string) {
 
 /** The real application masthead; also used by the isolated visual preview. */
 export function MesaHeader({
-  pathname, onSearch, onMenu, onNavigate, menuOpen = false,
+  pathname, onSearch, onMenu, onNavigate, menuOpen = false, permissions = null,
   role = "OPERATOR", roleLoaded = true, locationName = "Cabudare", unread = 0, children,
 }: MesaHeaderProps) {
   const owner = role === "OWNER" || role === "ADMIN";
-  const allowed = new Set(NAV_MODULES.flatMap(module => linksForModule(module, role).map(link => link.href)));
+  const allowed = new Set(NAV_MODULES.flatMap(module => linksForModule(module, role, permissions).map(link => link.href)));
   const links: { href: string; label: string; icon: OsIconName }[] = [
     { href: "/customers", label: "Clientes", icon: "customers" },
     { href: "/workshop", label: "Taller", icon: "workshop" },
@@ -80,7 +81,7 @@ export function MesaHeader({
   </header>;
 }
 
-export function MesaDock({ pathname, onSearch, onMenu, onNavigate, menuOpen = false }: MesaNavigationProps) {
+export function MesaDock({ pathname, permissions = null, onSearch, onMenu, onNavigate, menuOpen = false }: MesaNavigationProps) {
   const links: { href: string; label: string; detail: string; icon: OsIconName }[] = [
     { href: "/quote", label: "Cotizar", detail: "Nueva cotización", icon: "receipt" },
     { href: "/quick-sale", label: "Vender", detail: "Venta rápida", icon: "sale" },
@@ -90,7 +91,8 @@ export function MesaDock({ pathname, onSearch, onMenu, onNavigate, menuOpen = fa
     <Link href="/" className={"mesa-dock-utility" + (pathname === "/" ? " is-active" : "")}
       aria-label="Inicio" aria-current={pathname === "/" ? "page" : undefined}
       onClick={(event: MouseEvent<HTMLAnchorElement>) => previewNavigation(event, "/", onNavigate)}><OsIcon name="home" size={21} /></Link>
-    {links.map(link => <Link key={link.href} href={link.href}
+    {links.filter(link => permissions == null || permissionForPath(link.href) == null ||
+      permissions.includes(permissionForPath(link.href)!)).map(link => <Link key={link.href} href={link.href}
       className={"mesa-dock-action" + (activePath(pathname, link.href) ? " is-active" : "")}
       aria-current={activePath(pathname, link.href) ? "page" : undefined}
       onClick={(event: MouseEvent<HTMLAnchorElement>) => previewNavigation(event, link.href, onNavigate)}>
