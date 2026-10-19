@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { NAV_MODULES, linksForModule, moduleForPath, navigationSearch, pageLabelForPath } from "../lib/navigation";
 
 describe("Navegación de escritorio Lubricenter OS", () => {
-  it("conserva siete áreas principales claramente identificadas", () => {
+  it("separa ocho áreas principales con equipo independiente", () => {
     expect(NAV_MODULES.map(m => m.id)).toEqual([
-      "home", "sales", "workshop", "customers", "inventory", "finance", "admin"
+      "home", "sales", "workshop", "customers", "inventory", "finance", "team", "admin"
     ]);
   });
   it("preserva destinos de operación y finanzas", () => {
@@ -31,6 +31,8 @@ describe("Navegación de escritorio Lubricenter OS", () => {
       "/cashea/balance": "finance",
       "/receivables": "finance",
       "/payroll": "finance",
+      "/my-tasks": "team",
+      "/team": "team",
       "/settings": "admin",
       "/more": "admin"
     };
