@@ -1,0 +1,29 @@
+name: Order numbering and inventory integrity
+on:
+  push:
+    branches: [fix/order-integrity-oct20, main]
+    paths:
+      - 'app/orders/**'
+      - 'components/order-workspace.tsx'
+      - 'supabase/migrations/20261020151302_order_sequence_inventory_integrity.sql'
+      - 'tests/order-sequence-inventory.test.ts'
+      - '.github/workflows/order-integrity.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/order-sequence-inventory.test.ts tests/historical-rates.test.ts tests/cashea-split.test.ts tests/orders-daily-collections.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
