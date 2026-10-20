@@ -496,6 +496,14 @@ begin
    (select count(*) from public.inventory_items ii where ii.product_id=i.product_id and ii.active) candidate_count,
    (select string_agg(ii.sku,', ' order by ii.sku) from public.inventory_items ii where ii.product_id=i.product_id and ii.active) candidate_skus
    from public.order_items i join public.orders o on o.id=i.order_id where o.status='CLOSED' and i.item_type='PRODUCT' and i.inventory_item_id is null)x),
+  'deleted_payments',(select coalesce(jsonb_agg(x),'[]'::jsonb) from (
+   select a.data->>'order_number' order_number,h.before_data->>'method' method,h.before_data->>'currency' currency,
+    (h.before_data->>'amount_original')::numeric amount,h.before_data->>'paid_at' paid_at,h.recorded_at removed_at,a.created_at order_deleted_at,
+    case when abs(extract(epoch from h.recorded_at-a.created_at))<1 then 'Coincide con la eliminación de la orden' else 'Pago retirado antes de eliminar la orden' end evidence,
+    (select string_agg(o.order_number,', ' order by o.order_seq) from public.orders o where o.customer_id=(select (z.before_data->>'customer_id')::uuid from public.order_history z where z.order_id=h.order_id and z.entity_type='orders' and z.action='DELETE' order by z.recorded_at desc limit 1) and o.created_at>=a.created_at and o.created_at<a.created_at+interval '7 days') later_orders
+   from public.order_history h join public.audit_events a on a.entity_id=h.order_id and a.event_type='ORDER_DELETED'
+   where h.entity_type='payments' and h.action='DELETE' and not exists(select 1 from public.orders o where o.id=h.order_id)
+  )x),
   'movements',(select coalesce(jsonb_agg(x order by created_at),'[]'::jsonb) from (select o.order_number,o.status,ii.sku,m.id,m.quantity_delta,m.movement_type,m.reversal_of,m.note,m.created_at,m.occurred_at
    from public.inventory_movements m join public.order_items i on i.id=m.order_item_id join public.orders o on o.id=i.order_id join public.inventory_items ii on ii.id=m.inventory_item_id where m.movement_type in ('SALE','RETURN'))x)
  ) into result;
