@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CasheaSplitEditor } from "@/components/cashea-split-editor";
 import { casheaPaymentPreview, newCasheaSplitLine, type CasheaSplitLine } from "@/lib/cashea-split";
 import { supabase } from "@/lib/supabase";
@@ -9,6 +9,9 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
   orderId: string; totalRef: number; totalVes: number; paidVes: number;
   onDone: () => Promise<void>; onCancel: () => void;
 }) {
+  const request=useRef<{signature:string;id:string}|null>(null);
+  const saving=useRef(false);
+  const [orderNumber,setOrderNumber]=useState('');
   const [percent, setPercent] = useState("40");
   const [splits, setSplits] = useState<CasheaSplitLine[]>([newCasheaSplitLine()]);
   const updateSplits = useCallback((next: CasheaSplitLine[]) => { setSplits(next); setConfirmed(false); setError(""); }, []);
@@ -22,9 +25,10 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
+    supabase.from("orders").select("order_number").eq("id",orderId).single().then(({data})=>{if(active)setOrderNumber(data?.order_number||"");});
     (async () => {
       try {
-        const [r, s] = await Promise.all([supabase.rpc("get_current_rates"), supabase.from("app_settings").select("key,value").in("key", ["cashea_commission_percent", "cashea_minimum_ref"])]);
+        const [r, s] = await Promise.all([supabase.rpc("get_order_rates",{p_order_id:orderId}), supabase.from("app_settings").select("key,value").in("key", ["cashea_commission_percent", "cashea_minimum_ref"])]);
         if (r.error || s.error) throw r.error || s.error;
         const rate = Array.isArray(r.data) ? r.data[0] : r.data;
         if (active) { setBcv(Number(rate?.bcv_rate ?? 0)); for (const row of s.data ?? []) { if (row.key === "cashea_commission_percent") setCommission(Number(row.value)); if (row.key === "cashea_minimum_ref") setMinimum(Number(row.value)); } }
@@ -32,7 +36,7 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
       finally { if (active) setLoading(false); }
     })();
     return () => { active = false; };
-  }, []);
+  }, [orderId]);
   const pct = Number(percent);
   const initialRef = Math.round(totalRef * pct / 100 * 10000) / 10000;
   const initialVes = Math.round(initialRef * bcv * 100) / 100;
@@ -41,19 +45,26 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
   const splitPreview = casheaPaymentPreview(splits, extraVes, bcv);
   const valid = !loading && bcv > 0 && totalRef >= minimum && Number.isFinite(pct) && pct > 0 && pct <= 100 && paidVes <= initialVes + .01 && splitPreview.valid;
   async function save() {
-    if (!valid || !confirmed || busy) return;
+    if (!valid || !confirmed || saving.current) return;
     if (!/^\d{1,32}$/.test(casheaReference.trim())) return setError("Escribe el número de orden Cashea.");
     if (!splitPreview.valid) return setError(splitPreview.error || "Revisa cómo recibiste la inicial.");
-    setBusy(true); setError("");
+    saving.current=true;setBusy(true); setError("");
     try {
-      const result = await supabase.rpc("close_order_cashea_split", { p_order_id: orderId, p_initial_percent: pct, p_initial_payments: splitPreview.payload, p_cashea_reference: casheaReference.trim(), p_expected_total_ves: totalVes, p_expected_total_ref: totalRef, p_expected_bcv: bcv });
+      const signature=JSON.stringify([orderId,pct,splitPreview.payload,casheaReference.trim(),totalVes,totalRef,bcv]);
+      const key='lubricenter:cashea-submit:'+orderId;
+      if(!request.current){try{request.current=JSON.parse(sessionStorage.getItem(key)||'null');}catch{}}
+      if(request.current?.signature!==signature)request.current={signature,id:crypto.randomUUID()};
+      sessionStorage.setItem(key,JSON.stringify(request.current));
+      const result = await supabase.rpc("complete_prepared_cashea", {p_request:request.current.id, p_order_id: orderId, p_initial_percent: pct, p_initial_payments: splitPreview.payload, p_cashea_reference: casheaReference.trim(), p_expected_total_ves: totalVes, p_expected_total_ref: totalRef, p_expected_bcv: bcv });
       if (result.error) throw result.error;
       await onDone();
+      sessionStorage.removeItem(key);
     } catch (e: any) { setError(e.message ?? "No pude confirmar el cierre. Recarga la orden antes de reintentar."); }
-    finally { setBusy(false); }
+    finally {saving.current=false; setBusy(false); }
   }
   return <div className="overlay"><div className="sheet stack" role="dialog" aria-modal="true" aria-labelledby="cashea-title">
     <div className="row-between"><h2 id="cashea-title">Cobrar con Cashea</h2><button className="btn btn-ghost" disabled={busy} onClick={onCancel}>Volver</button></div>
+    <div className="success"><strong>Número Lubricenter OS: {orderNumber||"Cargando…"}</strong><div>Usa este número para procesar la compra en Cashea antes de recibir la inicial.</div></div>
     <p className="muted">La inicial puede llegar en varios pagos: BDV, BNC, efectivo, Zelle o Binance. Cada movimiento quedará en su cuenta; las cuotas de Cashea se controlan aparte.</p>
     {loading ? <div role="status">Cargando tasas y condiciones…</div> : <>
       <div className="row-between"><strong>Total de la orden</strong><strong>{fmtRef(totalRef)}</strong></div>

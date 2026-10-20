@@ -1,0 +1,32 @@
+name: Historical rates and checkout regression
+on:
+  push:
+    branches: [fix/historical-checkout-oct20, main]
+    paths:
+      - 'components/quick-sale-screen.tsx'
+      - 'components/order-cashea-sheet.tsx'
+      - 'components/order-workspace.tsx'
+      - 'components/order-date-editor.tsx'
+      - 'components/daily-rate-history.tsx'
+      - 'supabase/migrations/20261020142052_historical_sale_rates_reliable_checkout.sql'
+      - 'tests/historical-rates.test.ts'
+      - '.github/workflows/historical-checkout.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/historical-rates.test.ts tests/cashea-split.test.ts tests/multivehicle-order-corrections.test.ts tests/oil-change-picker.test.ts tests/orders-daily-collections.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder

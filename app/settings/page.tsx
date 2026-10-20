@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { FinanceNotifications } from '@/components/finance-notifications';
+import { DailyRateHistory } from '@/components/daily-rate-history';
 
 const DEFAULT_POST_SERVICE_TEMPLATE = `Hola *{{nombre}}*! 👋
 
@@ -149,6 +150,7 @@ export default function SettingsPage() {
     {error && <div className="error">{error}</div>}{message && <div className="success">{message}</div>}
 
     <FinanceNotifications />
+    <DailyRateHistory />
     <section className="card stack">
       <div className="row-between"><h2 className="section-title">Mensaje post-servicio · CRM</h2><span className="pill ok">EDITABLE</span></div>
       <div className="muted small">Este es el formato predeterminado. Puedes cambiar texto, emojis, orden y eliminar secciones. Los datos entre llaves se rellenan automáticamente al cerrar cada orden.</div>

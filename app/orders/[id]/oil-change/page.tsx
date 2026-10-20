@@ -105,7 +105,7 @@ export default function OilChangePage() {
     setWarning("");
     const [orderRes, ratesRes, invRes, catalogRes, syncRes, allVehiclesRes, ownerRes] = await Promise.all([
       supabase.from("orders").select("id,order_number,status,customer_id,vehicle_id,crm_additional_services,crm_bonuses,crm_observations").eq("id", orderId).single(),
-      supabase.rpc("get_current_rates"),
+      supabase.rpc("get_order_rates",{p_order_id:orderId}),
       supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,needs_review").eq("location_code", "CABUDARE").order("sku").limit(1000),
       supabase.from("product_catalog_current").select("id,name,category,filter_code,current_price_ves,current_ref_bcv").eq("available", true).eq("active", true).order("name").limit(1000),
       supabase.rpc("get_pricing_sync_status"),

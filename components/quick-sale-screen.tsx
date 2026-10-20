@@ -1,12 +1,11 @@
 "use client";
+import { OrderCasheaSheet } from "@/components/order-cashea-sheet";
 import { QuickTenderCheckout } from "@/components/quick-tender-checkout";
-import { CasheaSplitEditor } from "@/components/cashea-split-editor";
-import { casheaPaymentPreview, newCasheaSplitLine, type CasheaSplitLine } from "@/lib/cashea-split";
 import { matchesSearch } from "@/lib/domain/search";
 
 import { businessInstant,caracasInput } from "@/lib/order-admin";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { D } from "@/lib/finance/money";
 import { referenceError } from "@/lib/finance/money";
@@ -38,10 +37,8 @@ const PAYMENT_METHODS: readonly [PaymentMethod, string][] = [
 ];
 const DIRECT_PAYMENT_METHODS: readonly [PaymentMethod, string][] = [...PAYMENT_METHODS, ["ZELLE", "Zelle USD"], ["BINANCE", "Binance USD"]];
 const CASHEA_MIN_REF = 25;
-const CASHEA_COMMISSION = 4;
 
 function normalize(value: string | null | undefined) { return (value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
-function roundToStep(value: number, step = 10) { return Number.isFinite(value) && step > 0 ? Math.round(value / step) * step : value; }
 
 export function QuickSaleScreen() {
   const router = useRouter();
@@ -59,15 +56,19 @@ export function QuickSaleScreen() {
   const [manualPrice, setManualPrice] = useState("");
   const [manualQty, setManualQty] = useState("1");
   const [saleDate,setSaleDate] = useState("");
+  const [ratesLoading,setRatesLoading]=useState(true);
+  const [rateRefresh,setRateRefresh]=useState(0);
+  const [rateSource,setRateSource]=useState("");
+  const [draftHydrated,setDraftHydrated]=useState(false);
+  const [recovering,setRecovering]=useState(true);
+  const [prepared,setPrepared]=useState<CompletedSale|null>(null);
+  const prepareRequest=useRef<{signature:string;id:string}|null>(null);
+  const directRequest=useRef<{signature:string;id:string}|null>(null);
+  const submitLock=useRef(false);
   const [received,setReceived] = useState(false);
   const [checkoutMode, setCheckoutMode] = useState<"DIRECT" | "CASHEA">("DIRECT");
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>("TRANSFER_BDV");
   const [reference, setReference] = useState("");
-  const [casheaInitialPercent, setCasheaInitialPercent] = useState("40");
-  const [casheaSplits, setCasheaSplits] = useState<CasheaSplitLine[]>([newCasheaSplitLine()]);
-  const casheaRequest = useRef<{signature:string;id:string}|null>(null);
-  const updateCasheaSplits = useCallback((next: CasheaSplitLine[]) => {setCasheaSplits(next);setReceived(false);},[]);
-  const [casheaReference, setCasheaReference] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -76,25 +77,72 @@ export function QuickSaleScreen() {
   const [partialCreditOpen, setPartialCreditOpen] = useState(false);
 
   async function load() {
-    setLoading(true); setError(""); setWarning("");
-    const [invRes, catRes, rateRes] = await Promise.all([
+    setLoading(true); setWarning("");
+    const [invRes, catRes] = await Promise.all([
       supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv").eq("location_code", "CABUDARE").gt("quantity_on_hand", 0).eq("needs_review", false).order("brand").order("sku").limit(1000),
       supabase.from("product_catalog_current").select("id,name,category,filter_code,current_price_ves,current_ref_bcv").eq("available", true).order("name").limit(1000),
-      supabase.rpc("get_current_rates"),
     ]);
     const warnings: string[] = [];
     if (invRes.error) warnings.push(`Inventario: ${invRes.error.message}`); else setInventory((invRes.data ?? []).map((x: any) => ({ ...x, quantity_on_hand: Number(x.quantity_on_hand ?? 0), current_price_ves: x.current_price_ves == null ? null : Number(x.current_price_ves), current_ref_bcv: x.current_ref_bcv == null ? null : Number(x.current_ref_bcv) })) as InventoryProduct[]);
     if (catRes.error) warnings.push(`Catálogo: ${catRes.error.message}`); else setCatalog((catRes.data ?? []).map((x: any) => ({ ...x, current_price_ves: x.current_price_ves == null ? null : Number(x.current_price_ves), current_ref_bcv: x.current_ref_bcv == null ? null : Number(x.current_ref_bcv) })) as CatalogProduct[]);
-    if (rateRes.error) warnings.push(`Tasas: ${rateRes.error.message}`); else { const row = Array.isArray(rateRes.data) ? rateRes.data[0] : rateRes.data; setRates({ bcv: Number(row?.bcv_rate ?? 0), operative: Number(row?.operative_rate ?? 0) }); }
     setWarning(warnings.join(" · ")); setLoading(false); setTimeout(() => searchRef.current?.focus(), 50);
   }
   useEffect(() => {
     load();
-    const refreshPricing = () => load();
+    const refreshPricing = () => {load();setRateRefresh(n=>n+1);};
     window.addEventListener("lubricenter:pricing-updated", refreshPricing);
     return () => window.removeEventListener("lubricenter:pricing-updated", refreshPricing);
   }, []);
 
+  useEffect(()=>{
+    let active=true;setRatesLoading(true);setReceived(false);
+    supabase.rpc("get_exchange_rates_for_date",{p_date:saleDate.slice(0,10)||null}).then(({data,error})=>{
+      if(!active)return;
+      if(error){setRates({bcv:0,operative:0});setError(error.message);}
+      else {const r=Array.isArray(data)?data[0]:data;setRates({bcv:Number(r.bcv_rate),operative:Number(r.operative_rate)});setRateSource('BCV vigente desde '+r.bcv_date+' · operativa desde '+r.operative_date);}
+      setRatesLoading(false);
+    });return()=>{active=false;};
+  },[saleDate,rateRefresh]);
+  useEffect(()=>{
+    let active=true;
+    const id=sessionStorage.getItem('lubricenter:pending-quick-sale');
+    if(!id){setRecovering(false);return;}
+    (async()=>{
+      try{
+        const q=await supabase.from('orders').select('id,order_number,status,total_ves,total_ref').eq('id',id).single();
+        if(q.error)throw q.error;if(!active)return;
+        if(q.data.status==='CLOSED'){
+          const cs=await supabase.from('cashea_sales').select('initial_ref,financed_ref,commission_ref').eq('order_id',id).maybeSingle();
+          if(cs.error)throw cs.error;
+          setCompleted({order_id:id,order_number:q.data.order_number,total_ves:Number(q.data.total_ves),total_ref:Number(q.data.total_ref),...(cs.data?{cashea:{initial_ref:Number(cs.data.initial_ref),financed_ref:Number(cs.data.financed_ref),commission_ref:Number(cs.data.commission_ref)}}:{})});
+          sessionStorage.removeItem('lubricenter:pending-quick-sale');resetAfterSale();return;
+        }
+        if(q.data.status!=='OPEN'){sessionStorage.removeItem('lubricenter:pending-quick-sale');setError('La orden pendiente fue anulada. Revisa su historial antes de crear otra venta.');resetAfterSale();return;}
+        const its=await supabase.from('order_items').select('charged_ves_amount,charged_ref_amount').eq('order_id',id);
+        if(its.error)throw its.error;
+        if(active)setPrepared({order_id:id,order_number:q.data.order_number,total_ves:(its.data??[]).reduce((n,i)=>n+Number(i.charged_ves_amount),0),total_ref:(its.data??[]).reduce((n,i)=>n+Number(i.charged_ref_amount),0)});
+      }catch(e:any){if(active){setError(e.message||'No se pudo recuperar la orden pendiente.');setPrepared({order_id:id,order_number:'Orden pendiente de recuperar',total_ves:0,total_ref:0});}}
+      finally{if(active)setRecovering(false);}
+    })();return()=>{active=false;};
+  },[]);
+
+  async function prepareCashea(){
+    if(!cartValid||ratesLoading||submitLock.current)return;
+    submitLock.current=true;setBusy(true);setError('');
+    const signature=JSON.stringify([payload(),businessInstant(saleDate)]);
+    if(!prepareRequest.current){try{prepareRequest.current=JSON.parse(sessionStorage.getItem('lubricenter:quick-prepare-request')||'null');}catch{}}
+    if(prepareRequest.current?.signature!==signature)prepareRequest.current={signature,id:crypto.randomUUID()};
+    sessionStorage.setItem('lubricenter:quick-prepare-request',JSON.stringify(prepareRequest.current));
+    try{const r=await supabase.rpc('prepare_quick_sale',{p_request:prepareRequest.current.id,p_items:payload(),p_business_at:businessInstant(saleDate)});if(r.error)throw r.error;const row=Array.isArray(r.data)?r.data[0]:r.data;setPrepared(row);sessionStorage.setItem('lubricenter:pending-quick-sale',row.order_id);}
+    catch(e:any){setError(e.message||'No se pudo guardar. Conservamos la venta para reintentar.');}
+    finally{submitLock.current=false;setBusy(false);}
+  }
+
+  useEffect(()=>{
+    try{const saved=JSON.parse(sessionStorage.getItem('lubricenter:quick-cart')||'null');if(saved){setCart(saved.cart||[]);setSaleDate(saved.saleDate||'');setSelectedPayment(saved.method||'TRANSFER_BDV');setReference(saved.reference||'');}}catch{}
+    setDraftHydrated(true);
+  },[]);
+  useEffect(()=>{if(draftHydrated)sessionStorage.setItem('lubricenter:quick-cart',JSON.stringify({cart,saleDate,method:selectedPayment,reference}));},[draftHydrated,cart,saleDate,selectedPayment,reference]);
   // Importa una cotización guardada al mismo carrito de venta rápida. Nunca registra ventas automáticamente.
   useEffect(() => {
     if (loading || quoteImported.current || (!catalog.length && !inventory.length)) return;
@@ -161,6 +209,8 @@ export function QuickSaleScreen() {
     window.history.replaceState(window.history.state,"",url.pathname+url.search+url.hash);
   }, [loading,catalog,inventory]);
 
+  useEffect(()=>{setReceived(false);},[cart,selectedPayment,reference]);
+
   const positiveCatalogIds = useMemo(() => new Set(inventory.map(i => i.product_id).filter(Boolean) as string[]), [inventory]);
   const results = useMemo<SearchResult[]>(() => {
     const q = normalize(search.trim());
@@ -188,64 +238,31 @@ export function QuickSaleScreen() {
   const totalRef = useMemo(() => cart.reduce((sum, line) => sum + line.quantity * Math.max(0, Number(line.unit_ref || 0)), 0), [cart]);
   const totalVes = useMemo(() => cart.reduce((sum, line) => sum + Number(new D(line.unit_ref || 0).mul(rates.bcv).toDecimalPlaces(2).mul(line.quantity).toDecimalPlaces(2)), 0), [cart, rates.bcv]);
   const cashUsd = rates.operative > 0 ? totalVes / rates.operative : 0;
-  const cartValid = cart.length > 0 && cart.every(x => Number.isFinite(x.quantity) && x.quantity > 0 && Number.isFinite(Number(x.unit_ref)) && Number(x.unit_ref) > 0 && (x.kind !== "STOCK" || x.stock == null || x.quantity <= x.stock));
-  const casheaPct = Number(casheaInitialPercent);
-  const casheaInitialRef = Number.isFinite(casheaPct) ? Number(new D(totalRef).mul(casheaPct).div(100).toDecimalPlaces(4)) : 0;
-  const casheaInitialVes = Number.isFinite(casheaInitialRef) ? Number(new D(casheaInitialRef).mul(rates.bcv).toDecimalPlaces(2)) : 0;
-  const casheaSplitPreview = casheaPaymentPreview(casheaSplits,casheaInitialVes,rates.bcv);
-  const casheaFinancedRef = Math.max(totalRef - casheaInitialRef, 0);
-  const casheaInstallmentRef = casheaFinancedRef / 3;
-  const casheaCommissionRef = totalRef * CASHEA_COMMISSION / 100;
-  const casheaValid = cartValid && rates.bcv>0 && totalRef >= CASHEA_MIN_REF && Number.isFinite(casheaPct) && casheaPct > 0 && casheaPct <= 100 && casheaSplitPreview.valid;
+  const cartValid = !recovering && !ratesLoading && rates.bcv>0 && rates.operative>0 && cart.length > 0 && cart.every(x => Number.isFinite(x.quantity) && x.quantity > 0 && Number.isFinite(Number(x.unit_ref)) && Number(x.unit_ref) > 0 && (x.kind !== "STOCK" || x.stock == null || x.quantity <= x.stock));
 
   function payload(): QuickPayloadLine[] { return cart.map(line => ({ kind: line.kind, inventory_item_id: line.inventory_item_id ?? null, product_id: line.product_id ?? null, description: line.description, quantity: line.quantity, unit_ref: Number(line.unit_ref) })); }
-  function resetAfterSale() { setQuoteFlow(null);setQuoteTransferNotice("");setSaleDate("");setReceived(false); setCart([]); setReference(""); setCasheaSplits([newCasheaSplitLine()]); casheaRequest.current=null; setCasheaReference(""); setSearch(""); setCheckoutMode("DIRECT"); setSelectedPayment("TRANSFER_BDV"); setCasheaInitialPercent("40"); }
+  function resetAfterSale() { directRequest.current=null;prepareRequest.current=null;sessionStorage.removeItem("lubricenter:quick-direct-request");sessionStorage.removeItem("lubricenter:quick-prepare-request");sessionStorage.removeItem("lubricenter:quick-cart"); setQuoteFlow(null);setQuoteTransferNotice("");setSaleDate("");setReceived(false); setCart([]); setReference(""); setSearch(""); setCheckoutMode("DIRECT"); setSelectedPayment("TRANSFER_BDV"); }
 
   async function completeDirect() {
-    if (!cartValid || busy) return;
+    if (!cartValid || submitLock.current) return;
     const re = referenceError(selectedPayment, reference); if (re) return setError(re);
     if(selectedPayment.startsWith("CASH")){setTenderOpen(true);return;}
-    setBusy(true); setError(""); setCompleted(null);
-    const { data, error } = await supabase.rpc("quick_sale_dated", { p_items: payload(), p_mode: "DIRECT", p_business_at: businessInstant(saleDate), p_method: selectedPayment, p_reference: reference.trim() || null });
-    setBusy(false); if (error) return setError(error.message);
-    const row = Array.isArray(data) ? data[0] : data;
-    setCompleted({ order_id: row.order_id, order_number: row.order_number, total_ves: Number(row.total_ves ?? 0), total_ref: Number(row.total_ref ?? 0) });
-    resetAfterSale(); await load();
+    submitLock.current=true;setBusy(true);setError("");setCompleted(null);
+    const signature=JSON.stringify([payload(),selectedPayment,reference.trim(),businessInstant(saleDate)]);
+    if(!directRequest.current){try{directRequest.current=JSON.parse(sessionStorage.getItem('lubricenter:quick-direct-request')||'null');}catch{}}
+    if(directRequest.current?.signature!==signature)directRequest.current={signature,id:crypto.randomUUID()};
+    sessionStorage.setItem('lubricenter:quick-direct-request',JSON.stringify(directRequest.current));
+    try{
+      const r=await supabase.rpc("quick_sale_direct_v2",{p_request:directRequest.current.id,p_items:payload(),p_method:selectedPayment,p_reference:reference.trim()||null,p_business_at:businessInstant(saleDate)});
+      if(r.error)throw r.error;
+      const row=Array.isArray(r.data)?r.data[0]:r.data;
+      if(!row?.order_id)throw new Error('No se recibió la confirmación de guardado. Reintenta esta misma venta.');
+      setCompleted({order_id:row.order_id,order_number:row.order_number,total_ves:Number(row.total_ves),total_ref:Number(row.total_ref)});
+      resetAfterSale();await load();
+    }catch(e:any){setError(e.message||'No se pudo confirmar el guardado. Reintenta sin cambiar los datos.');}
+    finally{submitLock.current=false;setBusy(false);}
   }
 
-  async function completeCashea() {
-    if (!casheaValid || busy) return;
-    if (!/^\d{1,32}$/.test(casheaReference.trim())) return setError("Escribe el número de orden Cashea.");
-    const paymentLines=casheaSplitPreview.payload;
-    const signature=JSON.stringify({
-      items:payload(),pct:casheaPct,payments:paymentLines,cashea:casheaReference.trim(),
-      date:businessInstant(saleDate),ves:totalVes,ref:totalRef,bcv:rates.bcv
-    });
-    if(casheaRequest.current?.signature!==signature){
-      casheaRequest.current={signature,id:crypto.randomUUID()};
-    }
-    setBusy(true);setError("");setCompleted(null);
-    // La base de datos registra los cobros y cierra la venta en una sola transacción.
-    // p_request evita crear una segunda OS si se repite el intento tras perder la respuesta.
-    const {data,error}=await supabase.rpc("quick_sale_cashea_split",{
-      p_request:casheaRequest.current.id,p_items:payload(),
-      p_business_at:businessInstant(saleDate),p_initial_percent:casheaPct,
-      p_initial_payments:paymentLines,p_cashea_reference:casheaReference.trim(),
-      p_expected_total_ves:totalVes,p_expected_total_ref:totalRef,p_expected_bcv:rates.bcv
-    });
-    setBusy(false);
-    if(error)return setError(error.message);
-    const row=Array.isArray(data)?data[0]:data;
-    setCompleted({
-      order_id:row.order_id,order_number:row.order_number,
-      total_ves:Number(row.total_ves??0),total_ref:Number(row.total_ref??0),
-      cashea:{
-        initial_ref:Number(row.initial_ref??0),financed_ref:Number(row.financed_ref??0),
-        commission_ref:Number(row.commission_ref??0)
-      }
-    });
-    resetAfterSale();await load();
-  }
 
   async function continueAsOrder() {
     if (!cartValid || busy) return;
@@ -253,8 +270,10 @@ export function QuickSaleScreen() {
     if (error) return setError(error.message); const row = Array.isArray(data) ? data[0] : data; router.push(`/orders/${row.order_id}`);
   }
 
-  return <main className="container stack mesa-quick-sale">
-    <section className="mesa-sale-hero"><div><div className="eyebrow">02 / VENTA RÁPIDA · MOSTRADOR</div><h1>Vender<span>.</span></h1><p>Cotiza sin crear una orden. La OS nace solo cuando registras la venta o decides continuar como orden completa.</p></div><span className="mesa-sale-signature" aria-hidden="true">RÁPIDO<br/>SENCILLO<br/>PARA TU<br/>TALLER<span>↗</span></span></section>
+  if(prepared)return <main className="container stack">{error&&<div className="error" role="alert">{error}</div>}<section className="card stack"><div className="eyebrow">ORDEN GUARDADA · PENDIENTE DE COBRO</div><h1>{prepared.order_number}</h1><p>Usa este número en Cashea antes de que el cliente pague. La venta se registra como cobrada al confirmar la inicial.</p><Link className="btn" href={'/orders/'+prepared.order_id}>Abrir orden / continuar después</Link></section><OrderCasheaSheet orderId={prepared.order_id} totalRef={prepared.total_ref} totalVes={prepared.total_ves} paidVes={0} onCancel={()=>{sessionStorage.removeItem('lubricenter:pending-quick-sale');router.push('/orders/'+prepared.order_id);}} onDone={async()=>{const q=await supabase.from('cashea_sales').select('initial_ref,financed_ref,commission_ref').eq('order_id',prepared.order_id).single();if(q.error)throw q.error;setCompleted({...prepared,cashea:{initial_ref:Number(q.data.initial_ref),financed_ref:Number(q.data.financed_ref),commission_ref:Number(q.data.commission_ref)}});sessionStorage.removeItem('lubricenter:pending-quick-sale');setPrepared(null);prepareRequest.current=null;resetAfterSale();await load();}}/></main>;
+
+  return <main className="container stack mesa-quick-sale"><fieldset disabled={busy} style={{display:"contents"}}>
+    <section className="mesa-sale-hero"><div><div className="eyebrow">02 / VENTA RÁPIDA · MOSTRADOR</div><h1>Vender<span>.</span></h1><p>Cotiza sin crear una orden. Para Cashea, guarda primero la orden pendiente y usa su número antes de cobrar.</p></div><span className="mesa-sale-signature" aria-hidden="true">RÁPIDO<br/>SENCILLO<br/>PARA TU<br/>TALLER<span>↗</span></span></section>
     <div className="row-between"><span className="muted small">Venta directa o Cashea tradicional desde el mismo carrito.</span><div className="row"><Link className="btn btn-ghost" href="/quote"><OsIcon name="receipt" size={16}/> Cotizar productos</Link><Link className="btn btn-ghost" href="/cashea">Seguimiento Cashea</Link></div></div>
     {error && <div className="error" role="alert">{error}</div>}
     {quoteFlow && <section className="card stack" style={{borderColor:"rgba(255,128,47,.72)",background:"rgba(255,128,47,.08)"}}>
@@ -311,9 +330,10 @@ export function QuickSaleScreen() {
       <div className="row-between"><div><div className="muted small">TOTAL A COBRAR</div><div className="money-lg">{fmtRef(totalRef)}</div></div><div style={{ textAlign: "right" }}><strong>{fmtVes(totalVes)}</strong><div className="muted small">USD físico aprox. {cashUsd.toFixed(2)}</div></div></div>
       <div className="segmented"><button type="button" className={`btn ${checkoutMode === "DIRECT" ? "btn-primary" : "btn-ghost"}`} onClick={() => setCheckoutMode("DIRECT")}>Cobro directo</button><button type="button" className={`btn ${checkoutMode === "CASHEA" ? "btn-primary" : "btn-ghost"}`} onClick={() => setCheckoutMode("CASHEA")}>Cashea tradicional</button></div>
 
-      <label><span className="label">Fecha de venta · Venezuela (vacío = ahora)</span><input className="input" type="datetime-local" value={saleDate} max={caracasInput()} onChange={e=>setSaleDate(e.target.value)} /></label>
-      {saleDate && <p className="muted small">Revisa los importes: cambiar la fecha no recupera automáticamente las tasas o precios de ese día.</p>}
-      <label className="row"><input type="checkbox" checked={received} onChange={e=>setReceived(e.target.checked)} /> Confirmo que recibí el pago {checkoutMode === "CASHEA" ? "de la inicial" : "de la venta"}.</label>
+      <label><span className="label">Fecha de venta · Venezuela (vacío = ahora)</span><input className="input" type="datetime-local" value={saleDate} max={caracasInput()} disabled={busy} onChange={e=>{setRatesLoading(true);setSaleDate(e.target.value);}} /></label>
+      <div className="muted small" role="status">{ratesLoading?"Buscando tasas de la fecha…":rateSource} · BCV {rates.bcv} · Operativa {rates.operative}</div>
+      {saleDate && <p className="muted small">Se aplican las tasas registradas para esta fecha. Los precios REF son editables para esta venta.</p>}
+      {checkoutMode==="DIRECT" && <label className="row"><input type="checkbox" checked={received} onChange={e=>setReceived(e.target.checked)} /> Confirmo que recibí el pago de la venta.</label>}
       {checkoutMode === "DIRECT" ? <>
         <div><span className="label">Forma de pago</span><div className="grid grid-2">{DIRECT_PAYMENT_METHODS.map(([method, label]) => <button key={method} type="button" className={selectedPayment === method ? "btn btn-primary" : "btn"} onClick={() => setSelectedPayment(method)} disabled={busy}>{selectedPayment === method ? `✓ ${label}` : label}</button>)}</div></div>
         <input className="input" value={reference} onChange={e => setReference(e.target.value)} placeholder={selectedPayment.startsWith("TRANSFER") ? "Últimos 4 de referencia · obligatorio" : "Referencia de pago (opcional)"} />
@@ -321,16 +341,8 @@ export function QuickSaleScreen() {
         <button className="btn btn-block" disabled={!cartValid||busy} onClick={()=>setTenderOpen(true)}>Cobro con vuelto o precio pactado USD</button>
         <button className="btn btn-block" style={{border:"1px solid rgba(255,106,26,.72)",background:"rgba(255,106,26,.12)"}} disabled={!cartValid || busy} onClick={() => setPartialCreditOpen(true)}>Abono + saldo a Crédito LC</button>
       </> : <div className="stack">
-        <div className="success small"><strong>Cashea tradicional.</strong> Confirma primero la compra en Cashea y registra aquí exactamente la inicial que muestre la app. El precio de los productos no cambia por usar Cashea.</div>
-        {totalRef > 0 && totalRef < CASHEA_MIN_REF && <div className="error">El mínimo configurado para Cashea es {fmtRef(CASHEA_MIN_REF)}.</div>}
-        <div><span className="label">Inicial aprobada</span><div className="grid grid-3">{[40,50,60].map(p => <button type="button" key={p} className={casheaInitialPercent === String(p) ? "btn btn-primary" : "btn"} onClick={() => setCasheaInitialPercent(String(p))}>{p}%</button>)}</div></div>
-        <label><span className="label">Inicial personalizada %</span><input className="input" type="number" min="0.01" max="100" step="0.01" value={casheaInitialPercent} onChange={e => setCasheaInitialPercent(e.target.value)} placeholder="Ej. 45" /></label>
-        <div className="grid grid-3"><div className="card"><div className="muted small">INICIAL HOY</div><strong>{fmtRef(casheaInitialRef)}</strong><div className="muted small">{fmtVes(casheaInitialVes)}</div></div><div className="card"><div className="muted small">POR RECIBIR</div><strong>{fmtRef(casheaFinancedRef)}</strong><div className="muted small">3 × {fmtRef(casheaInstallmentRef)}</div></div><div className="card"><div className="muted small">COMISIÓN LUBRICENTER</div><strong>{fmtRef(casheaCommissionRef)}</strong><div className="muted small">4% registrado aparte</div></div></div>
-        <div className="muted small">Cuotas previstas: +14, +28 y +42 días. El saldo se controla en Cashea; solo la inicial entra hoy a tus cuentas y caja.</div>
-        <CasheaSplitEditor lines={casheaSplits} onChange={updateCasheaSplits}
-          requiredVes={casheaInitialVes} bcv={rates.bcv} disabled={busy}/>
-        <input className="input" value={casheaReference} onChange={e => setCasheaReference(e.target.value)} placeholder="Número de orden Cashea · obligatorio" />
-        <button className="btn btn-primary btn-block" style={{ minHeight: 56, fontSize: 17 }} disabled={!casheaValid || busy || !received} onClick={completeCashea}>{busy ? "Registrando Cashea…" : `Registrar Cashea y cerrar · ${fmtRef(totalRef)}`}</button>
+        <p>Primero guarda la orden para obtener su número. Después registra la compra en Cashea y confirma la inicial recibida.</p>
+        <button className="btn btn-primary btn-block" style={{ minHeight: 56, fontSize: 17 }} disabled={!cartValid || totalRef<CASHEA_MIN_REF || busy} onClick={prepareCashea}>{busy ? "Registrando Cashea…" : `Obtener número de orden para Cashea`}</button>
       </div>}
 
       <p className="muted small">Para preparar un recibo sin cobrar, continúa como orden y usa su cotización. Imprimir no cierra la venta.</p>
@@ -340,7 +352,7 @@ export function QuickSaleScreen() {
     </section>
     </div>
     {partialCreditOpen && <QuickPartialCreditSheet items={payload()} totalVes={totalVes} totalRef={totalRef} rates={rates} saleDate={saleDate} onCancel={()=>setPartialCreditOpen(false)} onDone={async row=>{setPartialCreditOpen(false);setCompleted({order_id:row.order_id,order_number:row.order_number,total_ves:Number(row.total_ves??0),total_ref:Number(row.total_ref??0),credit:{outstanding_ves:Number(row.outstanding_ves??0),outstanding_ref:Number(row.outstanding_ref??0)}});resetAfterSale();await load();}}/>}
-  </main>;
+  </fieldset></main>;
 }
 
 function QuickPartialCreditSheet({ items, totalVes, totalRef, rates, saleDate, onCancel, onDone }: { items:QuickPayloadLine[]; totalVes:number; totalRef:number; rates:Rates; saleDate:string; onCancel:()=>void; onDone:(row:any)=>void|Promise<void> }) {
