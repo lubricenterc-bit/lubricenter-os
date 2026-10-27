@@ -1,0 +1,34 @@
+name: Inventario único y modo estricto
+on:
+  push:
+    branches: [feature/inventario-unico-conteo]
+  pull_request:
+    paths:
+      - 'lib/inventory-policy.ts'
+      - 'lib/domain/oil-change.ts'
+      - 'components/order-workspace.tsx'
+      - 'components/quick-sale-screen.tsx'
+      - 'app/orders/**/oil-change/**'
+      - 'supabase/migrations/20261028120000_unified_inventory_strict_mode.sql'
+      - 'supabase/migrations/20261028130000_inventory_sale_policy.sql'
+      - 'tests/oil-change-picker.test.ts'
+      - '.github/workflows/inventory-strict.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/oil-change-picker.test.ts tests/order-sequence-inventory.test.ts tests/historical-rates.test.ts tests/cashea-split.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder

@@ -24,7 +24,11 @@ export function isOilCandidate(item: OilPickerItem): boolean {
     || /\b\d{1,2}\s*w\s*[-/]?\s*\d{2}\b/.test(text) || /\bsae\s*\d{1,2}\b/.test(text);
 }
 
-export function saleSource(item: OilPickerItem, units: number, availableCatalogIds: Set<string>): OilPickerItem["source"] {
-  if (item.source !== "INVENTORY" || units <= item.quantity_on_hand) return item.source;
+/**
+ * Si se pide más de lo que hay en stock, quien puede vender sin inventario sigue por catálogo o a mano;
+ * con inventario estricto y sin ese permiso la venta se queda en inventario y la base la rechaza por stock.
+ */
+export function saleSource(item: OilPickerItem, units: number, availableCatalogIds: Set<string>, allowFallback = true): OilPickerItem["source"] {
+  if (item.source !== "INVENTORY" || units <= item.quantity_on_hand || !allowFallback) return item.source;
   return item.product_id && availableCatalogIds.has(item.product_id) ? "CATALOG" : "MANUAL";
 }

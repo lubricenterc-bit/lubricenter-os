@@ -5,6 +5,7 @@ import { isOilCandidate, isOilFilter, saleSource } from "@/lib/domain/oil-change
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { allowsManualSale, useInventorySalePolicy } from "@/lib/inventory-policy";
 import { fmtRef, fmtVes } from "@/lib/format";
 import { OrderExtrasChecklist } from "@/components/order-extras-checklist";
 import { EMPTY_ORDER_EXTRAS, normalizeOrderExtras, orderExtrasRpcParams,
@@ -52,6 +53,7 @@ function manualItem(id: string, name: string, category: string): InventoryItem {
 }
 
 export default function OilChangePage() {
+  const manualAllowed = allowsManualSale(useInventorySalePolicy());
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const orderId = params.id;
@@ -212,8 +214,8 @@ export default function OilChangePage() {
 
   const oil = oilId === "manual:oil" ? manualItem(oilId, manualOilName, "Aceite manual") : inventory.find(i => i.id === oilId) ?? null;
   const filter = filterId === "manual:filter" ? manualItem(filterId, manualFilterName, "Filtro manual") : inventory.find(i => i.id === filterId) ?? null;
-  const oilSaleSource = oil ? saleSource(oil, Number(oilUnits), availableCatalogIds) : null;
-  const filterSaleSource = filter ? saleSource(filter, Number(filterUnits), availableCatalogIds) : "NONE";
+  const oilSaleSource = oil ? saleSource(oil, Number(oilUnits), availableCatalogIds, manualAllowed) : null;
+  const filterSaleSource = filter ? saleSource(filter, Number(filterUnits), availableCatalogIds, manualAllowed) : "NONE";
   const oilUnitRef = Number(oilPriceRef || 0);
   const filterUnitRef = filter ? Number(filterPriceRef || 0) : 0;
   const productRef = oilUnitRef * Number(oilUnits || 0) + filterUnitRef * Number(filterUnits || 0);
@@ -348,11 +350,12 @@ export default function OilChangePage() {
       <input className="input" value={oilSearch} onChange={e => setOilSearch(e.target.value)} placeholder="Buscar aceite por marca, viscosidad, nombre o SKU…" />
       <div className="stack directory-list">{visibleOils.slice(0, 8).map(i => <button className={`directory-option ${oilId === i.id ? "selected" : ""}`} key={i.id} onClick={() => chooseOil(i.id)}><strong>{i.brand} · {i.sku}</strong><span>{i.description} · {i.source === "INVENTORY" ? `stock registrado ${i.quantity_on_hand}` : "Catálogo · no descuenta stock"}</span></button>)}</div>
       <div className="muted small">{visibleOils.length > 8 ? "Mostrando 8 coincidencias. Escribe marca o viscosidad para afinar." : !visibleOils.length ? "No aparece. Puedes escribir el aceite usado abajo y continuar." : "Selecciona el aceite y confirma cantidad y precio abajo."}</div>
-      <button type="button" className="btn btn-ghost" onClick={() => { setManualOilName(oilSearch.trim()); setOilId("manual:oil"); setOilPriceRef(""); setViscosity(extractViscosity(oilSearch)); }}>+ Aceite nuevo o no sincronizado</button>
+      {manualAllowed && <button type="button" className="btn btn-ghost" onClick={() => { setManualOilName(oilSearch.trim()); setOilId("manual:oil"); setOilPriceRef(""); setViscosity(extractViscosity(oilSearch)); }}>+ Aceite nuevo o no sincronizado</button>}
       {oilId === "manual:oil" && <label><span className="label">Nombre exacto del aceite usado *</span><input className="input" value={manualOilName} onChange={e => setManualOilName(e.target.value)} placeholder="Ej. FANFARO 15W40 semisintético" autoFocus /></label>}
       {oil && <div className="success stack">
         <div className="row-between"><div><strong>{oil.sku} · {oil.brand}</strong><div className="small">{oil.catalog_product_name || oil.description} · {oil.source === "INVENTORY" ? `disponible ${oil.quantity_on_hand}` : "se venderá sin descontar inventario"}</div></div><div style={{ textAlign: "right" }}>{oil.current_ref_bcv != null ? <><strong>{fmtRef(oil.current_ref_bcv)}</strong><div className="small">{fmtVes(oil.current_price_ves ?? 0)} sugerido</div></> : <strong>Sin precio sugerido</strong>}</div></div>
       </div>}
+      {oil?.source === "INVENTORY" && oilSaleSource === "INVENTORY" && Number(oilUnits) > oil.quantity_on_hand && <div className="error">La cantidad supera el stock registrado ({oil.quantity_on_hand}). Corrige la cantidad o pide a un administrador que ajuste el inventario.</div>}
       {oil?.source === "INVENTORY" && oilSaleSource !== "INVENTORY" && <div className="card brand-card">La cantidad supera el stock registrado. Se añadirá el aceite real a esta orden sin descontar inventario ni crear existencia ficticia.</div>}
 
       <div className="grid grid-2">
@@ -368,12 +371,13 @@ export default function OilChangePage() {
       <input className="input" value={filterSearch} onChange={e => setFilterSearch(e.target.value)} placeholder="Buscar código, marca o nombre del filtro…" />
       <button className="btn btn-ghost" onClick={() => chooseFilter("")}>Sin filtro / cliente trae filtro</button>
       <div className="stack directory-list">{visibleFilters.slice(0, 8).map(i => <button className={`directory-option ${filterId === i.id ? "selected" : ""}`} key={i.id} onClick={() => chooseFilter(i.id)}><strong>{i.brand} · {i.sku}</strong><span>{i.description} · {i.source === "INVENTORY" ? `stock registrado ${i.quantity_on_hand}` : "Catálogo · no descuenta stock"}</span></button>)}</div>
-      <button type="button" className="btn btn-ghost" onClick={() => { setManualFilterName(filterSearch.trim()); setFilterId("manual:filter"); setFilterPriceRef(""); }}>+ Filtro nuevo o no sincronizado</button>
+      {manualAllowed && <button type="button" className="btn btn-ghost" onClick={() => { setManualFilterName(filterSearch.trim()); setFilterId("manual:filter"); setFilterPriceRef(""); }}>+ Filtro nuevo o no sincronizado</button>}
       {filterId === "manual:filter" && <label><span className="label">Nombre o código exacto del filtro *</span><input className="input" value={manualFilterName} onChange={e => setManualFilterName(e.target.value)} placeholder="Ej. Filtro W 712/52" autoFocus /></label>}
 
       {filter && <div className="success stack">
         <div className="row-between"><div><strong>{filter.sku} · {filter.brand}</strong><div className="small">{filter.description} · {filter.source === "INVENTORY" ? `disponible ${filter.quantity_on_hand}` : "se venderá sin descontar inventario"}</div></div><div style={{ textAlign: "right" }}>{filter.current_ref_bcv != null ? <><strong>{fmtRef(filter.current_ref_bcv)}</strong><div className="small">{fmtVes(filter.current_price_ves ?? 0)} sugerido</div></> : <strong>Sin precio sugerido</strong>}</div></div>
       </div>}
+      {filter?.source === "INVENTORY" && filterSaleSource === "INVENTORY" && Number(filterUnits) > filter.quantity_on_hand && <div className="error">La cantidad supera el stock registrado ({filter.quantity_on_hand}). Corrige la cantidad o pide a un administrador que ajuste el inventario.</div>}
       {filter?.source === "INVENTORY" && filterSaleSource !== "INVENTORY" && <div className="card brand-card">La cantidad supera el stock registrado. El filtro quedará en la orden sin descontar inventario.</div>}
 
       {filter && <div className="grid grid-2">

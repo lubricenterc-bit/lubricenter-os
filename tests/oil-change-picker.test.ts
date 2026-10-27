@@ -19,5 +19,8 @@ describe('Oil change product selection', () => {
     expect(saleSource(item({ product_id: null }), 1, new Set())).toBe('MANUAL');
     expect(saleSource(item({ quantity_on_hand: 1 }), 2, new Set(['catalog-oil']))).toBe('CATALOG');
     expect(saleSource(item({ quantity_on_hand: 2 }), 2, new Set(['catalog-oil']))).toBe('INVENTORY');
+    // Inventario estricto sin permiso de excepción: no hay salida por catálogo ni a mano
+    expect(saleSource(item(), 1, new Set(['catalog-oil']), false)).toBe('INVENTORY');
+    expect(saleSource(item({ product_id: null }), 1, new Set(), false)).toBe('INVENTORY');
   });
 });

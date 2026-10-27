@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { D } from "@/lib/finance/money";
 import { referenceError } from "@/lib/finance/money";
 import { supabase } from "@/lib/supabase";
+import { allowsManualSale, useInventorySalePolicy } from "@/lib/inventory-policy";
 import { fmtRef, fmtVes } from "@/lib/format";
 import { OsIcon } from "@/components/os-icon";
 import { QUOTE_HANDOFF_KEY, takeQuoteLines } from "@/lib/sales-quote";
@@ -41,6 +42,7 @@ const CASHEA_MIN_REF = 25;
 function normalize(value: string | null | undefined) { return (value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
 
 export function QuickSaleScreen() {
+  const manualAllowed = allowsManualSale(useInventorySalePolicy());
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement | null>(null);
   const quoteImported = useRef(false);
@@ -227,6 +229,7 @@ export function QuickSaleScreen() {
   }
   function addManual() {
     const description = manualDescription.trim(); const unitRef = Number(manualPrice); const quantity = Number(manualQty || 1);
+    if (!manualAllowed) return setError("Solo un administrador puede vender productos sin inventario.");
     if (!description) return setError("Escribe el producto manual.");
     if (!Number.isFinite(unitRef) || unitRef <= 0) return setError("Escribe un precio REF válido.");
     if (!Number.isFinite(quantity) || quantity <= 0) return setError("Escribe una cantidad válida.");
@@ -312,11 +315,11 @@ export function QuickSaleScreen() {
       <input ref={searchRef} className="input" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && results[0]) { e.preventDefault(); addResult(results[0]); } }} placeholder="Ej: Valvoline, 3387, 20W50, refrigerante…" autoFocus />
       {loading ? <div className="muted">Cargando precios…</div> : <div className="stack" style={{ maxHeight: 430, overflow: "auto" }}>
         {results.map(r => <button key={r.key} className="card directory-option" style={{ padding: 14, textAlign: "left" }} onClick={() => addResult(r)}><div className="row-between" style={{ gap: 12 }}><div style={{ minWidth: 0 }}><strong>{r.title}</strong><div className="muted small">{r.subtitle}</div><div className="muted small">{r.kind === "STOCK" ? `Stock físico: ${r.stock}` : "Sin stock confirmado · venta permitida"}</div></div><div style={{ textAlign: "right", flexShrink: 0 }}><div className="money-lg">{r.unit_ref > 0 ? fmtRef(r.unit_ref) : "Sin precio"}</div><div className="muted small">{r.unit_ves > 0 ? fmtVes(r.unit_ves) : "editable al agregar"}</div></div></div></button>)}
-        {!results.length && <div className="muted">No aparece en stock ni catálogo. Regístralo abajo como venta manual.</div>}
+        {!results.length && <div className="muted">{manualAllowed ? "No aparece en stock ni catálogo. Regístralo abajo como venta manual." : "No aparece en stock ni catálogo. Pide a un administrador que lo cargue en inventario."}</div>}
       </div>}
     </section>
 
-    <section className="card stack"><div><strong>Venta manual inmediata</strong><div className="muted small">Para productos que todavía no existen en catálogo. No descuenta inventario.</div></div><input className="input" value={manualDescription} onChange={e => setManualDescription(e.target.value)} placeholder="Descripción del producto" /><div className="grid grid-2"><input className="input" type="number" min="0" step="0.01" value={manualPrice} onChange={e => setManualPrice(e.target.value)} placeholder="Precio unitario REF" /><input className="input" type="number" min="0.01" step="0.01" value={manualQty} onChange={e => setManualQty(e.target.value)} placeholder="Cantidad" /></div><button className="btn" onClick={addManual}>+ Agregar manual</button></section>
+    {manualAllowed && <section className="card stack"><div><strong>Venta manual inmediata</strong><div className="muted small">Para productos que todavía no existen en catálogo. No descuenta inventario.</div></div><input className="input" value={manualDescription} onChange={e => setManualDescription(e.target.value)} placeholder="Descripción del producto" /><div className="grid grid-2"><input className="input" type="number" min="0" step="0.01" value={manualPrice} onChange={e => setManualPrice(e.target.value)} placeholder="Precio unitario REF" /><input className="input" type="number" min="0.01" step="0.01" value={manualQty} onChange={e => setManualQty(e.target.value)} placeholder="Cantidad" /></div><button className="btn" onClick={addManual}>+ Agregar manual</button></section>}
 
     <section className="card stack">
       <div className="row-between"><div><strong>2. Venta</strong><div className="muted small">Precio editable solo para esta venta; no cambia el catálogo.</div></div><span className="pill">{cart.length} líneas</span></div>
