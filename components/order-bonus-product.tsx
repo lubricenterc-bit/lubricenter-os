@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { inventorySearchText, matchesSearch } from "@/lib/domain/search";
 
 type InventoryRow = {
   id: string;
@@ -10,6 +11,7 @@ type InventoryRow = {
   description: string;
   category: string | null;
   quantity_on_hand: number;
+  alt_codes?: string[] | null;
 };
 
 export function OrderBonusProduct({ orderId }: { orderId: string }) {
@@ -25,7 +27,7 @@ export function OrderBonusProduct({ orderId }: { orderId: string }) {
   async function load() {
     const { data, error } = await supabase
       .from("inventory_current")
-      .select("id,sku,brand,description,category,quantity_on_hand")
+      .select("id,sku,brand,description,category,quantity_on_hand,alt_codes")
       .eq("location_code", "CABUDARE")
       .gt("quantity_on_hand", 0)
       .eq("needs_review", false)
@@ -40,7 +42,7 @@ export function OrderBonusProduct({ orderId }: { orderId: string }) {
   useEffect(() => { if (open && rows.length === 0) load(); }, [open]);
 
   const q = search.trim().toLowerCase();
-  const visible = useMemo(() => rows.filter(r => `${r.sku} ${r.brand ?? ""} ${r.description} ${r.category ?? ""}`.toLowerCase().includes(q)).slice(0, 80), [rows, q]);
+  const visible = useMemo(() => rows.filter(r => !q || matchesSearch(inventorySearchText(r), q)).slice(0, 80), [rows, q]);
   const selected = rows.find(r => r.id === selectedId) ?? null;
 
   async function addBonus() {

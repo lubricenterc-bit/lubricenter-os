@@ -1,5 +1,5 @@
 "use client";
-import { matchesSearch } from "@/lib/domain/search";
+import { inventorySearchText, matchesSearch } from "@/lib/domain/search";
 import { isOilCandidate, isOilFilter, saleSource } from "@/lib/domain/oil-change";
 
 import { useParams, useRouter } from "next/navigation";
@@ -108,7 +108,7 @@ export default function OilChangePage() {
     const [orderRes, ratesRes, invRes, catalogRes, syncRes, allVehiclesRes, ownerRes] = await Promise.all([
       supabase.from("orders").select("id,order_number,status,customer_id,vehicle_id,crm_additional_services,crm_bonuses,crm_observations").eq("id", orderId).single(),
       supabase.rpc("get_order_rates",{p_order_id:orderId}),
-      supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,needs_review").eq("location_code", "CABUDARE").order("sku").limit(1000),
+      supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,needs_review,alt_codes").eq("location_code", "CABUDARE").order("sku").limit(1000),
       supabase.from("product_catalog_current").select("id,name,category,filter_code,current_price_ves,current_ref_bcv").eq("available", true).eq("active", true).order("name").limit(1000),
       supabase.rpc("get_pricing_sync_status"),
       supabase.from("vehicles").select("id,customer_id,plate,make,model,year,current_odometer").order("plate").limit(2000),
@@ -204,12 +204,12 @@ export default function OilChangePage() {
 
   const visibleOils = useMemo(() => {
     const q = oilSearch.trim().toLowerCase();
-    return q ? inventory.filter(i => !i.needs_review && !isOilFilter(i) && matchesSearch(`${i.sku} ${i.brand ?? ""} ${i.description} ${i.catalog_product_name ?? ""} ${i.category ?? ""}`, q)) : oils;
+    return q ? inventory.filter(i => !i.needs_review && !isOilFilter(i) && matchesSearch(inventorySearchText(i), q)) : oils;
   }, [inventory, oils, oilSearch]);
 
   const visibleFilters = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
-    return q ? filters.filter(i => matchesSearch(`${i.sku} ${i.brand ?? ""} ${i.description} ${i.catalog_product_name ?? ""}`, q)) : filters;
+    return q ? filters.filter(i => matchesSearch(inventorySearchText(i), q)) : filters;
   }, [filters, filterSearch]);
 
   const oil = oilId === "manual:oil" ? manualItem(oilId, manualOilName, "Aceite manual") : inventory.find(i => i.id === oilId) ?? null;
