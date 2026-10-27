@@ -1,7 +1,7 @@
 "use client";
 import { OrderCasheaSheet } from "@/components/order-cashea-sheet";
 import { QuickTenderCheckout } from "@/components/quick-tender-checkout";
-import { matchesSearch } from "@/lib/domain/search";
+import { inventorySearchText, matchesSearch } from "@/lib/domain/search";
 
 import { businessInstant,caracasInput } from "@/lib/order-admin";
 import Link from "next/link";
@@ -18,7 +18,7 @@ import { QUOTE_HANDOFF_KEY, takeQuoteLines } from "@/lib/sales-quote";
 type InventoryProduct = {
   id: string; sku: string; brand: string | null; description: string; category: string | null;
   quantity_on_hand: number; product_id: string | null; catalog_product_name: string | null;
-  current_price_ves: number | null; current_ref_bcv: number | null;
+  current_price_ves: number | null; current_ref_bcv: number | null; alt_codes?: string[] | null;
 };
 type CatalogProduct = { id: string; name: string; category: string | null; filter_code: string | null; current_price_ves: number | null; current_ref_bcv: number | null };
 type SearchResult = { key: string; kind: "STOCK" | "CATALOG"; inventory_item_id?: string; product_id?: string; title: string; subtitle: string; stock?: number; unit_ref: number; unit_ves: number };
@@ -81,7 +81,7 @@ export function QuickSaleScreen() {
   async function load() {
     setLoading(true); setWarning("");
     const [invRes, catRes] = await Promise.all([
-      supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv").eq("location_code", "CABUDARE").gt("quantity_on_hand", 0).eq("needs_review", false).order("brand").order("sku").limit(1000),
+      supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,alt_codes").eq("location_code", "CABUDARE").gt("quantity_on_hand", 0).eq("needs_review", false).order("brand").order("sku").limit(1000),
       supabase.from("product_catalog_current").select("id,name,category,filter_code,current_price_ves,current_ref_bcv").eq("available", true).order("name").limit(1000),
     ]);
     const warnings: string[] = [];
@@ -216,7 +216,7 @@ export function QuickSaleScreen() {
   const positiveCatalogIds = useMemo(() => new Set(inventory.map(i => i.product_id).filter(Boolean) as string[]), [inventory]);
   const results = useMemo<SearchResult[]>(() => {
     const q = normalize(search.trim());
-    const stockResults = inventory.filter(i => !q || matchesSearch(`${i.sku} ${i.brand ?? ""} ${i.description} ${i.catalog_product_name ?? ""} ${i.category ?? ""}`, q)).map(i => ({ key: `STOCK:${i.id}`, kind: "STOCK" as const, inventory_item_id: i.id, product_id: i.product_id ?? undefined, title: [i.brand, i.sku].filter(Boolean).join(" · ") || i.sku, subtitle: i.description, stock: i.quantity_on_hand, unit_ref: Number(i.current_ref_bcv ?? 0), unit_ves: Number(i.current_price_ves ?? 0) }));
+    const stockResults = inventory.filter(i => !q || matchesSearch(inventorySearchText(i), q)).map(i => ({ key: `STOCK:${i.id}`, kind: "STOCK" as const, inventory_item_id: i.id, product_id: i.product_id ?? undefined, title: [i.brand, i.sku].filter(Boolean).join(" · ") || i.sku, subtitle: i.description, stock: i.quantity_on_hand, unit_ref: Number(i.current_ref_bcv ?? 0), unit_ves: Number(i.current_price_ves ?? 0) }));
     const catalogResults = catalog.filter(p => !positiveCatalogIds.has(p.id)).filter(p => !q || matchesSearch(`${p.name} ${p.category ?? ""} ${p.filter_code ?? ""}`, q)).map(p => ({ key: `CATALOG:${p.id}`, kind: "CATALOG" as const, product_id: p.id, title: p.name, subtitle: [p.category, p.filter_code ? `Código ${p.filter_code}` : null].filter(Boolean).join(" · ") || "Catálogo", unit_ref: Number(p.current_ref_bcv ?? 0), unit_ves: Number(p.current_price_ves ?? 0) }));
     return [...stockResults, ...catalogResults].slice(0, q ? 12 : 6);
   }, [inventory, catalog, positiveCatalogIds, search]);

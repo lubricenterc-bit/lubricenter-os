@@ -2,7 +2,7 @@
 import { TenderFields, type TenderDraft } from "@/components/tender-fields";
 import { OrderChangePanel } from "@/components/order-change-panel";
 import { OrderDateEditor } from "@/components/order-date-editor";
-import { matchesSearch } from "@/lib/domain/search";
+import { inventorySearchText, matchesSearch } from "@/lib/domain/search";
 
 import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
@@ -29,6 +29,7 @@ type InventoryProduct = {
   current_price_ves: number | null;
   current_ref_bcv: number | null;
   needs_review: boolean;
+  alt_codes?: string[] | null;
 };
 
 type CatalogProduct = {
@@ -133,7 +134,7 @@ export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) 
     setError("");
     try {
       const [{ data: inv, error: invError }, { data: cat, error: catError }, { data: r, error: re }] = await Promise.all([
-        supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,needs_review").eq("location_code", "CABUDARE").gt("quantity_on_hand", 0).eq("needs_review", false).order("category").order("brand").order("sku").limit(1000),
+        supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,needs_review,alt_codes").eq("location_code", "CABUDARE").gt("quantity_on_hand", 0).eq("needs_review", false).order("category").order("brand").order("sku").limit(1000),
         supabase.from("product_catalog_current").select("id,name,category,filter_code,available,cash_usd_base_price,current_price_ves,current_ref_bcv").eq("available", true).order("name").limit(1000),
         supabase.rpc("get_current_rates"),
       ]);
@@ -279,7 +280,7 @@ function paymentLabel(method: string) { return ({ MOBILE_PAYMENT: "Pago mÃ³vil Â
 function ProductSheet({ inventoryProducts, catalogProducts, rates, ensureOrder, onDone, onCancel }: { inventoryProducts: InventoryProduct[]; catalogProducts: CatalogProduct[]; rates: Rates; ensureOrder: () => Promise<string>; onDone: (id:string)=>void|Promise<void>; onCancel:()=>void; }) {
   const manualAllowed=allowsManualSale(useInventorySalePolicy());
   const [mode,setMode]=useState<"STOCK"|"CATALOG"|"MANUAL">("STOCK"); const [search,setSearch]=useState(""); const [selectedId,setSelectedId]=useState(""); const [qty,setQty]=useState(1); const [unitRef,setUnitRef]=useState(""); const [manualDescription,setManualDescription]=useState(""); const [error,setError]=useState(""); const [busy,setBusy]=useState(false);
-  const q=search.trim().toLowerCase(); const filteredInventory=inventoryProducts.filter(p=>matchesSearch(`${p.sku} ${p.brand??""} ${p.description} ${p.catalog_product_name??""} ${p.category??""}`, q)).slice(0,q ? 12 : 6); const filteredCatalog=catalogProducts.filter(p=>matchesSearch(`${p.filter_code??""} ${p.name} ${p.category??""}`, q)).slice(0,q ? 12 : 6);
+  const q=search.trim().toLowerCase(); const filteredInventory=inventoryProducts.filter(p=>matchesSearch(inventorySearchText(p), q)).slice(0,q ? 12 : 6); const filteredCatalog=catalogProducts.filter(p=>matchesSearch(`${p.filter_code??""} ${p.name} ${p.category??""}`, q)).slice(0,q ? 12 : 6);
   const selectedInventory=mode==="STOCK"?inventoryProducts.find(p=>p.id===selectedId)??null:null; const selectedCatalog=mode==="CATALOG"?catalogProducts.find(p=>p.id===selectedId)??null:null; const suggestedRef=selectedInventory?.current_ref_bcv??selectedCatalog?.current_ref_bcv??null; const effectiveUnitRef=unitRef===""?(suggestedRef??0):Number(unitRef);
   function switchMode(next:"STOCK"|"CATALOG"|"MANUAL"){setMode(next);setSelectedId("");setUnitRef("");setError("");if(next==="MANUAL"&&search.trim())setManualDescription(search.trim());}
   function chooseInventory(id:string){const p=inventoryProducts.find(x=>x.id===id);setSelectedId(id);setUnitRef(p?.current_ref_bcv!=null?Number(p.current_ref_bcv).toFixed(2):"");setError("");requestAnimationFrame(()=>document.getElementById("product-price")?.focus());}

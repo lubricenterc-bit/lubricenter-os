@@ -1,7 +1,7 @@
 name: Inventario único y modo estricto
 on:
   push:
-    branches: [feature/inventario-unico-conteo]
+    branches: [feature/inventario-unico-conteo, feature/inventario-codigos-busqueda]
   pull_request:
     paths:
       - 'lib/inventory-policy.ts'
@@ -12,6 +12,11 @@ on:
       - 'supabase/migrations/20261028120000_unified_inventory_strict_mode.sql'
       - 'supabase/migrations/20261028130000_inventory_sale_policy.sql'
       - 'tests/oil-change-picker.test.ts'
+      - 'tests/inventory-search.test.ts'
+      - 'lib/domain/search.ts'
+      - 'app/inventory/**'
+      - 'components/order-bonus-product.tsx'
+      - 'supabase/migrations/20261028140000_inventory_alt_codes.sql'
       - '.github/workflows/inventory-strict.yml'
 jobs:
   verify:
@@ -27,7 +32,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - run: npx vitest run tests/oil-change-picker.test.ts tests/order-sequence-inventory.test.ts tests/historical-rates.test.ts tests/cashea-split.test.ts
+      - run: npx vitest run tests/inventory-search.test.ts tests/oil-change-picker.test.ts tests/order-sequence-inventory.test.ts tests/historical-rates.test.ts tests/cashea-split.test.ts
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co

@@ -6,6 +6,7 @@ import { InventoryHistory } from "@/components/inventory-history";
 import { catalogIsFresh } from "@/lib/catalog";
 import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
+import { inventorySearchText, matchesSearch } from "@/lib/domain/search";
 
 type InventoryRow = {
   id: string;
@@ -25,6 +26,7 @@ type InventoryRow = {
   catalog_product_name: string | null;
   current_price_ves: number | null;
   current_ref_bcv: number | null;
+  alt_codes: string[];
 };
 
 type CatalogRow = {
@@ -73,6 +75,7 @@ export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("TODOS");
   const [stockOnly, setStockOnly] = useState(true);
+  const [missingPriceOnly, setMissingPriceOnly] = useState(false);
   const [adjusting, setAdjusting] = useState<InventoryRow | null>(null);
   const [newCount, setNewCount] = useState("");
   const [note, setNote] = useState("");
@@ -106,6 +109,7 @@ export default function InventoryPage() {
       sellable_quantity: Number(r.sellable_quantity ?? 0),
       current_price_ves: r.current_price_ves == null ? null : Number(r.current_price_ves),
       current_ref_bcv: r.current_ref_bcv == null ? null : Number(r.current_ref_bcv),
+      alt_codes: Array.isArray(r.alt_codes) ? r.alt_codes : [],
     })) as InventoryRow[]);
 
     setCatalog((catRes.data ?? []).map((r: any) => ({
@@ -139,14 +143,16 @@ export default function InventoryPage() {
   const categories = mode === "inventory" ? inventoryCategories : catalogCategories;
 
   const filteredInventory = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = search.trim();
     return rows.filter(r => {
       if (category !== "TODOS" && r.category !== category) return false;
-      if (stockOnly && r.quantity_on_hand <= 0) return false;
+      // Al buscar se muestran también los artículos en cero, para que no parezca que no existen.
+      if (stockOnly && !q && r.quantity_on_hand <= 0) return false;
+      if (missingPriceOnly && r.current_ref_bcv != null) return false;
       if (!q) return true;
-      return `${r.sku} ${r.brand ?? ""} ${r.description} ${r.category ?? ""} ${r.catalog_product_name ?? ""}`.toLowerCase().includes(q);
+      return matchesSearch(inventorySearchText(r), q);
     });
-  }, [rows, search, category, stockOnly]);
+  }, [rows, search, category, stockOnly, missingPriceOnly]);
 
   const filteredCatalog = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -210,7 +216,7 @@ export default function InventoryPage() {
         <span className={`pill ${pricingFresh ? "ok" : "warn"}`}>{pricingFresh ? "ACTUALIZADO" : "REVISAR"}</span>
       </div>
       <div className="grid grid-2">
-        <div><div className="muted small">CATÁLOGO</div><div>{catalog.length} disponibles · {formatSyncDate(sync?.catalogSyncedAt ?? null)}</div></div>
+        <div><div className="muted small">LISTA DE PRECIOS</div><div>{catalog.length} productos con precio · {formatSyncDate(sync?.catalogSyncedAt ?? null)}</div><div className="muted small">{rows.filter(r => r.quantity_on_hand > 0 && r.current_ref_bcv == null).length} artículos con existencia aún no tienen precio</div></div>
         <div><div className="muted small">TASAS</div><div>BCV {sync?.bcv.toLocaleString("es-VE", { maximumFractionDigits: 4 }) ?? "—"} · P2P {sync?.operative.toLocaleString("es-VE", { maximumFractionDigits: 4 }) ?? "—"}</div></div>
       </div>
     </section>
@@ -225,7 +231,7 @@ export default function InventoryPage() {
     </section>
 
     {mode === "inventory" && <section className="grid grid-3">
-      <div className="card"><div className="muted small">REFERENCIAS</div><div className="kpi">{rows.length}</div><div className="muted">{positiveRefs} con existencia</div></div>
+      <div className="card"><div className="muted small">CON EXISTENCIA</div><div className="kpi">{positiveRefs}</div><div className="muted">de {rows.length} referencias registradas</div></div>
       <div className="card"><div className="muted small">UNIDADES POSITIVAS</div><div className="kpi">{units.toLocaleString("es-VE")}</div><div className="muted">Stock actual</div></div>
       <div className="card"><div className="muted small">POR REVISAR</div><div className="kpi">{review}</div><div className="muted">Conteos o saldos dudosos</div></div>
     </section>}
@@ -245,6 +251,7 @@ export default function InventoryPage() {
         </select>
       </div>
       {mode === "inventory" && <label className="row"><input type="checkbox" checked={stockOnly} onChange={e => setStockOnly(e.target.checked)} /> <span>Mostrar solo productos con existencia</span></label>}
+      {mode === "inventory" && <label className="row"><input type="checkbox" checked={missingPriceOnly} onChange={e => setMissingPriceOnly(e.target.checked)} /> <span>Mostrar solo artículos sin precio en la lista</span></label>}
       <div className="muted small">{mode === "inventory" ? filteredInventory.length : filteredCatalog.length} referencias visibles</div>
     </section>
 
@@ -257,6 +264,7 @@ export default function InventoryPage() {
             <div className="row"><strong>{r.sku}</strong>{r.needs_review && <span className="pill warn">REVISAR</span>}</div>
             <div>{r.brand ? `${r.brand} · ` : ""}{r.description}</div>
             <div className="muted small">{r.category || "Sin rubro"}{r.catalog_product_name ? ` · ${r.catalog_product_name}` : ""}</div>
+            {r.alt_codes.length > 0 && <div className="muted small">También: {r.alt_codes.join(" · ")}</div>}
           </div>
           <div style={{ textAlign: "right" }}><div className="money-lg">{r.quantity_on_hand.toLocaleString("es-VE")}</div><div className="muted small">{r.unit}</div></div>
         </div>

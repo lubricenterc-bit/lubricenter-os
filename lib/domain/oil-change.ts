@@ -7,6 +7,7 @@ export type OilPickerItem = {
   catalog_product_name: string | null;
   product_id: string | null;
   quantity_on_hand: number;
+  alt_codes?: string[] | null;
 };
 
 const normalized = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
