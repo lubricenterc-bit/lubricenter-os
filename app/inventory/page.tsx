@@ -75,6 +75,7 @@ export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("TODOS");
   const [stockOnly, setStockOnly] = useState(true);
+  const [missingPriceOnly, setMissingPriceOnly] = useState(false);
   const [adjusting, setAdjusting] = useState<InventoryRow | null>(null);
   const [newCount, setNewCount] = useState("");
   const [note, setNote] = useState("");
@@ -147,10 +148,11 @@ export default function InventoryPage() {
       if (category !== "TODOS" && r.category !== category) return false;
       // Al buscar se muestran también los artículos en cero, para que no parezca que no existen.
       if (stockOnly && !q && r.quantity_on_hand <= 0) return false;
+      if (missingPriceOnly && r.current_ref_bcv != null) return false;
       if (!q) return true;
       return matchesSearch(inventorySearchText(r), q);
     });
-  }, [rows, search, category, stockOnly]);
+  }, [rows, search, category, stockOnly, missingPriceOnly]);
 
   const filteredCatalog = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -249,6 +251,7 @@ export default function InventoryPage() {
         </select>
       </div>
       {mode === "inventory" && <label className="row"><input type="checkbox" checked={stockOnly} onChange={e => setStockOnly(e.target.checked)} /> <span>Mostrar solo productos con existencia</span></label>}
+      {mode === "inventory" && <label className="row"><input type="checkbox" checked={missingPriceOnly} onChange={e => setMissingPriceOnly(e.target.checked)} /> <span>Mostrar solo artículos sin precio en la lista</span></label>}
       <div className="muted small">{mode === "inventory" ? filteredInventory.length : filteredCatalog.length} referencias visibles</div>
     </section>
 
