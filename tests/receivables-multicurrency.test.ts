@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currencyOf, debtMessage, payAllAmount, previewPayment, remaining } from "@/lib/finance/receivables";
+import { currencyOf, debtMessage, payAllAmount, previewPayment, remaining } from "../lib/finance/receivables";
 
 // OS-000327: 29 REF = 24,25 $ divisas; BCV del día 888,1183.
 const debt = { principal_ref: 29, principal_usd: 24.25, outstanding_fraction: 1 };
