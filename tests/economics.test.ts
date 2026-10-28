@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  casheaSurchargePercent, distributeCartAdjustment, previewAdjustments, restoreCartPrices, roundTarget,
+  type CartAdjustLine, casheaSurchargePercent, distributeCartAdjustment, previewAdjustments, restoreCartPrices, roundTarget,
 } from "../lib/domain/economics";
 
 describe("redondeo en $", () => {
@@ -36,7 +36,7 @@ describe("recargo Cashea", () => {
 });
 
 describe("venta rápida: reparto del ajuste", () => {
-  const cart = [
+  const cart: CartAdjustLine[] = [
     { key: "a", quantity: 4, unit_ref: 15 },   // 60
     { key: "b", quantity: 1, unit_ref: 5 },    // 5
   ];
