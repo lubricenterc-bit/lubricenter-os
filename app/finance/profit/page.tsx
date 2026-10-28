@@ -77,7 +77,7 @@ export default function ProfitPage() {
         <h1 style={{ marginBottom: 4 }}>Ganancias</h1>
         <div className="muted">Cuánto le quedó a Lubricenter, ítem por ítem. No resta gastos: el balance se hace aparte.</div>
       </div>
-      <Link className="btn btn-ghost" href="/finance">Resumen financiero</Link>
+      <div className="row" style={{ gap: 8 }}><Link className="btn btn-ghost" href="/finance/profit/review">Revisar ventas viejas</Link><Link className="btn btn-ghost" href="/finance">Resumen financiero</Link></div>
     </div>
 
     <section className="card stack">

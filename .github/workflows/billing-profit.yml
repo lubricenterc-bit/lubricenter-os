@@ -1,7 +1,7 @@
 name: Deudas multimoneda, facturación y ganancias
 on:
   push:
-    branches: ['feature/deudas-multimoneda', 'feature/ganancias-tienda-taller']
+    branches: ['feature/deudas-multimoneda', 'feature/ganancias-tienda-taller', 'feature/servicio-aceite-quien-atiende']
   pull_request:
     paths:
       - 'lib/finance/receivables.ts'
@@ -14,6 +14,10 @@ on:
       - 'components/billing-settings.tsx'
       - 'app/settings/**'
       - 'lib/navigation.ts'
+      - 'app/orders/**/oil-change/**'
+      - 'components/attendant-picker.tsx'
+      - 'components/mesa-home.tsx'
+      - 'supabase/migrations/20261028170000_oil_service_attendant_review.sql'
       - 'components/order-workspace.tsx'
       - 'components/quick-sale-screen.tsx'
       - 'tests/receivables-multicurrency.test.ts'
