@@ -316,6 +316,7 @@ export default function FinancePage() {
         <Link href="/finance/export" className="card brand-card"><strong>Exportar conciliación</strong><div className="muted small">Anexos individuales y pendientes de revisión.</div></Link>
         <Link href="/finance/bank-outflows" className="card brand-card"><strong>Egresos bancarios</strong><div className="muted small">Clasificar los débitos sin alterar ventas.</div></Link>
         <Link href="/cash" className="card brand-card"><strong>Caja y transferencias</strong><div className="muted small">Ver movimientos o traspasar entre Bs y divisas.</div></Link>
+        <Link href="/finance/profit" className="card"><strong>Ganancias</strong><div className="muted small">Tienda y taller por separado, ítem por ítem.</div></Link>
         <Link href="/receivables" className="card"><strong>Crédito LC</strong><div className="muted small">Consultar cobros pendientes por cliente.</div></Link>
         <Link href="/expenses" className="card"><strong>Proveedores y egresos</strong><div className="muted small">Compras, pagos y gastos.</div></Link>
       </section>

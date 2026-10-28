@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { FinanceNotifications } from '@/components/finance-notifications';
 import { DailyRateHistory } from '@/components/daily-rate-history';
+import { BillingSettings } from '@/components/billing-settings';
 
 const DEFAULT_POST_SERVICE_TEMPLATE = `Hola *{{nombre}}*! 👋
 
@@ -149,6 +150,7 @@ export default function SettingsPage() {
     <div><h1 style={{ marginBottom: 4 }}>Configuración</h1><div className="muted">Catálogo de productos, tasas y reglas de operación.</div></div>
     {error && <div className="error">{error}</div>}{message && <div className="success">{message}</div>}
 
+    <BillingSettings />
     <FinanceNotifications />
     <DailyRateHistory />
     <section className="card stack">

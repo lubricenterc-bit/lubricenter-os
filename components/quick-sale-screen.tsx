@@ -14,6 +14,8 @@ import { allowsManualSale, useInventorySalePolicy } from "@/lib/inventory-policy
 import { fmtRef, fmtVes } from "@/lib/format";
 import { OsIcon } from "@/components/os-icon";
 import { QUOTE_HANDOFF_KEY, takeQuoteLines } from "@/lib/sales-quote";
+import { AdjustmentControls, NO_ADJUSTMENT, useDiscountLimit, type AdjustmentState } from "@/components/checkout-adjustments";
+import { distributeCartAdjustment, previewAdjustments } from "@/lib/domain/economics";
 
 type InventoryProduct = {
   id: string; sku: string; brand: string | null; description: string; category: string | null;
@@ -238,13 +240,31 @@ export function QuickSaleScreen() {
   }
   function updateLine(key: string, patch: Partial<CartLine>) { setCart(lines => lines.map(line => line.key === key ? { ...line, ...patch } : line)); }
 
-  const totalRef = useMemo(() => cart.reduce((sum, line) => sum + line.quantity * Math.max(0, Number(line.unit_ref || 0)), 0), [cart]);
-  const totalVes = useMemo(() => cart.reduce((sum, line) => sum + Number(new D(line.unit_ref || 0).mul(rates.bcv).toDecimalPlaces(2).mul(line.quantity).toDecimalPlaces(2)), 0), [cart, rates.bcv]);
+  const [adjust, setAdjust] = useState<AdjustmentState>(NO_ADJUSTMENT);
+  const [adjustError, setAdjustError] = useState("");
+  const discountLimit = useDiscountLimit();
+  const listTotalRef = useMemo(() => cart.reduce((sum, line) => sum + line.quantity * Math.max(0, Number(line.unit_ref || 0)), 0), [cart]);
+  // El descuento y el redondeo se reparten sobre el carrito al cobrar; el carrito guarda los precios de lista.
+  const pricedCart = useMemo(() => {
+    if (!cart.length || (adjust.mode === "NONE" && adjust.discountPercent === 0)) return cart;
+    return distributeCartAdjustment(cart, previewAdjustments(listTotalRef, adjust.discountPercent, adjust.mode).total);
+  }, [cart, adjust, listTotalRef]);
+  async function applyCartAdjustment(next: AdjustmentState, pin: string | null) {
+    setAdjustError("");
+    if (pin) {
+      const { data, error } = await supabase.rpc("verify_owner_pin", { p_pin: pin });
+      if (error) return setAdjustError(error.message);
+      if (data !== true) return setAdjustError("El PIN del dueño no coincide.");
+    }
+    setAdjust(next);
+  }
+  const totalRef = useMemo(() => pricedCart.reduce((sum, line) => sum + line.quantity * Math.max(0, Number(line.unit_ref || 0)), 0), [pricedCart]);
+  const totalVes = useMemo(() => pricedCart.reduce((sum, line) => sum + Number(new D(line.unit_ref || 0).mul(rates.bcv).toDecimalPlaces(2).mul(line.quantity).toDecimalPlaces(2)), 0), [pricedCart, rates.bcv]);
   const cashUsd = rates.operative > 0 ? totalVes / rates.operative : 0;
   const cartValid = !recovering && !ratesLoading && rates.bcv>0 && rates.operative>0 && cart.length > 0 && cart.every(x => Number.isFinite(x.quantity) && x.quantity > 0 && Number.isFinite(Number(x.unit_ref)) && Number(x.unit_ref) > 0 && (x.kind !== "STOCK" || x.stock == null || x.quantity <= x.stock));
 
-  function payload(): QuickPayloadLine[] { return cart.map(line => ({ kind: line.kind, inventory_item_id: line.inventory_item_id ?? null, product_id: line.product_id ?? null, description: line.description, quantity: line.quantity, unit_ref: Number(line.unit_ref) })); }
-  function resetAfterSale() { directRequest.current=null;prepareRequest.current=null;sessionStorage.removeItem("lubricenter:quick-direct-request");sessionStorage.removeItem("lubricenter:quick-prepare-request");sessionStorage.removeItem("lubricenter:quick-cart"); setQuoteFlow(null);setQuoteTransferNotice("");setSaleDate("");setReceived(false); setCart([]); setReference(""); setSearch(""); setCheckoutMode("DIRECT"); setSelectedPayment("TRANSFER_BDV"); }
+  function payload(): QuickPayloadLine[] { return pricedCart.map(line => ({ kind: line.kind, inventory_item_id: line.inventory_item_id ?? null, product_id: line.product_id ?? null, description: line.description, quantity: line.quantity, unit_ref: Number(line.unit_ref) })); }
+  function resetAfterSale() { setAdjust(NO_ADJUSTMENT); directRequest.current=null;prepareRequest.current=null;sessionStorage.removeItem("lubricenter:quick-direct-request");sessionStorage.removeItem("lubricenter:quick-prepare-request");sessionStorage.removeItem("lubricenter:quick-cart"); setQuoteFlow(null);setQuoteTransferNotice("");setSaleDate("");setReceived(false); setCart([]); setReference(""); setSearch(""); setCheckoutMode("DIRECT"); setSelectedPayment("TRANSFER_BDV"); }
 
   async function completeDirect() {
     if (!cartValid || submitLock.current) return;
@@ -330,6 +350,8 @@ export function QuickSaleScreen() {
     </div>
     <section id="quick-sale-checkout" className="card stack mesa-sale-checkout" style={{ borderColor: cart.length ? "rgba(255,93,21,.42)" : undefined, scrollMarginTop: 80 }}>
       <div><div className="eyebrow">3. FINALIZAR VENTA</div><h2 style={{ margin: "4px 0 0" }}>Registrar y cobrar</h2></div>
+      {cart.length > 0 && <AdjustmentControls subtotal={listTotalRef} current={adjust} limit={discountLimit} disabled={busy} onApply={applyCartAdjustment} />}
+      {adjustError && <div className="error" role="alert">{adjustError}</div>}
       <div className="row-between"><div><div className="muted small">TOTAL A COBRAR</div><div className="money-lg">{fmtRef(totalRef)}</div></div><div style={{ textAlign: "right" }}><strong>{fmtVes(totalVes)}</strong><div className="muted small">USD físico aprox. {cashUsd.toFixed(2)}</div></div></div>
       <div className="segmented"><button type="button" className={`btn ${checkoutMode === "DIRECT" ? "btn-primary" : "btn-ghost"}`} onClick={() => setCheckoutMode("DIRECT")}>Cobro directo</button><button type="button" className={`btn ${checkoutMode === "CASHEA" ? "btn-primary" : "btn-ghost"}`} onClick={() => setCheckoutMode("CASHEA")}>Cashea tradicional</button></div>
 

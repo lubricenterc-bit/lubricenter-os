@@ -5,7 +5,7 @@ import { casheaPaymentPreview, newCasheaSplitLine, type CasheaSplitLine } from "
 import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
 
-export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone, onCancel }: {
+export function OrderCasheaSheet({ orderId, totalRef: initialTotalRef, totalVes: initialTotalVes, paidVes, onDone, onCancel }: {
   orderId: string; totalRef: number; totalVes: number; paidVes: number;
   onDone: () => Promise<void>; onCancel: () => void;
 }) {
@@ -23,6 +23,38 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
   const [busy, setBusy] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState("");
+  // Recargo Cashea: se agrega solo sobre la mano de obra de taller/electroauto y se recalcula con la inicial.
+  const [totalRef, setTotalRef] = useState(initialTotalRef);
+  const [totalVes, setTotalVes] = useState(initialTotalVes);
+  const [surcharge, setSurcharge] = useState<{ percent: number; ref: number } | null>(null);
+  const [surchargeBusy, setSurchargeBusy] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
+  useEffect(() => {
+    const value = Number(percent);
+    if (!Number.isFinite(value) || value <= 0 || value > 100) return;
+    let active = true;
+    setSurchargeBusy(true);
+    const timer = window.setTimeout(async () => {
+      const { data, error } = await supabase.rpc("set_cashea_surcharge", { p_order_id: orderId, p_initial_percent: value });
+      if (!active) return;
+      setSurchargeBusy(false);
+      if (error) { setError(error.message); return; }
+      const row = Array.isArray(data) ? data[0] : data;
+      setTotalRef(Number(row?.total_ref ?? initialTotalRef));
+      setTotalVes(Number(row?.total_ves ?? initialTotalVes));
+      setSurcharge(Number(row?.surcharge_ref ?? 0) > 0 ? { percent: Number(row.surcharge_percent), ref: Number(row.surcharge_ref) } : null);
+      setConfirmed(false);
+    }, 350);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [orderId, percent]);
+  async function goBack() {
+    if (cancelling) return;
+    setCancelling(true);
+    const { error } = await supabase.rpc("set_cashea_surcharge", { p_order_id: orderId, p_initial_percent: null });
+    setCancelling(false);
+    if (error) return setError(`No se pudo quitar el recargo Cashea: ${error.message}`);
+    onCancel();
+  }
   useEffect(() => {
     let active = true;
     supabase.from("orders").select("order_number").eq("id",orderId).single().then(({data})=>{if(active)setOrderNumber(data?.order_number||"");});
@@ -43,7 +75,7 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
   const extraVes = Math.max(Math.round((initialVes - paidVes) * 100) / 100, 0);
   const financed = Math.max(totalRef - initialRef, 0);
   const splitPreview = casheaPaymentPreview(splits, extraVes, bcv);
-  const valid = !loading && bcv > 0 && totalRef >= minimum && Number.isFinite(pct) && pct > 0 && pct <= 100 && paidVes <= initialVes + .01 && splitPreview.valid;
+  const valid = !loading && !surchargeBusy && bcv > 0 && totalRef >= minimum && Number.isFinite(pct) && pct > 0 && pct <= 100 && paidVes <= initialVes + .01 && splitPreview.valid;
   async function save() {
     if (!valid || !confirmed || saving.current) return;
     if (!/^\d{1,32}$/.test(casheaReference.trim())) return setError("Escribe el número de orden Cashea.");
@@ -63,18 +95,19 @@ export function OrderCasheaSheet({ orderId, totalRef, totalVes, paidVes, onDone,
     finally {saving.current=false; setBusy(false); }
   }
   return <div className="overlay"><div className="sheet stack" role="dialog" aria-modal="true" aria-labelledby="cashea-title">
-    <div className="row-between"><h2 id="cashea-title">Cobrar con Cashea</h2><button className="btn btn-ghost" disabled={busy} onClick={onCancel}>Volver</button></div>
+    <div className="row-between"><h2 id="cashea-title">Cobrar con Cashea</h2><button className="btn btn-ghost" disabled={busy || cancelling} onClick={() => void goBack()}>{cancelling ? "Quitando recargo…" : "Volver"}</button></div>
     <div className="success"><strong>Número Lubricenter OS: {orderNumber||"Cargando…"}</strong><div>Usa este número para procesar la compra en Cashea antes de recibir la inicial.</div></div>
     <p className="muted">La inicial puede llegar en varios pagos: BDV, BNC, efectivo, Zelle o Binance. Cada movimiento quedará en su cuenta; las cuotas de Cashea se controlan aparte.</p>
     {loading ? <div role="status">Cargando tasas y condiciones…</div> : <>
-      <div className="row-between"><strong>Total de la orden</strong><strong>{fmtRef(totalRef)}</strong></div>
+      <div className="row-between"><strong>Total a procesar en Cashea</strong><strong>{surchargeBusy ? "Calculando…" : fmtRef(totalRef)}</strong></div>
+      {surcharge && <div className="card"><strong>Incluye recargo Cashea {surcharge.percent.toLocaleString("es-VE", { maximumFractionDigits: 2 })}% · {fmtRef(surcharge.ref)}</strong><div className="muted small">Solo sobre la mano de obra de taller. Cubre la comisión y el tiempo de espera de las cuotas; es de Lubricenter y no cambia lo de Cheo. Si vuelves atrás, el recargo se quita.</div></div>}
       <fieldset disabled={busy} className="form-fields stack">
         <div className="grid grid-3">{[40,50,60].map(n => <button key={n} className={`btn ${pct === n ? "btn-primary" : ""}`} onClick={() => { setPercent(String(n)); setConfirmed(false); setError(""); }}>{n}% inicial</button>)}</div>
         <label>Inicial personalizada (%)<input className="input" type="number" min="0.01" max="100" step="0.01" value={percent} onChange={e => { setPercent(e.target.value); setConfirmed(false); setError(""); }} /></label>
         <div className="card stack"><div className="row-between"><span>Inicial total</span><strong>{fmtRef(initialRef)} · {fmtVes(initialVes)}</strong></div><div className="row-between"><span>Pagos ya registrados</span><strong>{fmtVes(paidVes)}</strong></div><div className="row-between"><strong>Recibir ahora</strong><strong>{fmtVes(extraVes)}</strong></div></div>
         <CasheaSplitEditor lines={splits} onChange={updateSplits} requiredVes={extraVes} bcv={bcv} previouslyPaidVes={paidVes} disabled={busy}/>
         <label>Número de orden Cashea · obligatorio<input className="input" value={casheaReference} onChange={e => {setCasheaReference(e.target.value);setError("");setConfirmed(false);}} /></label>
-        <div className="card stack"><div>Por recibir de Cashea: <strong>{fmtRef(financed)}</strong></div><div>3 cuotas de aproximadamente {fmtRef(financed / 3)} · a 14, 28 y 42 días.</div><div>Comisión {commission}%: {fmtRef(totalRef * commission / 100)}. No aumenta el cobro al cliente.</div></div>
+        <div className="card stack"><div>Por recibir de Cashea: <strong>{fmtRef(financed)}</strong></div><div>3 cuotas de aproximadamente {fmtRef(financed / 3)} · a 14, 28 y 42 días.</div><div>Comisión {commission}%: {fmtRef(totalRef * commission / 100)}.</div></div>
         <label className="row"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />Confirmo que verifiqué los cobros en sus bancos o cajas, y que la compra figura aprobada en Cashea.</label>
       </fieldset>
       {totalRef < minimum && <div className="error">El mínimo configurado es {fmtRef(minimum)}.</div>}
