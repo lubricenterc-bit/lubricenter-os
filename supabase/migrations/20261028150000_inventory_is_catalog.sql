@@ -193,7 +193,7 @@ begin
 
   perform 1 from public.inventory_items where id=v_item.id for update;
   v_stock := public.inventory_quantity(v_item.id,v_location);
-  if v_stock < p_quantity then raise exception 'Stock insuficiente para %: disponible %, solicitado %', v_item.sku, v_stock, p_quantity; end if;
+  if v_stock < p_quantity then raise exception 'Stock insuficiente para %: el sistema tiene %, pediste %. Si llegó mercancía nueva, cárgala primero en Inventario (Ajustar conteo) y vuelve a cobrar.', v_item.sku, v_stock, p_quantity; end if;
 
   select bcv_rate,operative_rate into v_bcv,v_op from public.get_order_rates(p_order_id);
   if v_bcv is null or v_op is null then raise exception 'Debes registrar tasa BCV y operativa antes de vender'; end if;
