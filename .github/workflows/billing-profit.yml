@@ -1,0 +1,37 @@
+name: Deudas multimoneda, facturación y ganancias
+on:
+  push:
+    branches: ['feature/deudas-multimoneda', 'feature/ganancias-tienda-taller']
+  pull_request:
+    paths:
+      - 'lib/finance/receivables.ts'
+      - 'lib/domain/economics.ts'
+      - 'app/receivables/**'
+      - 'app/finance/profit/**'
+      - 'components/checkout-adjustments.tsx'
+      - 'components/order-workspace.tsx'
+      - 'components/quick-sale-screen.tsx'
+      - 'tests/receivables-multicurrency.test.ts'
+      - 'tests/economics.test.ts'
+      - 'supabase/migrations/20261028150000_receivables_multicurrency.sql'
+      - 'supabase/migrations/20261028160000_line_roles_profit.sql'
+      - '.github/workflows/billing-profit.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/receivables-multicurrency.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
