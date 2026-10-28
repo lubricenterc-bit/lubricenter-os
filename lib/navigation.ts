@@ -46,6 +46,7 @@ export const NAV_MODULES: readonly NavModule[] = [
   ] },
   { id: "finance", label: "Finanzas", icon: "finance", defaultHref: "/cash-close", links: [
     { href: "/finance", label: "Resumen financiero", description: "Ventas, cobros y obligaciones", ownerOnly: true },
+    { href: "/finance/profit", label: "Ganancias", description: "Cuánto ganó la tienda y cuánto el taller", ownerOnly: true, keywords: "utilidad margen ganancia tienda taller" },
     { href: "/cash-close", label: "Cierre diario", description: "Conteo físico, historial y correcciones", keywords: "arqueo cuadre" },
     { href: "/cash", label: "Caja y movimientos", description: "Cuentas, salidas y transferencias", keywords: "gastos egresos" },
     { href: "/finance/reconcile", label: "Conciliación semanal", description: "Banco y control del período", ownerOnly: true, keywords: "BDV" },
