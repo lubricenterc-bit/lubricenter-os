@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AttendantPicker } from "@/components/attendant-picker";
 import { OsIcon, type OsIconName } from "@/components/os-icon";
 import { fmtRef, fmtVes } from "@/lib/format";
 
@@ -38,6 +39,20 @@ export function MesaHome({ data, owner, locationName, loading, error, onRefresh,
       <div><span className="mesa-home-kicker">TU MESA DE TRABAJO / {locationName}</span><p>{date}</p></div>
       <button className="mesa-home-refresh" onClick={onRefresh} disabled={loading}><OsIcon name="refresh" size={16}/>{loading ? "Actualizando…" : "Actualizar"}</button>
     </header>
+    <section className="card stack" aria-labelledby="mesa-home-start-title" style={{ marginBottom: 16 }}>
+      <div className="row-between" style={{ flexWrap: "wrap", gap: 8 }}><h2 id="mesa-home-start-title" style={{ margin: 0 }}>¿Qué vas a registrar?</h2><AttendantPicker /></div>
+      <div className="grid grid-2" style={{ gap: 10 }}>
+        {([
+          ["/orders/new?start=oil", "car", "Cambio de aceite", "Cliente, vehículo, aceite y filtro"],
+          ["/orders/new?start=workshop", "workshop", "Trabajo de taller", "Mano de obra de Cheo, por cotización"],
+          ["/orders/new?start=electro", "workshop", "Electroauto", "Trabajos de Alexis, por cotización"],
+          ["/quick-sale", "sale", "Venta de mostrador", "Productos sin vehículo"],
+        ] as [string, OsIconName, string, string][]).map(([href, icon, title, note]) =>
+          <Link key={href} href={href} onClick={go(href)} className="btn" style={{ minHeight: 72, justifyContent: "flex-start", gap: 12, textAlign: "left" }}>
+            <OsIcon name={icon} size={26}/><span><strong style={{ display: "block" }}>{title}</strong><small className="muted">{note}</small></span>
+          </Link>)}
+      </div>
+    </section>
     {error && <div className="error" role="alert">No fue posible cargar el resumen: {error} <button className="btn btn-ghost" onClick={onRefresh}>Reintentar</button></div>}
     <div className="mesa-home-desk">
       <section className="mesa-home-document" aria-labelledby="mesa-home-quote-title">

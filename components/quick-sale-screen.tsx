@@ -16,6 +16,7 @@ import { OsIcon } from "@/components/os-icon";
 import { QUOTE_HANDOFF_KEY, takeQuoteLines } from "@/lib/sales-quote";
 import { AdjustmentControls, NO_ADJUSTMENT, useDiscountLimit, type AdjustmentState } from "@/components/checkout-adjustments";
 import { distributeCartAdjustment, previewAdjustments } from "@/lib/domain/economics";
+import { AttendantPicker, stampAttendant } from "@/components/attendant-picker";
 
 type InventoryProduct = {
   id: string; sku: string; brand: string | null; description: string; category: string | null;
@@ -78,6 +79,9 @@ export function QuickSaleScreen() {
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
   const [completed, setCompleted] = useState<CompletedSale | null>(null);
+  // Cada venta guarda quién la atendió.
+  useEffect(() => { if (completed?.order_id) void stampAttendant(completed.order_id); }, [completed?.order_id]);
+  useEffect(() => { if (prepared?.order_id) void stampAttendant(prepared.order_id); }, [prepared?.order_id]);
   const [partialCreditOpen, setPartialCreditOpen] = useState(false);
 
   async function load() {
@@ -297,6 +301,7 @@ export function QuickSaleScreen() {
 
   return <main className="container stack mesa-quick-sale"><fieldset disabled={busy} style={{display:"contents"}}>
     <section className="mesa-sale-hero"><div><div className="eyebrow">02 / VENTA RÁPIDA · MOSTRADOR</div><h1>Vender<span>.</span></h1><p>Cotiza sin crear una orden. Para Cashea, guarda primero la orden pendiente y usa su número antes de cobrar.</p></div><span className="mesa-sale-signature" aria-hidden="true">RÁPIDO<br/>SENCILLO<br/>PARA TU<br/>TALLER<span>↗</span></span></section>
+    <AttendantPicker />
     <div className="row-between"><span className="muted small">Venta directa o Cashea tradicional desde el mismo carrito.</span><div className="row"><Link className="btn btn-ghost" href="/quote"><OsIcon name="receipt" size={16}/> Cotizar productos</Link><Link className="btn btn-ghost" href="/cashea">Seguimiento Cashea</Link></div></div>
     {error && <div className="error" role="alert">{error}</div>}
     {quoteFlow && <section className="card stack" style={{borderColor:"rgba(255,128,47,.72)",background:"rgba(255,128,47,.08)"}}>

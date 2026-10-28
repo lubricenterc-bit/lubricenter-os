@@ -302,7 +302,7 @@ end $$;
 -- ── 5 · Revisión histórica de líneas ───────────────────────────────────────
 create or replace function public.profit_review_candidates()
 returns table(order_item_id uuid, order_id uuid, order_number text, business_at timestamptz,
-  description text, charged_ref numeric, current_role text, suggested_role text, reason text)
+  description text, charged_ref numeric, role_now text, suggested_role text, reason text)
 language plpgsql stable security definer set search_path to 'public' as $$
 begin
   perform public.require_auth();
