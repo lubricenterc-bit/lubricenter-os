@@ -212,6 +212,14 @@ export default function OilChangePage() {
     return q ? filters.filter(i => matchesSearch(inventorySearchText(i), q)) : filters;
   }, [filters, filterSearch]);
 
+  // Si lo que se escribe a mano ya existe en inventario con existencia, avisar para no venderlo sin descontar.
+  const inStockMatches = (text: string, pool: InventoryItem[]) => {
+    const q = text.trim();
+    if (q.length < 3) return [];
+    return pool.filter(i => i.source === "INVENTORY" && i.quantity_on_hand > 0 && matchesSearch(inventorySearchText(i), q)).slice(0, 3);
+  };
+  const manualOilMatches = oilId === "manual:oil" ? inStockMatches(manualOilName, oils) : [];
+  const manualFilterMatches = filterId === "manual:filter" ? inStockMatches(manualFilterName, filters) : [];
   const oil = oilId === "manual:oil" ? manualItem(oilId, manualOilName, "Aceite manual") : inventory.find(i => i.id === oilId) ?? null;
   const filter = filterId === "manual:filter" ? manualItem(filterId, manualFilterName, "Filtro manual") : inventory.find(i => i.id === filterId) ?? null;
   const oilSaleSource = oil ? saleSource(oil, Number(oilUnits), availableCatalogIds, manualAllowed) : null;
@@ -352,6 +360,7 @@ export default function OilChangePage() {
       <div className="muted small">{visibleOils.length > 8 ? "Mostrando 8 coincidencias. Escribe marca o viscosidad para afinar." : !visibleOils.length ? "No aparece. Puedes escribir el aceite usado abajo y continuar." : "Selecciona el aceite y confirma cantidad y precio abajo."}</div>
       {manualAllowed && <button type="button" className="btn btn-ghost" onClick={() => { setManualOilName(oilSearch.trim()); setOilId("manual:oil"); setOilPriceRef(""); setViscosity(extractViscosity(oilSearch)); }}>+ Aceite nuevo o no sincronizado</button>}
       {oilId === "manual:oil" && <label><span className="label">Nombre exacto del aceite usado *</span><input className="input" value={manualOilName} onChange={e => setManualOilName(e.target.value)} placeholder="Ej. FANFARO 15W40 semisintético" autoFocus /></label>}
+      {manualOilMatches.length > 0 && <div className="card brand-card stack"><strong>Este producto está en inventario.</strong><div className="small">Selecciónalo para que se descuente al cobrar:</div>{manualOilMatches.map(i => <button type="button" key={i.id} className="btn btn-ghost" onClick={() => chooseOil(i.id)}>{i.sku} · {i.catalog_product_name || i.description} · disponible {i.quantity_on_hand}</button>)}</div>}
       {oil && <div className="success stack">
         <div className="row-between"><div><strong>{oil.sku} · {oil.brand}</strong><div className="small">{oil.catalog_product_name || oil.description} · {oil.source === "INVENTORY" ? `disponible ${oil.quantity_on_hand}` : "se venderá sin descontar inventario"}</div></div><div style={{ textAlign: "right" }}>{oil.current_ref_bcv != null ? <><strong>{fmtRef(oil.current_ref_bcv)}</strong><div className="small">{fmtVes(oil.current_price_ves ?? 0)} sugerido</div></> : <strong>Sin precio sugerido</strong>}</div></div>
       </div>}
@@ -373,6 +382,7 @@ export default function OilChangePage() {
       <div className="stack directory-list">{visibleFilters.slice(0, 8).map(i => <button className={`directory-option ${filterId === i.id ? "selected" : ""}`} key={i.id} onClick={() => chooseFilter(i.id)}><strong>{i.brand} · {i.sku}</strong><span>{i.description} · {i.source === "INVENTORY" ? `stock registrado ${i.quantity_on_hand}` : "Catálogo · no descuenta stock"}</span></button>)}</div>
       {manualAllowed && <button type="button" className="btn btn-ghost" onClick={() => { setManualFilterName(filterSearch.trim()); setFilterId("manual:filter"); setFilterPriceRef(""); }}>+ Filtro nuevo o no sincronizado</button>}
       {filterId === "manual:filter" && <label><span className="label">Nombre o código exacto del filtro *</span><input className="input" value={manualFilterName} onChange={e => setManualFilterName(e.target.value)} placeholder="Ej. Filtro W 712/52" autoFocus /></label>}
+      {manualFilterMatches.length > 0 && <div className="card brand-card stack"><strong>Este producto está en inventario.</strong><div className="small">Selecciónalo para que se descuente al cobrar:</div>{manualFilterMatches.map(i => <button type="button" key={i.id} className="btn btn-ghost" onClick={() => chooseFilter(i.id)}>{i.sku} · {i.catalog_product_name || i.description} · disponible {i.quantity_on_hand}</button>)}</div>}
 
       {filter && <div className="success stack">
         <div className="row-between"><div><strong>{filter.sku} · {filter.brand}</strong><div className="small">{filter.description} · {filter.source === "INVENTORY" ? `disponible ${filter.quantity_on_hand}` : "se venderá sin descontar inventario"}</div></div><div style={{ textAlign: "right" }}>{filter.current_ref_bcv != null ? <><strong>{fmtRef(filter.current_ref_bcv)}</strong><div className="small">{fmtVes(filter.current_price_ves ?? 0)} sugerido</div></> : <strong>Sin precio sugerido</strong>}</div></div>
