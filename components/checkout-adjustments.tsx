@@ -128,7 +128,9 @@ export function OrderAdjustments({ orderId, subtotal, current, casheaSurcharge, 
     });
     setBusy(false);
     if (error) return setError(error.message);
-    const total = Number((data as { total_ref?: number } | null)?.total_ref ?? 0);
+    const result = data as { total_ref?: number; error?: string } | null;
+    if (result?.error) return setError(result.error);
+    const total = Number(result?.total_ref ?? 0);
     await onChanged(next.mode === "NONE" && next.discountPercent === 0 ? "Ajustes quitados." : `Total ajustado a ${fmtRef(total)}.`);
   }
   return <section className="card stack">
