@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-// La lista de precios separada se retiró: los artículos, nombres y precios se administran en Inventario.
-export default function ManageCatalog() {
+// El catálogo y el inventario son una sola fuente: todo se edita en Inventario.
+export default function Page() {
   redirect("/inventory");
 }
