@@ -177,7 +177,7 @@ export function quoteAllOils(catalog: CatalogProduct[], request: QuoteRequest): 
 
 export function normalizeQuoteFilterProducts(catalog: CatalogProduct[]): CatalogProduct[] {
   return catalog.filter(product => product.available && product.active
-    && normalizeName(product.category || "").includes("FILTRO DE ACEITE")
+    && /\bFILTRO\s+(?:DE\s+)?ACEITE\b/.test(normalizeName(product.category || ""))
     && catalogHasAllPrices(product))
     .sort((a,b) => a.name.localeCompare(b.name, "es-VE"));
 }

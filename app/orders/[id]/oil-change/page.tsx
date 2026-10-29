@@ -112,11 +112,10 @@ export default function OilChangePage() {
     setLoading(true);
     setError("");
     setWarning("");
-    const [orderRes, ratesRes, invRes, catalogRes, syncRes, allVehiclesRes, ownerRes] = await Promise.all([
+    const [orderRes, ratesRes, invRes, syncRes, allVehiclesRes, ownerRes] = await Promise.all([
       supabase.from("orders").select("id,order_number,status,customer_id,vehicle_id,crm_additional_services,crm_bonuses,crm_observations").eq("id", orderId).single(),
       supabase.rpc("get_order_rates",{p_order_id:orderId}),
       supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,needs_review,alt_codes").eq("location_code", "CABUDARE").order("sku").limit(1000),
-      supabase.from("product_catalog_current").select("id,name,category,filter_code,current_price_ves,current_ref_bcv").eq("available", true).eq("active", true).order("name").limit(1000),
       supabase.rpc("get_pricing_sync_status"),
       supabase.from("vehicles").select("id,customer_id,plate,make,model,year,current_odometer").order("plate").limit(2000),
       supabase.from("customers").select("id,name").order("name").limit(2000),
@@ -130,7 +129,7 @@ export default function OilChangePage() {
     if (allVehiclesRes.error || ownerRes.error) setWarning("No se pudo cargar la lista de vehículos. Verifica el vehículo antes de continuar.");
     setVehicles((allVehiclesRes.data??[]) as Vehicle[]);
     setVehicleOwners(Object.fromEntries((ownerRes.data??[]).map(x=>[x.id,x.name||"Sin nombre"])));
-    if (invRes.error || catalogRes.error || syncRes.error) setWarning("No cargó alguna fuente de precios o productos. Puedes registrar el aceite usado manualmente y continuar; revisa el precio antes de guardar.");
+    if (invRes.error || syncRes.error) setWarning("No cargó alguna fuente de precios o productos. Puedes registrar el aceite usado manualmente y continuar; revisa el precio antes de guardar.");
 
     const ord = orderRes.data as Order;
     if (ord.status !== "OPEN") {
@@ -163,21 +162,8 @@ export default function OilChangePage() {
       current_price_ves: x.current_price_ves == null ? null : Number(x.current_price_ves),
       current_ref_bcv: x.current_ref_bcv == null ? null : Number(x.current_ref_bcv),
     }));
-    const catalogItems = (catalogRes.data ?? []).map((x: any) => ({
-      id: `catalog:${x.id}`,
-      source: "CATALOG" as const,
-      sku: x.filter_code || "CATÁLOGO",
-      brand: x.name,
-      description: x.name,
-      category: x.category,
-      quantity_on_hand: 0,
-      product_id: x.id,
-      catalog_product_name: x.name,
-      current_price_ves: x.current_price_ves == null ? null : Number(x.current_price_ves),
-      current_ref_bcv: x.current_ref_bcv == null ? null : Number(x.current_ref_bcv),
-      needs_review: false,
-    }));
-    setInventory([...stockItems, ...catalogItems] as InventoryItem[]);
+    // El inventario es el único catálogo: no se ofrecen productos fuera de él.
+    setInventory(stockItems as InventoryItem[]);
 
     // Viene de "¿Es un cambio de aceite?": usar el aceite y filtro que ya estaban en la orden.
     if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("convert") === "1") {
@@ -185,8 +171,9 @@ export default function OilChangePage() {
       if (cand.error) setWarning("No pude leer el aceite y filtro de la orden: " + cand.error.message);
       else {
         const rows = (cand.data ?? []) as { order_item_id: string; kind: "OIL" | "FILTER"; description: string; quantity: number; unit_ref: number; inventory_item_id: string | null; product_id: string | null }[];
+        // Con el inventario como único catálogo, una línea vieja de la lista de precios se busca por su artículo enlazado.
         const pick = (r: typeof rows[number]) => r.inventory_item_id && stockItems.some((x: InventoryItem) => x.id === r.inventory_item_id) ? r.inventory_item_id
-          : r.product_id && catalogItems.some((x: InventoryItem) => x.product_id === r.product_id) ? `catalog:${r.product_id}` : null;
+          : r.product_id ? stockItems.find((x: InventoryItem) => x.product_id === r.product_id && x.quantity_on_hand > 0)?.id ?? null : null;
         const oilRow = rows.find(r => r.kind === "OIL");
         const filterRow = rows.find(r => r.kind === "FILTER");
         if (oilRow) {

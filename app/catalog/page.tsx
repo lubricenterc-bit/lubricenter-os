@@ -11,7 +11,6 @@ import {
   type CatalogSync
 } from "@/lib/catalog";
 
-const NOTION_CATALOG_URL = "https://app.notion.com/p/206741157d2580748ae8fbed01bfab56";
 
 function Photo({ url, name, large = false }: { url: string | null; name: string; large?: boolean }) {
   const [failed, setFailed] = useState(false);
@@ -158,24 +157,21 @@ export default function CatalogPage() {
   const filtered = useMemo(() => filterCatalog(catalog, filters), [catalog, filters]);
   const withPhotos = catalog.filter(item => item.image_url).length;
   const upToDate = catalogIsFresh(sync);
-  const nativeCatalog = catalog.some(item=>item.catalog_source==="Lubricenter OS");
+  const nativeCatalog = true; // El inventario es el único catálogo.
   const updateFilter = <K extends keyof CatalogFilters>(name: K, value: CatalogFilters[K]) =>
     setFilters(previous => ({ ...previous, [name]: value }));
 
   return <main className="container lc-catalog">
     <header className="lc-catalog-heading">
       <div>
-        <div className="lc-catalog-kicker"><OsIcon name="inventory" size={15}/> INVENTARIO / {nativeCatalog?"CATÁLOGO LUBRICENTER OS":"CATÁLOGO NOTION"}</div>
+        <div className="lc-catalog-kicker"><OsIcon name="inventory" size={15}/> INVENTARIO / CATÁLOGO ÚNICO</div>
         <h1><span className="mesa-commerce-number" aria-hidden="true">03 /</span> Catálogo<span className="mesa-commerce-dot">.</span></h1>
-        <p>Consulta productos, fotografías y los tres precios de venta sin salir de Lubricenter OS.</p>
+        <p>Los artículos con existencia en inventario, con sus fotografías y los tres precios de venta.</p>
       </div>
       <div className="lc-catalog-heading-actions">
         <Link href="/catalog/technical" className="lc-catalog-button">Etiquetas técnicas</Link>
-        <Link href="/catalog/manage" className="lc-catalog-button">Administrar artículos</Link>
+        <Link href="/inventory" className="lc-catalog-button">Administrar artículos y precios</Link>
         <Link href="/quote" className="lc-catalog-button is-primary"><OsIcon name="receipt" size={17}/> Abrir cotizador</Link>
-        <a href={NOTION_CATALOG_URL} target="_blank" rel="noopener noreferrer" className="lc-catalog-button">
-          {nativeCatalog?"Archivo histórico Notion":"Ver en Notion"} <OsIcon name="arrow" size={16}/>
-        </a>
         <button className="lc-catalog-button is-primary" onClick={() => void load()} disabled={loading}>
           <OsIcon name="refresh" size={16}/>{loading ? "Cargando…" : "Actualizar catálogo"}
         </button>
@@ -194,8 +190,8 @@ export default function CatalogPage() {
 
     <div className={"lc-catalog-sync" + (upToDate ? " is-fresh" : " is-stale")} role="status">
       <OsIcon name={upToDate ? "check" : "alert"} size={17}/>
-      <span><strong>{upToDate ? (nativeCatalog?"Catálogo interno disponible":"Precios sincronizados") : "Verifica la actualización de precios"}</strong>
-        <small>{nativeCatalog?"Lubricenter OS · administración interna de precios":"Notion · Nuestros Productos · Última sincronización: "+formatCatalogDate(sync?.catalogSyncedAt??null)}</small></span>
+      <span><strong>{upToDate ? (nativeCatalog?"Precios del inventario":"Precios sincronizados") : "Verifica la actualización de precios"}</strong>
+        <small>{nativeCatalog?"Precio base en divisas por artículo; Bs con la tasa operativa y REF con BCV":"Notion · Nuestros Productos · Última sincronización: "+formatCatalogDate(sync?.catalogSyncedAt??null)}</small></span>
       {!upToDate && <Link href="/settings">Revisar tasas</Link>}
     </div>
 
@@ -297,7 +293,7 @@ export default function CatalogPage() {
       </div>)}
     </section>}
 
-    <p className="lc-catalog-disclaimer">{nativeCatalog?"El catálogo se administra desde Lubricenter OS. Puedes crear y editar artículos desde «Administrar artículos». Los cambios no modifican existencias ni ventas históricas.":"Durante la transición los precios continúan sincronizados desde Notion. Las existencias se administran por separado."}</p>
+    <p className="lc-catalog-disclaimer">{nativeCatalog?"Solo aparecen artículos con existencia. Los nombres, precios y fotos se editan en Inventario; los cambios no modifican ventas históricas.":"Durante la transición los precios continúan sincronizados desde Notion. Las existencias se administran por separado."}</p>
     {selected && <ProductDetail key={selected.id} item={selected} onClose={closeDetail}/>}
   </main>;
 }
