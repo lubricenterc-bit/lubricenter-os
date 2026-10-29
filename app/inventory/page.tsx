@@ -86,7 +86,7 @@ export default function InventoryPage() {
     setLoading(true);
     setError("");
     const [invRes, syncRes, locationRes, permissionRes] = await Promise.all([
-      supabase.rpc("get_inventory_snapshot", { p_location_code: locationCode }),
+      supabase.rpc("get_inventory_snapshot_v2", { p_location_code: locationCode }),
       supabase.rpc("get_pricing_sync_status"),
       supabase.from("locations").select("id,code,name").eq("active", true).order("name"),
       supabase.rpc("can_administer_orders"),

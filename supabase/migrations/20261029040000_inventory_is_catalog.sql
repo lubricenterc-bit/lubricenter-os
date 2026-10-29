@@ -353,15 +353,16 @@ revoke all on function public.inventory_set_price_bulk(uuid[],numeric) from publ
 grant execute on function public.inventory_save_item(uuid,text,text,text,text,text,numeric,text,text[],boolean,timestamptz) to authenticated;
 grant execute on function public.inventory_set_price_bulk(uuid[],numeric) to authenticated;
 
--- get_inventory_snapshot devuelve también precio, nombre y foto.
-drop function if exists public.get_inventory_snapshot(text);
-create function public.get_inventory_snapshot(p_location_code text DEFAULT 'CABUDARE'::text)
+-- Versión 2 de la instantánea de inventario: agrega precio, nombre y foto.
+-- Se crea al lado de get_inventory_snapshot (que queda intacta) para no borrar funciones en producción.
+create or replace function public.get_inventory_snapshot_v2(p_location_code text DEFAULT 'CABUDARE'::text)
 returns table(id uuid, sku text, brand text, description text, category text, unit text, source_cost_ref numeric,
   source_alert text, needs_review boolean, cost_missing boolean, location_code text, quantity_on_hand numeric,
   sellable_quantity numeric, product_id uuid, catalog_product_name text, current_price_ves numeric,
   current_ref_bcv numeric, alt_codes text[], display_name text, price_usd numeric, price_updated_at timestamptz,
   image_url text, updated_at timestamptz)
 language sql
+stable
 security definer
 set search_path to 'public'
 as $$
@@ -373,5 +374,5 @@ as $$
   where i.location_code = p_location_code
   order by i.category nulls last, i.brand nulls last, i.sku;
 $$;
-revoke all on function public.get_inventory_snapshot(text) from public, anon;
-grant execute on function public.get_inventory_snapshot(text) to authenticated, service_role;
+revoke all on function public.get_inventory_snapshot_v2(text) from public, anon;
+grant execute on function public.get_inventory_snapshot_v2(text) to authenticated, service_role;
