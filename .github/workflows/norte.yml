@@ -8,6 +8,7 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
+      checks: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,9 +17,25 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      # order-extras.test.ts ya falla en main (prueba de texto del cambio de aceite); no es de Norte.
-      - run: npx vitest run --exclude tests/order-extras.test.ts
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
+      - run: npx vitest run --reporter=default --reporter=github-actions
+  # Las mismas pruebas sobre main, para separar fallas viejas de fallas de Norte.
+  baseline-main:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run --reporter=default --reporter=github-actions
