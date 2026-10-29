@@ -55,7 +55,8 @@ for t in T:
             P['acl'].append(f"GRANT {', '.join(p+' ('+q(ca['n'])+')' for p in ps)} ON TABLE {n} TO {g if g=='PUBLIC' else q(g)};")
 for f in F:
     P['fn'].append(f['d'].rstrip()+';' if not f['d'].rstrip().endswith(';') else f['d'])
-    P['acl']+=grants('FUNCTION',f"{qn(f['s'],f['nm'])}({f['args']})",f['acl'] or '{postgres=X/postgres}')
+    # Sin permisos explícitos (NULL) = ejecución pública por defecto en Postgres
+    P['acl']+=grants('FUNCTION',f"{qn(f['s'],f['nm'])}({f['args']})",f['acl'] or '{=X/postgres,postgres=X/postgres}')
 for x in O:
     n=qn(x['s'],x['t'])
     if x['k']=='view':

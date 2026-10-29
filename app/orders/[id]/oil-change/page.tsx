@@ -256,8 +256,9 @@ export default function OilChangePage() {
   const manualFilterMatches = filterId === "manual:filter" ? inStockMatches(manualFilterName, filters) : [];
   const oil = oilId === "manual:oil" ? manualItem(oilId, manualOilName, "Aceite manual") : inventory.find(i => i.id === oilId) ?? null;
   const filter = filterId === "manual:filter" ? manualItem(filterId, manualFilterName, "Filtro manual") : inventory.find(i => i.id === filterId) ?? null;
-  const oilSaleSource = oil ? saleSource(oil, Number(oilUnits), availableCatalogIds, manualAllowed) : null;
-  const filterSaleSource = filter ? saleSource(filter, Number(filterUnits), availableCatalogIds, manualAllowed) : "NONE";
+  // Norte vende desde inventario aunque la existencia esté en 0: el artículo siempre descuenta (puede quedar negativo).
+  const oilSaleSource = oil ? saleSource(oil, Number(oilUnits), availableCatalogIds, false) : null;
+  const filterSaleSource = filter ? saleSource(filter, Number(filterUnits), availableCatalogIds, false) : "NONE";
   const oilUnitRef = Number(oilPriceRef || 0);
   const filterUnitRef = filter ? Number(filterPriceRef || 0) : 0;
   const productRef = (customerOil ? 0 : oilUnitRef * Number(oilUnits || 0)) + (customerFilter ? 0 : filterUnitRef * Number(filterUnits || 0));
