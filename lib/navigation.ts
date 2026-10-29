@@ -41,6 +41,7 @@ export const NAV_MODULES: readonly NavModule[] = [
   { id: "inventory", label: "Inventario", icon: "inventory", defaultHref: "/inventory", links: [
     { href: "/inventory", label: "Inventario físico", description: "Existencias, códigos y conteos" },
     { href: "/inventory/prices", label: "Precios de Norte", description: "Contado, divisas y Cashea por artículo", keywords: "precio contado divisas cashea tres precios" },
+    { href: "/inventory/loans", label: "Préstamos de mercancía", description: "Lo que prestamos o nos prestaron otras sucursales", keywords: "prestamo cuji cabudare moran devolver" },
     { href: "/catalog", label: "Catálogo de precios", description: "Fotografías y precios en Bs, $ BCV y divisas", keywords: "notion foto productos catalogo lista" },
     { href: "/catalog/manage", label: "Administrar catálogo", description: "Crear, editar y auditar artículos", ownerOnly: true, keywords: "precios productos factura compras" },
     { href: "/expenses", label: "Compras y proveedores", description: "Facturas, mercancía, deudas y pagos", keywords: "egresos" }
@@ -57,7 +58,8 @@ export const NAV_MODULES: readonly NavModule[] = [
     { href: "/receivables", label: "Crédito LC", description: "Cuentas por cobrar y abonos" },
     { href: "/customer-balances", label: "Saldos de clientes", description: "Anticipos y devoluciones" },
     { href: "/change", label: "Vueltos pendientes", description: "Vueltos por entregar" },
-    { href: "/payroll", label: "Nómina", description: "Liquidaciones y pagos al equipo", ownerOnly: true }
+    { href: "/payroll", label: "Nómina", description: "Liquidaciones y pagos al equipo", ownerOnly: true },
+    { href: "/payroll/employees", label: "Equipo", description: "Sueldo fijo y porcentajes de cada persona", ownerOnly: true, keywords: "empleados sueldo porcentaje mecanico ayudante bono" }
   ] },
   { id: "admin", label: "Administración", icon: "settings", defaultHref: "/settings", links: [
     { href: "/settings", label: "Configuración y precios", description: "Tasas, sincronización y reglas" },
