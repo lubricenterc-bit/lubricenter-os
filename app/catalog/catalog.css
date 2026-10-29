@@ -228,3 +228,8 @@
  .lc-catalog-card-body {padding:13px;}
  .lc-catalog-photo {aspect-ratio:6/5;}
 }
+
+@media screen {
+  .lc-catalog-stock { display: block; font-size: 13px; color: var(--green); font-variant-numeric: tabular-nums; }
+  .lc-catalog-stock.is-out { color: var(--ink-3); }
+}

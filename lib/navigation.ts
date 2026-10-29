@@ -39,9 +39,8 @@ export const NAV_MODULES: readonly NavModule[] = [
     { href: "/campaigns", label: "Campañas", description: "Promociones y contacto con clientes" }
   ] },
   { id: "inventory", label: "Inventario", icon: "inventory", defaultHref: "/inventory", links: [
-    { href: "/inventory", label: "Inventario físico", description: "Existencias, códigos y conteos" },
-    { href: "/catalog", label: "Catálogo de precios", description: "Fotografías y precios en Bs, $ BCV y divisas", keywords: "notion foto productos catalogo lista" },
-    { href: "/catalog/manage", label: "Administrar catálogo", description: "Crear, editar y auditar artículos", ownerOnly: true, keywords: "precios productos factura compras" },
+    { href: "/inventory", label: "Inventario", description: "Todos los artículos: existencia, precio, costo y catálogo", keywords: "existencia conteo precio costo articulos productos editar crear" },
+    { href: "/catalog", label: "Catálogo", description: "Lo que está a la venta, con sus precios", keywords: "foto productos catalogo lista precios" },
     { href: "/expenses", label: "Compras y proveedores", description: "Facturas, mercancía, deudas y pagos", keywords: "egresos" }
   ] },
   { id: "finance", label: "Finanzas", icon: "finance", defaultHref: "/cash-close", links: [

@@ -356,7 +356,7 @@ export default function OilQuotePage() {
 
         {unclassified.length>0 && <details className="oq-catalog-attention">
           <summary><OsIcon name="alert" size={16}/> {unclassified.length} productos {viscosity} requieren clasificar la tecnología</summary>
-          <p>No los mezclamos con mineral, semi o full para evitar errores. Corrige sus nombres en Administrar catálogo si deben aparecer.</p>
+          <p>No los mezclamos con mineral, semi o full para evitar errores. Corrige sus nombres en Inventario si deben aparecer.</p>
           <ul>{unclassified.map(item => <li key={item.product.id}>{item.product.name}</li>)}</ul>
         </details>}
         {inconsistent.length>0 && <p className="oq-small-warning"><OsIcon name="alert" size={14}/>

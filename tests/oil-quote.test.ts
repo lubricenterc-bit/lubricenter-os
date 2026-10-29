@@ -199,3 +199,21 @@ describe("Cotizador de cambio de aceite",()=>{
     expect(NAV_MODULES.find(m=>m.id==="sales")?.links.some(x=>x.href==="/quote")).toBe(true);
   });
 });
+
+describe("cotizador con el inventario como catálogo", () => {
+  it("reconoce los filtros de aceite con el rubro del inventario", () => {
+    const filtros = normalizeQuoteFilterProducts([
+      product("Filtro de aceite Wix 51061", 6, "Filtro Aceite"),
+      product("Filtro de aire CarDoc CK500", 5, "Filtro Aire"),
+    ]);
+    expect(filtros.map(f => f.name)).toEqual(["Filtro de aceite Wix 51061"]);
+  });
+
+  it("cotiza un aceite cuyo rubro es Aceite Motor", () => {
+    const oils = quoteAllOils([product("VALVOLINE 15W40 SEMI SINTETICO", 13, "Aceite Motor")], {
+      viscosity: "15W40", technology: "semi", liters: 4, filter: { mode: "none" }, laborUsd: 0, freeLaborPromotion: false,
+      rates: { catalogSyncedAt: null, catalogProducts: 0, bcv: 100, bcvEffectiveAt: null, operative: 120, operativeEffectiveAt: null },
+    });
+    expect(oils).toHaveLength(1);
+  });
+});

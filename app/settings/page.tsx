@@ -228,7 +228,7 @@ export default function SettingsPage() {
     <section className="card stack">
       <div className="row-between"><h2 className="section-title">Catálogo maestro · {nativeCatalog?"Lubricenter OS":"Notion (transición)"}</h2><span className={`pill ${catalogFresh ? "ok" : "warn"}`}>{catalogFresh ? "ACTUALIZADO" : "REVISAR"}</span></div>
       <div className="grid grid-2"><div><div className="label">Productos disponibles</div><div className="money-lg">{catalogProducts}</div></div><div><div className="label">{nativeCatalog?"Estado del catálogo":"Última sincronización"}</div><strong>{formatDate(catalogAt)}</strong></div></div>
-      <div className="row"><Link className="btn" href="/catalog/manage">Administrar catálogo</Link><Link className="btn btn-ghost" href="/expenses">Compras y proveedores</Link></div>
+      <div className="row"><Link className="btn" href="/inventory">Inventario y precios</Link><Link className="btn btn-ghost" href="/expenses">Compras y proveedores</Link></div>
       {!catalogFresh && <div className="error">Los productos automáticos se bloquean cuando el catálogo está demasiado viejo para evitar precios silenciosamente desactualizados.</div>}
     </section>
 

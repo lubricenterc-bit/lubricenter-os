@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import "./catalog/catalog.css";
+import "./inventory/inventory.css";
 import "./quote/quote.css";
 import "./quote/general.css";
 import "./order-extras.css";
