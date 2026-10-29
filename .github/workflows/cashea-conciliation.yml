@@ -1,0 +1,33 @@
+name: Conciliación Cashea por sucursal
+on:
+  pull_request:
+    paths:
+      - 'lib/xls-biff.ts'
+      - 'lib/cashea-conciliation/**'
+      - 'app/cashea/**'
+      - 'lib/navigation.ts'
+      - 'supabase/migrations/20261029120000_cashea_branch_conciliation.sql'
+      - 'tests/cashea-conciliation*.test.ts'
+      - 'tests/fixtures/cashea-scenario.ts'
+      - 'tests/fixtures/bnc-sintetico.xls'
+      - 'package.json'
+      - '.github/workflows/cashea-conciliation.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/cashea-conciliation.test.ts tests/cashea-conciliation-database.test.ts tests/navigation.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder

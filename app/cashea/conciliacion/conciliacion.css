@@ -1,0 +1,8 @@
+.cashea-conc .cc-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.cashea-conc .cc-table td, .cashea-conc .cc-table th { white-space: nowrap; }
+.cashea-conc .cc-table td.small { white-space: normal; min-width: 180px; }
+.cashea-conc .cc-neg { color: #ff8a80; }
+.cashea-conc .cc-total td { font-weight: 800; border-top: 1px solid #3a3a3a; }
+.cashea-conc .cc-ok td { color: var(--ok); }
+.cashea-conc .cc-bad td { color: #ff6b6b; font-weight: 800; }
+.cashea-conc .cc-rate { width: 120px; margin-left: 8px; }

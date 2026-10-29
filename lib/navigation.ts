@@ -52,6 +52,7 @@ export const NAV_MODULES: readonly NavModule[] = [
     { href: "/finance/reconcile", label: "Conciliación semanal", description: "Banco y control del período", ownerOnly: true, keywords: "BDV" },
     { href: "/finance/inbox", label: "Revisión financiera", description: "Casos, importaciones y reportes", ownerOnly: true },
     { href: "/cashea", label: "Órdenes Cashea", description: "Cobros y cuotas de Cashea" },
+    { href: "/cashea/conciliacion", label: "Conciliación Cashea", description: "Dinero del BNC por sucursal y por cobrar", ownerOnly: true, keywords: "BNC sucursal norte la moran retiro cero" },
     { href: "/cashea/balance", label: "Balance Cashea", description: "Liquidaciones, facturas y comisiones", ownerOnly: true },
     { href: "/receivables", label: "Crédito LC", description: "Cuentas por cobrar y abonos" },
     { href: "/customer-balances", label: "Saldos de clientes", description: "Anticipos y devoluciones" },

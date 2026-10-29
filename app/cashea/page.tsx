@@ -61,7 +61,7 @@ export default function CasheaPage() {
   const dueCount = installments.filter(x => x.status !== "PAID" && new Date(`${x.due_date}T23:59:59`) < new Date()).length;
 
   return <main className="container stack">
-    <div className="row-between"><div><div className="eyebrow">FINANZAS · CASHEA TRADICIONAL</div><h1 style={{ marginBottom: 4 }}>Cashea</h1><div className="muted">Inicial recibida hoy, cuotas por recibir y costo de Cashea separado de Crédito LC.</div></div><div className="row"><Link href="/cashea/balance" className="btn">Balance y facturas</Link><Link href="/quick-sale" className="btn btn-primary">+ Venta Cashea</Link></div></div>
+    <div className="row-between"><div><div className="eyebrow">FINANZAS · CASHEA TRADICIONAL</div><h1 style={{ marginBottom: 4 }}>Cashea</h1><div className="muted">Inicial recibida hoy, cuotas por recibir y costo de Cashea separado de Crédito LC.</div></div><div className="row"><Link href="/cashea/conciliacion" className="btn">Por sucursal</Link><Link href="/cashea/balance" className="btn">Balance y facturas</Link><Link href="/quick-sale" className="btn btn-primary">+ Venta Cashea</Link></div></div>
 
     <section className="grid grid-3">
       <div className="card"><div className="muted small">POR RECIBIR</div><div className="kpi">{fmtRef(outstandingRef)}</div><div className="muted small">saldo Cashea en REF / USD</div></div>
