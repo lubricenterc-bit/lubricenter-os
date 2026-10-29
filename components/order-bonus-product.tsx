@@ -28,7 +28,7 @@ export function OrderBonusProduct({ orderId }: { orderId: string }) {
     const { data, error } = await supabase
       .from("inventory_current")
       .select("id,sku,brand,description,category,quantity_on_hand,alt_codes")
-      .eq("location_code", "CABUDARE")
+      .eq("location_code", "NORTE")
       .gt("quantity_on_hand", 0)
       .eq("needs_review", false)
       .order("category")

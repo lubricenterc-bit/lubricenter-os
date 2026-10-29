@@ -13,7 +13,7 @@ const CURRENCIES: { id: Currency; label: string }[] = [
 
 /**
  * "Compré algo para este trabajo": el cliente lo paga, pero solo el recargo es ganancia.
- * Cheo no cobra porcentaje sobre esta línea y no descuenta inventario.
+ * Alfredo no cobra porcentaje sobre esta línea y no descuenta inventario.
  */
 export function PassThroughSheet({ ensureOrder, rates, onDone, onCancel }: {
   ensureOrder: () => Promise<string>; rates: { bcv: number; operative: number };
@@ -56,7 +56,7 @@ export function PassThroughSheet({ ensureOrder, rates, onDone, onCancel }: {
   return <div className="overlay"><div className="sheet stack" role="dialog" aria-modal="true" aria-label="Compra para el trabajo">
     <div className="row-between">
       <div><h2 style={{ margin: 0 }}>Compré algo para este trabajo</h2>
-        <div className="muted small">El cliente lo paga, pero solo el recargo cuenta como ganancia. Cheo no cobra sobre esto.</div></div>
+        <div className="muted small">El cliente lo paga, pero solo el recargo cuenta como ganancia. Alfredo no cobra sobre esto.</div></div>
       <button className="btn btn-ghost" disabled={busy} onClick={onCancel}>Cerrar</button>
     </div>
     <label className="stack" style={{ gap: 6 }}><span className="label">1. ¿Qué compraste?</span>

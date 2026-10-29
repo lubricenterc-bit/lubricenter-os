@@ -152,8 +152,8 @@ export function OrderBuilder() {
             </div>
             {(Number(item.worker_share_ref_snapshot || 0) > 0 || Number(item.assistant_bonus_ref_snapshot || 0) > 0) && (
               <div className="muted small">
-                {item.business_area === "WORKSHOP" && <>Cheo: {fmtRef(item.worker_share_ref_snapshot)} · Bono Alexis: {fmtRef(item.assistant_bonus_ref_snapshot)}</>}
-                {item.business_area === "ELECTROAUTO" && <>Alexis: {fmtRef(item.worker_share_ref_snapshot)}</>}
+                {item.business_area === "WORKSHOP" && <>Alfredo: {fmtRef(item.worker_share_ref_snapshot)} · Bono Alejandro: {fmtRef(item.assistant_bonus_ref_snapshot)}</>}
+                {item.business_area === "ELECTROAUTO" && <>Alejandro: {fmtRef(item.worker_share_ref_snapshot)}</>}
               </div>
             )}
           </div>
@@ -274,17 +274,17 @@ function ServiceSheet({ ensureOrder, onDone, onCancel }: {
 
   return <div className="overlay"><div className="sheet stack">
     <div className="row-between"><h2 style={{ margin: 0 }}>Trabajo / servicio</h2><button className="btn btn-ghost" onClick={onCancel}>Cerrar</button></div>
-    <label><span className="label">Área</span><select className="select" value={area} onChange={e => setArea(e.target.value as any)}><option value="WORKSHOP">Taller · Cheo</option><option value="ELECTROAUTO">Electroauto · Alexis</option><option value="OIL_CHANGE">Otro servicio sin comisión</option></select></label>
+    <label><span className="label">Área</span><select className="select" value={area} onChange={e => setArea(e.target.value as any)}><option value="WORKSHOP">Taller · Alfredo</option><option value="ELECTROAUTO">Electroauto · Alejandro</option><option value="OIL_CHANGE">Otro servicio sin comisión</option></select></label>
     <label><span className="label">Descripción libre</span><input className="input" value={description} onChange={e => setDescription(e.target.value)} placeholder="Ej. Limpieza de tanque de gasolina" /></label>
     <div className="grid grid-2">
       <label><span className="label">Base del trabajo REF</span><input className="input" type="number" min="0" step="0.01" value={baseRef || ""} onChange={e => setBaseRef(Number(e.target.value))} /></label>
       <label><span className="label">Monto al cliente REF</span><input className="input" type="number" min="0" step="0.01" value={customerRef || ""} onChange={e => setCustomerRef(Number(e.target.value))} /></label>
     </div>
-    {area === "WORKSHOP" && <label className="row"><input type="checkbox" checked={bonus} onChange={e => setBonus(e.target.checked)} /> <span>Bono meritorio Alexis 5% (sale de Lubricenter)</span></label>}
+    {area === "WORKSHOP" && <label className="row"><input type="checkbox" checked={bonus} onChange={e => setBonus(e.target.checked)} /> <span>Bono de ayudante Alejandro (sale de Lubricenter)</span></label>}
     {area !== "OIL_CHANGE" && <button className="btn btn-ghost" onClick={() => setAdvanced(v => !v)}>{advanced ? "Ocultar ajuste de reparto" : "Ajustar reparto excepcional"}</button>}
-    {advanced && area !== "OIL_CHANGE" && <label><span className="label">Parte acordada {area === "WORKSHOP" ? "Cheo" : "Alexis"} en REF</span><input className="input" type="number" min="0" step="0.01" value={workerOverride} onChange={e => setWorkerOverride(e.target.value)} placeholder="Vacío = regla automática 40%" /></label>}
+    {advanced && area !== "OIL_CHANGE" && <label><span className="label">Parte acordada {area === "WORKSHOP" ? "Alfredo" : "Alejandro"} en REF</span><input className="input" type="number" min="0" step="0.01" value={workerOverride} onChange={e => setWorkerOverride(e.target.value)} placeholder="Vacío = regla automática 40%" /></label>}
     <div className="card">
-      {preview.error ? <div className="error">{preview.error}</div> : area === "WORKSHOP" ? <div className="stack"><div className="row-between"><span>Cliente</span><strong>{fmtRef(preview.customerRef)}</strong></div><div className="row-between"><span>Cheo</span><strong>{fmtRef(preview.cheoRef)}</strong></div><div className="row-between"><span>Bono Alexis</span><strong>{fmtRef(preview.alexisBonusRef)}</strong></div><div className="row-between"><span>Lubricenter</span><strong>{fmtRef(preview.lubricenterRef)}</strong></div></div> : area === "ELECTROAUTO" ? <div className="stack"><div className="row-between"><span>Cliente</span><strong>{fmtRef(preview.customerRef)}</strong></div><div className="row-between"><span>Alexis</span><strong>{fmtRef(preview.alexisRef)}</strong></div><div className="row-between"><span>Lubricenter</span><strong>{fmtRef(preview.lubricenterRef)}</strong></div></div> : <div className="row-between"><span>Total servicio</span><strong>{fmtRef(customerRef)}</strong></div>}
+      {preview.error ? <div className="error">{preview.error}</div> : area === "WORKSHOP" ? <div className="stack"><div className="row-between"><span>Cliente</span><strong>{fmtRef(preview.customerRef)}</strong></div><div className="row-between"><span>Alfredo</span><strong>{fmtRef(preview.cheoRef)}</strong></div><div className="row-between"><span>Bono Alejandro</span><strong>{fmtRef(preview.alexisBonusRef)}</strong></div><div className="row-between"><span>Lubricenter</span><strong>{fmtRef(preview.lubricenterRef)}</strong></div></div> : area === "ELECTROAUTO" ? <div className="stack"><div className="row-between"><span>Cliente</span><strong>{fmtRef(preview.customerRef)}</strong></div><div className="row-between"><span>Alejandro</span><strong>{fmtRef(preview.alexisRef)}</strong></div><div className="row-between"><span>Lubricenter</span><strong>{fmtRef(preview.lubricenterRef)}</strong></div></div> : <div className="row-between"><span>Total servicio</span><strong>{fmtRef(customerRef)}</strong></div>}
     </div>
     {error && <div className="error">{error}</div>}
     <button className="btn btn-primary btn-block" disabled={busy || !!preview.error || !description || baseRef <= 0} onClick={add}>{busy ? "Agregando…" : "Agregar trabajo"}</button>
@@ -321,7 +321,7 @@ function PaymentSheet({ ensureOrder, remainingVes, rates, onDone, onCancel }: {
 
   return <div className="overlay"><div className="sheet stack">
     <div className="row-between"><h2 style={{ margin: 0 }}>Agregar pago</h2><button className="btn btn-ghost" onClick={onCancel}>Cerrar</button></div>
-    <label><span className="label">Método</span><select className="select" value={method} onChange={e => setMethod(e.target.value)}><option value="TRANSFER_BDV">Pago móvil · Banco de Venezuela</option><option value="TRANSFER_BNC">Pago móvil · BNC</option><option value="CASH_VES">Efectivo Bs</option><option value="CASH_USD">Efectivo USD físico</option></select></label>
+    <label><span className="label">Método</span><select className="select" value={method} onChange={e => setMethod(e.target.value)}><option value="TRANSFER_BDV">Provincial · pago móvil o punto</option><option value="TRANSFER_BNC">Pago móvil · BNC</option><option value="CASH_VES">Efectivo Bs</option><option value="CASH_USD">Efectivo USD físico</option></select></label>
     <label><span className="label">Monto {currency}</span><input className="input" type="number" min="0" step={currency === "USD" ? "0.01" : "0.01"} value={amount || ""} onChange={e => setAmount(Number(e.target.value))} /></label>
     {method !== "CASH_USD" && method !== "CASH_VES" && <label><span className="label">Referencia opcional</span><input className="input" value={reference} onChange={e => setReference(e.target.value)} /></label>}
     <div className="card"><div className="muted small">VALOR OPERATIVO DEL PAGO</div><div className="money-lg">{fmtVes(currency === "USD" ? amount * rates.operative : amount)}</div><div className="muted small">USD físico se valora a tasa operativa. Bs conserva su monto original.</div></div>

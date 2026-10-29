@@ -40,6 +40,7 @@ export const NAV_MODULES: readonly NavModule[] = [
   ] },
   { id: "inventory", label: "Inventario", icon: "inventory", defaultHref: "/inventory", links: [
     { href: "/inventory", label: "Inventario físico", description: "Existencias, códigos y conteos" },
+    { href: "/inventory/prices", label: "Precios de Norte", description: "Contado, divisas y Cashea por artículo", keywords: "precio contado divisas cashea tres precios" },
     { href: "/catalog", label: "Catálogo de precios", description: "Fotografías y precios en Bs, $ BCV y divisas", keywords: "notion foto productos catalogo lista" },
     { href: "/catalog/manage", label: "Administrar catálogo", description: "Crear, editar y auditar artículos", ownerOnly: true, keywords: "precios productos factura compras" },
     { href: "/expenses", label: "Compras y proveedores", description: "Facturas, mercancía, deudas y pagos", keywords: "egresos" }
@@ -49,7 +50,7 @@ export const NAV_MODULES: readonly NavModule[] = [
     { href: "/finance/profit", label: "Ganancias", description: "Cuánto ganó la tienda y cuánto el taller", ownerOnly: true, keywords: "utilidad margen ganancia tienda taller" },
     { href: "/cash-close", label: "Cierre diario", description: "Conteo físico, historial y correcciones", keywords: "arqueo cuadre" },
     { href: "/cash", label: "Caja y movimientos", description: "Cuentas, salidas y transferencias", keywords: "gastos egresos" },
-    { href: "/finance/reconcile", label: "Conciliación semanal", description: "Banco y control del período", ownerOnly: true, keywords: "BDV" },
+    { href: "/finance/reconcile", label: "Conciliación semanal", description: "Banco y control del período", ownerOnly: true, keywords: "Provincial banco" },
     { href: "/finance/inbox", label: "Revisión financiera", description: "Casos, importaciones y reportes", ownerOnly: true },
     { href: "/cashea", label: "Órdenes Cashea", description: "Cobros y cuotas de Cashea" },
     { href: "/cashea/balance", label: "Balance Cashea", description: "Liquidaciones, facturas y comisiones", ownerOnly: true },

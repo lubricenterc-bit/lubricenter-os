@@ -25,7 +25,7 @@ export default function LoginPage() {
 
   return (
     <main className="os-theme os-login">
-      <section className="os-login-art" ref={artLive} aria-label="Lubricenter OS">
+      <section className="os-login-art" ref={artLive} aria-label="Lubricenter Norte">
         <span className="os-wordmark os-login-wordmark" role="img" aria-label="Lubricenter" />
         <div className="os-login-copy">
           <h1>Todo listo.<br />A trabajar.</h1>
@@ -39,7 +39,7 @@ export default function LoginPage() {
       </section>
       <section className="os-login-form">
         <div className="os-login-card">
-          <div className="os-login-brand"><img src="/api/brand/isotipo.png" alt="" /><span>Lubricenter <b>OS</b></span></div>
+          <div className="os-login-brand"><img src="/api/brand/isotipo.png" alt="" /><span>Lubricenter <b>Norte</b></span></div>
           <h2>Bienvenido de vuelta.</h2>
           <p>Accede a tu mesa de trabajo.</p>
           <form onSubmit={submit}>

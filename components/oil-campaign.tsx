@@ -89,9 +89,9 @@ export function OilCampaign(){
     <header className="campaign-card">
       <p className="campaign-eyebrow">CRM · CAMPAÑA ACTIVA</p>
       <h1>Aceite + filtro + limpieza de inyectores gratis</h1>
-      <p><strong>Piloto Cabudare · vigente hasta este sábado 10 de octubre de 2026.</strong></p>
+      <p><strong>Piloto Norte · vigente hasta este sábado 10 de octubre de 2026.</strong></p>
       <p>Tu trabajo aquí es solo <strong>enviar el mensaje</strong>. Lubricenter OS registra el envío y detecta automáticamente si ese mismo vehículo vuelve al negocio durante la campaña.</p><p className="muted"><strong>Regla comercial:</strong> debe comprar aceite + filtro con nosotros. Internamente se cobran $5 por el servicio de cambio. No aplica Cashea. Lubricenter cubre los insumos normales; fallas o repuestos de inyectores van por cuenta del cliente. Vehículos complicados se cotizan aparte y mantienen la regla especial del 70% de descuento.</p>
-      <p className="muted">No necesitas marcar Respondió, Agendó o Visitó. Una orden cerrada de ese vehículo en Cabudare entra al registro operativo y se marca como éxito automáticamente.</p>
+      <p className="muted">No necesitas marcar Respondió, Agendó o Visitó. Una orden cerrada de ese vehículo en Norte entra al registro operativo y se marca como éxito automáticamente.</p>
       {asOf&&<p className="muted">Consulta actualizada: {asOf.split('-').reverse().join('/')} · {contacts.length} contactos · {sentCount} enviados · {convertedCount} éxitos · {conversionRate}% conversión</p>}
       {expired&&<p className="error" role="alert">La promoción terminó. Los enlaces están desactivados para no enviar una fecha vencida.</p>}
     </header>
@@ -117,7 +117,7 @@ export function OilCampaign(){
         {busyId===c.id&&<p className="muted small">Registrando envío…</p>}
         {converted&&c.convertedAt&&<p className="success">Regreso detectado automáticamente · {new Date(c.convertedAt).toLocaleString('es-VE')}</p>}
       </article>})}
-      <p className="muted">La conversión se basa en el registro operativo de Cabudare. Los historiales importados o registros en papel no cuentan como retorno de esta campaña.</p>
+      <p className="muted">La conversión se basa en el registro operativo de Norte. Los historiales importados o registros en papel no cuentan como retorno de esta campaña.</p>
     </>}
   </main>;
 }

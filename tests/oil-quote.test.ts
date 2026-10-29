@@ -139,7 +139,7 @@ describe("Cotizador de cambio de aceite",()=>{
     expect(DEFAULT_QUOTE_SHARE_CURRENCIES).toEqual({ves:true,bcv:true,divisas:false});
     const msg=quoteWhatsAppText([quote],request);
     expect(msg).toContain("¡Hola! 👋🧡");
-    expect(msg).toContain("Gracias por escribir a *Lubricenter Cabudare*");
+    expect(msg).toContain("Gracias por escribir a *Lubricenter Norte*");
     expect(msg).toContain("20W50 semisintético · 4 litros");
     expect(msg).toContain("VOLTEX");
     expect(msg).toContain("Bs. 4.200,00");

@@ -1,7 +1,7 @@
 import { D } from "./finance/money";
 
 export const CASHEA_INITIAL_METHODS = [
-  ["TRANSFER_BDV","Banco de Venezuela · pago móvil / transferencia"],
+  ["TRANSFER_BDV","Provincial · pago móvil, punto o transferencia"],
   ["TRANSFER_BNC","BNC · pago móvil / transferencia"],
   ["CASH_VES","Efectivo en bolívares"],
   ["CASH_USD","Efectivo en dólares"],

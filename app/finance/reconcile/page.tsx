@@ -100,7 +100,7 @@ export default function WeeklyReconciliationPage() {
   async function importBdv() {
     if(!status) return;
     const account=status.accounts.find(a=>a.code==='BDV');
-    if(!account?.source_id) throw new Error('La fuente BDV no está configurada.');
+    if(!account?.source_id) throw new Error('La fuente Provincial no está configurada.');
     const preview=bdvPreview ?? parseBdv(bdvText);
     if(preview.errors.length) throw new Error(preview.errors.slice(0,3).map(x=>`fila ${x.row}: ${x.message}`).join(' · '));
     const r=await supabase.rpc('finance_import',{
@@ -109,7 +109,7 @@ export default function WeeklyReconciliationPage() {
     });
     if(r.error) throw r.error;
     const rr=await supabase.rpc('finance_reconcile'); if(rr.error) throw rr.error;
-    setBdvText(''); setBdvPreview(null); setNotice('BDV importado y conciliado automáticamente.');
+    setBdvText(''); setBdvPreview(null); setNotice('Provincial importado y conciliado automáticamente.');
   }
 
   const finished = !!status && today > status.end;
@@ -143,7 +143,7 @@ export default function WeeklyReconciliationPage() {
       </section>
 
       {status.status==='OPEN' && finished && <section className="card stack">
-        <h2 className="section-title">1 · Traer BDV</h2>
+        <h2 className="section-title">1 · Traer Provincial</h2>
         <p>Copia la tabla completa de “Movimientos en línea”. El parser valida fecha, referencia, tipo, monto y cadena de saldos antes de importar.</p>
         <textarea className="textarea" rows={8} value={bdvText} onChange={e=>{setBdvText(e.target.value);setBdvPreview(null);}} placeholder="Fecha · Referencia · Descripción · Débito / Crédito · Monto · Saldo" />
         <div className="row">
@@ -151,7 +151,7 @@ export default function WeeklyReconciliationPage() {
           {bdvPreview && <span className={bdvPreview.errors.length?'pill':'pill ok'}>{bdvPreview.rows.length} movimientos · {bdvPreview.errors.length} errores · {bdvPreview.duplicates} duplicados omitidos</span>}
         </div>
         {bdvPreview && !!bdvPreview.errors.length && <div className="error">{bdvPreview.errors.slice(0,5).map(e=>`fila ${e.row}: ${e.message}`).join(' · ')}</div>}
-        <button className="btn btn-primary" disabled={busy||!bdvPreview||!!bdvPreview.errors.length} onClick={()=>run(importBdv)}>Importar y conciliar BDV</button>
+        <button className="btn btn-primary" disabled={busy||!bdvPreview||!!bdvPreview.errors.length} onClick={()=>run(importBdv)}>Importar y conciliar Provincial</button>
         <div className="muted small">BNC y Cashea se mantienen en Herramientas avanzadas mientras terminamos su adaptador semanal.</div>
       </section>}
 
@@ -174,7 +174,7 @@ export default function WeeklyReconciliationPage() {
 }
 
 function OpenWeek({openings,setOpenings,busy,onOpen,week,today}:{openings:Record<string,string>;setOpenings:React.Dispatch<React.SetStateAction<Record<string,string>>>;busy:boolean;onOpen:()=>void;week:string;today:string}) {
-  const labels:Record<string,string>={BDV:'BDV central · Bs',BNC:'BNC Cashea · Bs',CASH_USD:'Caja USD · $',CASH_VES:'Caja Bs'};
+  const labels:Record<string,string>={BDV:'Provincial · Bs',BNC:'BNC Cashea · Bs',CASH_USD:'Caja USD · $',CASH_VES:'Caja Bs'};
   return <section className="card stack"><h2>Primera apertura</h2><p>Este es el punto cero. Después de la primera semana, el cierre anterior alimenta automáticamente la siguiente apertura.</p><div className="grid grid-2">{Object.entries(labels).map(([code,label])=><label key={code}>{label}<input className="input" inputMode="decimal" value={openings[code]??''} onChange={e=>setOpenings(v=>({...v,[code]:e.target.value}))} /></label>)}</div><button className="btn btn-primary" disabled={busy||week>today} onClick={onOpen}>{week>today?'Disponible el lunes':'Abrir semana financiera'}</button></section>;
 }
 

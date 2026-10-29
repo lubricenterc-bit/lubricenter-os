@@ -20,7 +20,7 @@ export function workshopAllocation(input: WorkshopAllocationInput): WorkshopAllo
   if (cheoRef < 0 || alexisBonusRef < 0) throw new Error("Las participaciones no pueden ser negativas");
   if (lubricenterRef < 0) {
     throw new Error(
-      "El precio al cliente no cubre las participaciones protegidas. Reduce explícitamente la parte de Cheo o elimina el bono de Alexis.",
+      "El precio al cliente no cubre las participaciones protegidas. Reduce explícitamente la parte de Alfredo o elimina el bono de Alejandro.",
     );
   }
 
@@ -35,10 +35,10 @@ export function electroautoAllocation(
   const lubricenterRef = money(input.customerRef - alexisRef);
 
   if (input.baseRef < 0 || input.customerRef < 0) throw new Error("Los montos no pueden ser negativos");
-  if (alexisRef < 0) throw new Error("La participación de Alexis no puede ser negativa");
+  if (alexisRef < 0) throw new Error("La participación de Alejandro no puede ser negativa");
   if (lubricenterRef < 0) {
     throw new Error(
-      "El precio al cliente no cubre la participación protegida de Alexis. Ajusta explícitamente su parte.",
+      "El precio al cliente no cubre la participación protegida de Alejandro. Ajusta explícitamente su parte.",
     );
   }
 

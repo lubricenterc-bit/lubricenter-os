@@ -237,7 +237,7 @@ export function quoteWhatsAppText(
 
   return [
     "¡Hola! 👋🧡",
-    "¡Gracias por escribir a *Lubricenter Cabudare*! Te compartimos con gusto las opciones para tu cambio de aceite.",
+    "¡Gracias por escribir a *Lubricenter Norte*! Te compartimos con gusto las opciones para tu cambio de aceite.",
     "",
     "🛢️ *" + request.viscosity + " " + typeLabel + " · " + liters + " litros*",
     "",
@@ -248,6 +248,6 @@ export function quoteWhatsAppText(
     "",
     ...promo,
     "¿Cuál opción prefieres? ¡Con gusto coordinamos tu visita! 🚗",
-    "*Lubricenter Cabudare* 🧡",
+    "*Lubricenter Norte* 🧡",
   ].join("\n");
 }

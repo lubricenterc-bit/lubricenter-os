@@ -18,7 +18,7 @@ type Order = { id: string; order_number: string; total_ref: number; total_ves: n
 type Rates = { bcv: number; operative: number };
 
 const METHODS: readonly [PaymentMethod,string][] = [
-  ["TRANSFER_BDV","Pago móvil · Venezuela"], ["TRANSFER_BNC","Pago móvil · BNC"], ["CASH_VES","Efectivo Bs"], ["CASH_USD","Efectivo USD"],
+  ["TRANSFER_BDV","Provincial · pago móvil o punto"], ["TRANSFER_BNC","Pago móvil · BNC"], ["CASH_VES","Efectivo Bs"], ["CASH_USD","Efectivo USD"],
 ];
 function paymentLabel(method: string) { return Object.fromEntries(METHODS)[method] ?? method; }
 

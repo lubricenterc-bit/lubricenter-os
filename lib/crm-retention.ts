@@ -123,7 +123,7 @@ function forecastContext(row:CrmVehicleReminder){
   return "Por la fecha de su último servicio, es buen momento para revisar cuándo le corresponde el próximo cambio.";
 }
 export function makeCrmMessage(row:CrmVehicleReminder,journey:CrmJourney):string {
-  const greeting="¡Hola, "+firstName(row.customer_name)+"! 👋 Soy del equipo de *Lubricenter Cabudare*.";
+  const greeting="¡Hola, "+firstName(row.customer_name)+"! 👋 Soy del equipo de *Lubricenter Norte*.";
   const car="Te escribo por tu *"+vehicleName(row)+"*"+(row.plate?" (placa "+row.plate+")":"")+".";
   let content="",question="";
   if(journey.contactCount>=2) {

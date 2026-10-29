@@ -99,8 +99,8 @@ export default function ProfitPage() {
           rows={[["Vendido", store?.revenue_ref], ["Costo", store?.cost_ref != null ? -store.cost_ref : null]]}
           note={store ? `${estimatedShare}% del costo es estimado (precio ÷ 1,35)` : undefined}
           onOpen={() => setDetail(detail === "TIENDA" ? null : "TIENDA")} open={detail === "TIENDA"} />
-        <AreaCard title="Taller" subtitle="Lo que se reparte con Cheo y Alexis" area={shop}
-          rows={[["Mano de obra cobrada", shop?.revenue_ref], ["Cheo y Alexis", shop?.mechanics_ref != null ? -shop.mechanics_ref : null], ["Comisión Cashea", shop?.cashea_commission_ref ? -shop.cashea_commission_ref : null]]}
+        <AreaCard title="Taller" subtitle="Lo que se reparte con Alfredo y Alejandro" area={shop}
+          rows={[["Mano de obra cobrada", shop?.revenue_ref], ["Alfredo y Alejandro", shop?.mechanics_ref != null ? -shop.mechanics_ref : null], ["Comisión Cashea", shop?.cashea_commission_ref ? -shop.cashea_commission_ref : null]]}
           onOpen={() => setDetail(detail === "TALLER" ? null : "TALLER")} open={detail === "TALLER"} />
       </section>
 

@@ -97,10 +97,10 @@ export function OrderCasheaSheet({ orderId, totalRef: initialTotalRef, totalVes:
   return <div className="overlay"><div className="sheet stack" role="dialog" aria-modal="true" aria-labelledby="cashea-title">
     <div className="row-between"><h2 id="cashea-title">Cobrar con Cashea</h2><button className="btn btn-ghost" disabled={busy || cancelling} onClick={() => void goBack()}>{cancelling ? "Quitando recargo…" : "Volver"}</button></div>
     <div className="success"><strong>Número Lubricenter OS: {orderNumber||"Cargando…"}</strong><div>Usa este número para procesar la compra en Cashea antes de recibir la inicial.</div></div>
-    <p className="muted">La inicial puede llegar en varios pagos: BDV, BNC, efectivo, Zelle o Binance. Cada movimiento quedará en su cuenta; las cuotas de Cashea se controlan aparte.</p>
+    <p className="muted">La inicial puede llegar en varios pagos: Provincial, BNC, efectivo, Zelle o Binance. Cada movimiento quedará en su cuenta; las cuotas de Cashea se controlan aparte.</p>
     {loading ? <div role="status">Cargando tasas y condiciones…</div> : <>
       <div className="row-between"><strong>Total a procesar en Cashea</strong><strong>{surchargeBusy ? "Calculando…" : fmtRef(totalRef)}</strong></div>
-      {surcharge && <div className="card"><strong>Incluye recargo Cashea {surcharge.percent.toLocaleString("es-VE", { maximumFractionDigits: 2 })}% · {fmtRef(surcharge.ref)}</strong><div className="muted small">Solo sobre la mano de obra de taller. Cubre la comisión y el tiempo de espera de las cuotas; es de Lubricenter y no cambia lo de Cheo. Si vuelves atrás, el recargo se quita.</div></div>}
+      {surcharge && <div className="card"><strong>Incluye recargo Cashea {surcharge.percent.toLocaleString("es-VE", { maximumFractionDigits: 2 })}% · {fmtRef(surcharge.ref)}</strong><div className="muted small">Solo sobre la mano de obra de taller. Cubre la comisión y el tiempo de espera de las cuotas; es de Lubricenter y no cambia lo de Alfredo. Si vuelves atrás, el recargo se quita.</div></div>}
       <fieldset disabled={busy} className="form-fields stack">
         <div className="grid grid-3">{[40,50,60].map(n => <button key={n} className={`btn ${pct === n ? "btn-primary" : ""}`} onClick={() => { setPercent(String(n)); setConfirmed(false); setError(""); }}>{n}% inicial</button>)}</div>
         <label>Inicial personalizada (%)<input className="input" type="number" min="0.01" max="100" step="0.01" value={percent} onChange={e => { setPercent(e.target.value); setConfirmed(false); setError(""); }} /></label>

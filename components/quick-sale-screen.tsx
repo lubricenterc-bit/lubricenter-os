@@ -24,10 +24,22 @@ type InventoryProduct = {
   id: string; sku: string; brand: string | null; description: string; category: string | null;
   quantity_on_hand: number; product_id: string | null; catalog_product_name: string | null;
   current_price_ves: number | null; current_ref_bcv: number | null; alt_codes?: string[] | null;
+  price_usd?: number | null; price_cashea_usd?: number | null; price_divisas_usd?: number | null;
 };
+// Norte maneja tres precios por artículo: contado, divisas y Cashea. Se cobran en cualquier moneda a tasa BCV.
+export type PriceTier = "CONTADO" | "DIVISAS" | "CASHEA";
+type TierPrices = Partial<Record<PriceTier, number>>;
+const PRICE_TIERS: readonly [PriceTier, string][] = [["CONTADO", "Contado"], ["DIVISAS", "Divisas"], ["CASHEA", "Cashea"]];
+function tierPrices(i: InventoryProduct): TierPrices {
+  const n = (v: unknown) => { const x = Number(v); return Number.isFinite(x) && x > 0 ? x : undefined; };
+  return { CONTADO: n(i.price_usd), DIVISAS: n(i.price_divisas_usd), CASHEA: n(i.price_cashea_usd) };
+}
+function priceFor(prices: TierPrices | undefined, tier: PriceTier, fallback: number) {
+  return prices?.[tier] ?? prices?.CONTADO ?? fallback;
+}
 type CatalogProduct = { id: string; name: string; category: string | null; filter_code: string | null; current_price_ves: number | null; current_ref_bcv: number | null };
-type SearchResult = { key: string; kind: "STOCK" | "CATALOG"; inventory_item_id?: string; product_id?: string; title: string; subtitle: string; stock?: number; unit_ref: number; unit_ves: number };
-type CartLine = { key: string; kind: "STOCK" | "CATALOG" | "MANUAL"; inventory_item_id?: string; product_id?: string; description: string; quantity: number; unit_ref: number; source_label: string; stock?: number };
+type SearchResult = { key: string; kind: "STOCK" | "CATALOG"; inventory_item_id?: string; product_id?: string; title: string; subtitle: string; stock?: number; unit_ref: number; unit_ves: number; prices?: TierPrices };
+type CartLine = { key: string; kind: "STOCK" | "CATALOG" | "MANUAL"; inventory_item_id?: string; product_id?: string; description: string; quantity: number; unit_ref: number; source_label: string; stock?: number; prices?: TierPrices };
 type QuickPayloadLine = { kind: "STOCK" | "CATALOG" | "MANUAL"; inventory_item_id: string | null; product_id: string | null; description: string; quantity: number; unit_ref: number };
 type Customer = { id: string; name: string | null; phone: string | null; document_id: string | null };
 type Rates = { bcv: number; operative: number };
@@ -39,7 +51,7 @@ type CompletedSale = {
 };
 
 const PAYMENT_METHODS: readonly [PaymentMethod, string][] = [
-  ["TRANSFER_BDV", "Pago móvil · Venezuela"], ["TRANSFER_BNC", "Pago móvil · BNC"], ["CASH_VES", "Efectivo Bs"], ["CASH_USD", "Efectivo USD"],
+  ["TRANSFER_BDV", "Provincial · pago móvil o punto"], ["TRANSFER_BNC", "Pago móvil · BNC"], ["CASH_VES", "Efectivo Bs"], ["CASH_USD", "Efectivo USD"],
 ];
 const DIRECT_PAYMENT_METHODS: readonly [PaymentMethod, string][] = [...PAYMENT_METHODS, ["ZELLE", "Zelle USD"], ["BINANCE", "Binance USD"]];
 const CASHEA_MIN_REF = 25;
@@ -74,6 +86,10 @@ export function QuickSaleScreen() {
   const submitLock=useRef(false);
   const [received,setReceived] = useState(false);
   const [checkoutMode, setCheckoutMode] = useState<"DIRECT" | "CASHEA">("DIRECT");
+  const [tier, setTier] = useState<PriceTier>("CONTADO");
+  // Al cambiar de precio, las líneas del inventario toman el precio de ese nivel.
+  useEffect(() => { setCart(lines => lines.map(line => line.prices ? { ...line, unit_ref: priceFor(line.prices, tier, line.unit_ref) } : line)); }, [tier]);
+  useEffect(() => { if (checkoutMode === "CASHEA") setTier("CASHEA"); }, [checkoutMode]);
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>("TRANSFER_BDV");
   const [reference, setReference] = useState("");
   const [loading, setLoading] = useState(true);
@@ -89,7 +105,7 @@ export function QuickSaleScreen() {
   async function load() {
     setLoading(true); setWarning("");
     const [invRes, catRes] = await Promise.all([
-      supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,alt_codes").eq("location_code", "CABUDARE").gt("quantity_on_hand", 0).eq("needs_review", false).order("brand").order("sku").limit(1000),
+      supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,alt_codes,price_usd,price_cashea_usd,price_divisas_usd").eq("location_code", "NORTE").eq("needs_review", false).order("brand").order("sku").limit(1000),
       supabase.from("product_catalog_current").select("id,name,category,filter_code,current_price_ves,current_ref_bcv").eq("available", true).order("name").limit(1000),
     ]);
     const warnings: string[] = [];
@@ -224,15 +240,14 @@ export function QuickSaleScreen() {
   const positiveCatalogIds = useMemo(() => new Set(inventory.map(i => i.product_id).filter(Boolean) as string[]), [inventory]);
   const results = useMemo<SearchResult[]>(() => {
     const q = normalize(search.trim());
-    const stockResults = inventory.filter(i => !q || matchesSearch(inventorySearchText(i), q)).map(i => ({ key: `STOCK:${i.id}`, kind: "STOCK" as const, inventory_item_id: i.id, product_id: i.product_id ?? undefined, title: [i.brand, i.sku].filter(Boolean).join(" · ") || i.sku, subtitle: i.description, stock: i.quantity_on_hand, unit_ref: Number(i.current_ref_bcv ?? 0), unit_ves: Number(i.current_price_ves ?? 0) }));
+    const stockResults = inventory.filter(i => !q || matchesSearch(inventorySearchText(i), q)).map(i => ({ key: `STOCK:${i.id}`, kind: "STOCK" as const, inventory_item_id: i.id, product_id: i.product_id ?? undefined, title: [i.brand, i.sku].filter(Boolean).join(" · ") || i.sku, subtitle: i.description, stock: i.quantity_on_hand, prices: tierPrices(i), unit_ref: priceFor(tierPrices(i), tier, 0), unit_ves: priceFor(tierPrices(i), tier, 0) * rates.bcv }));
     const catalogResults = catalog.filter(p => !positiveCatalogIds.has(p.id)).filter(p => !q || matchesSearch(`${p.name} ${p.category ?? ""} ${p.filter_code ?? ""}`, q)).map(p => ({ key: `CATALOG:${p.id}`, kind: "CATALOG" as const, product_id: p.id, title: p.name, subtitle: [p.category, p.filter_code ? `Código ${p.filter_code}` : null].filter(Boolean).join(" · ") || "Catálogo", unit_ref: Number(p.current_ref_bcv ?? 0), unit_ves: Number(p.current_price_ves ?? 0) }));
     return [...stockResults, ...catalogResults].slice(0, q ? 12 : 6);
-  }, [inventory, catalog, positiveCatalogIds, search]);
+  }, [inventory, catalog, positiveCatalogIds, search, tier, rates.bcv]);
 
   function addResult(r: SearchResult) {
-    if (r.kind === "STOCK" && (cart.find(x => x.key === r.key)?.quantity ?? 0) + 1 > (r.stock ?? 0)) return setError("Ya agregaste la existencia disponible de este producto. Revisa la cantidad en la venta.");
     setCompleted(null); setError("");
-    setCart(lines => { const existing = lines.find(x => x.key === r.key); if (existing) return lines.map(x => x.key === r.key ? { ...x, quantity: x.quantity + 1 } : x); return [...lines, { key: r.key, kind: r.kind, inventory_item_id: r.inventory_item_id, product_id: r.product_id, description: r.kind === "STOCK" ? `${r.title} · ${r.subtitle}` : r.title, quantity: 1, unit_ref: r.unit_ref, source_label: r.kind === "STOCK" ? `Con stock · ${r.stock ?? 0} disp.` : "Catálogo · sin descontar stock", stock: r.stock }]; });
+    setCart(lines => { const existing = lines.find(x => x.key === r.key); if (existing) return lines.map(x => x.key === r.key ? { ...x, quantity: x.quantity + 1 } : x); return [...lines, { key: r.key, kind: r.kind, inventory_item_id: r.inventory_item_id, product_id: r.product_id, description: r.kind === "STOCK" ? `${r.title} · ${r.subtitle}` : r.title, quantity: 1, unit_ref: r.unit_ref, source_label: r.kind === "STOCK" ? `Existencia · ${r.stock ?? 0}` : "Catálogo · sin descontar stock", stock: r.stock, prices: r.prices }]; });
     setSearch(""); setTimeout(() => searchRef.current?.focus(), 20);
   }
   function addManual() {
@@ -267,7 +282,7 @@ export function QuickSaleScreen() {
   const totalRef = useMemo(() => pricedCart.reduce((sum, line) => sum + line.quantity * Math.max(0, Number(line.unit_ref || 0)), 0), [pricedCart]);
   const totalVes = useMemo(() => pricedCart.reduce((sum, line) => sum + Number(new D(line.unit_ref || 0).mul(rates.bcv).toDecimalPlaces(2).mul(line.quantity).toDecimalPlaces(2)), 0), [pricedCart, rates.bcv]);
   const cashUsd = rates.operative > 0 ? totalVes / rates.operative : 0;
-  const cartValid = !recovering && !ratesLoading && rates.bcv>0 && rates.operative>0 && cart.length > 0 && cart.every(x => Number.isFinite(x.quantity) && x.quantity > 0 && Number.isFinite(Number(x.unit_ref)) && Number(x.unit_ref) > 0 && (x.kind !== "STOCK" || x.stock == null || x.quantity <= x.stock));
+  const cartValid = !recovering && !ratesLoading && rates.bcv>0 && rates.operative>0 && cart.length > 0 && cart.every(x => Number.isFinite(x.quantity) && x.quantity > 0 && Number.isFinite(Number(x.unit_ref)) && Number(x.unit_ref) > 0);
 
   function payload(): QuickPayloadLine[] { return pricedCart.map(line => ({ kind: line.kind, inventory_item_id: line.inventory_item_id ?? null, product_id: line.product_id ?? null, description: line.description, quantity: line.quantity, unit_ref: Number(line.unit_ref) })); }
   function resetAfterSale() { setAdjust(NO_ADJUSTMENT); directRequest.current=null;prepareRequest.current=null;sessionStorage.removeItem("lubricenter:quick-direct-request");sessionStorage.removeItem("lubricenter:quick-prepare-request");sessionStorage.removeItem("lubricenter:quick-cart"); setQuoteFlow(null);setQuoteTransferNotice("");setSaleDate("");setReceived(false); setCart([]); setReference(""); setSearch(""); setCheckoutMode("DIRECT"); setSelectedPayment("TRANSFER_BDV"); }
@@ -451,7 +466,7 @@ export function QuickSaleScreen() {
           onKeyDown={e => { if (e.key === "Enter" && results[0]) { e.preventDefault(); addResult(results[0]); } }} placeholder="Ej: Valvoline, 3387, 20W50, refrigerante…" autoComplete="off" autoFocus />
         <span className="os-search-hint"><kbd>Enter</kbd> agrega el primero</span>
       </label>
-      <div className="os-plist-head"><span>{query ? (results.length === 1 ? "1 resultado" : `${results.length} resultados`) : "Sugerencias"}</span><span>{inventory.length} con stock, {catalog.length} en catálogo</span></div>
+      <div className="os-plist-head"><span>{query ? (results.length === 1 ? "1 resultado" : `${results.length} resultados`) : "Sugerencias"}</span><span>{inventory.length} en inventario, {catalog.length} en catálogo</span></div>
       {loading ? <div className="os-plist os-plist-empty"><span className="os-loading-dot" />Cargando precios…</div>
         : results.length ? <div className="os-plist">
           {results.map((r, index) => {
@@ -509,6 +524,11 @@ export function QuickSaleScreen() {
 
           {cart.length > 0 && <section className="os-tk-sec"><AdjustmentControls subtotal={listTotalRef} current={adjust} limit={discountLimit} disabled={busy} onApply={applyCartAdjustment} />
             {adjustError && <div className="error" role="alert">{adjustError}</div>}</section>}
+
+          <section className="os-tk-sec">
+            <div className="os-tk-label"><span>Precio</span><span>Se cobra en Bs o en $ a tasa BCV</span></div>
+            <div className="segmented" role="group" aria-label="Precio">{PRICE_TIERS.map(([value, label]) => <button key={value} type="button" className={`btn ${tier === value ? "btn-primary" : "btn-ghost"}`} aria-pressed={tier === value} disabled={busy} onClick={() => setTier(value)}>{label}</button>)}</div>
+          </section>
 
           <section className="os-tk-sec">
             <div className="os-tk-label"><span>Cómo cobra</span><span>{checkoutMode === "DIRECT" ? "Cobro directo" : "Cashea tradicional"}</span></div>

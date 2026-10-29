@@ -36,10 +36,10 @@ const switzer = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Lubricenter OS",
+  title: "Lubricenter Norte",
   description: "Operación, caja y nómina de Lubricenter",
   manifest: "/manifest.webmanifest",
-  applicationName: "Lubricenter OS",
+  applicationName: "Lubricenter Norte",
   icons: {
     icon: [
       { url: "/icon", type: "image/png", sizes: "64x64" },
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Lubricenter OS"
+    title: "Lubricenter Norte"
   },
 };
 

@@ -18,7 +18,7 @@ const clean=(s:string)=>s.replace(/[*_~`\r\n]/g,' ').replace(/\s+/g,' ').trim();
 
 export function campaignMessage(contact:Pick<Contact,'name'|'vehicle'|'kind'>) {
   const name=clean(contact.name), vehicle=clean(contact.vehicle);
-  return `¡Hola, ${name}! 👋😊\n\nEsta semana tenemos un beneficio especial para tu *${vehicle}* en *Lubricenter Cabudare* 🚗✨\n\nHaciendo con nosotros el *cambio de aceite* y colocando también el *filtro*, te incluimos la *limpieza de inyectores GRATIS* 🔧🎁\n\n🗓️ *Solo por pocos días*. Aplican condiciones según el vehículo.\n\nSi quieres aprovecharla, respóndeme por aquí y te digo si aplica para tu carro y coordinamos tu visita 🙌\n\n— *Lubricenter Cabudare*`;
+  return `¡Hola, ${name}! 👋😊\n\nEsta semana tenemos un beneficio especial para tu *${vehicle}* en *Lubricenter Norte* 🚗✨\n\nHaciendo con nosotros el *cambio de aceite* y colocando también el *filtro*, te incluimos la *limpieza de inyectores GRATIS* 🔧🎁\n\n🗓️ *Solo por pocos días*. Aplican condiciones según el vehículo.\n\nSi quieres aprovecharla, respóndeme por aquí y te digo si aplica para tu carro y coordinamos tu visita 🙌\n\n— *Lubricenter Norte*`;
 }
 
 export function selectContacts(customers:Customer[],vehicles:Vehicle[],services:Service[],visits:Visit[],asOf:string):Contact[] {

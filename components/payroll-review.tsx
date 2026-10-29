@@ -217,13 +217,13 @@ export default function PayrollReview(){
  <button className="btn btn-primary" disabled={!ready||busy||!adjEmployee||!Number(adjAmount)||Number(adjAmount)<=0||adjReason.trim().length<8} onClick={adjustment}>Agregar al borrador</button>
  </section>
  <section className="card stack"><h2>Reasignación entre empleados</h2>
- <p className="muted">Ejemplo: Cheo −$10 / Alexis +$10. Se crea una <strong>propuesta retenida</strong>, sin descontar todavía dinero ni afectar la liquidación. Debes revisar la procedencia legal y la autorización antes de aplicar las dos líneas.</p>
+ <p className="muted">Ejemplo: Alfredo −$10 / Alejandro +$10. Se crea una <strong>propuesta retenida</strong>, sin descontar todavía dinero ni afectar la liquidación. Debes revisar la procedencia legal y la autorización antes de aplicar las dos líneas.</p>
  <label><span className="label">Empleado de origen (posible deducción)</span><select className="select" value={transferFrom} onChange={e=>setTransferFrom(e.target.value)}>
  <option value="">Selecciona</option>{employees.map(e=><option value={e.id} key={e.id}>{e.name}</option>)}</select></label>
  <label><span className="label">Empleado beneficiario (bono)</span><select className="select" value={transferTo} onChange={e=>setTransferTo(e.target.value)}>
  <option value="">Selecciona</option>{employees.map(e=><option value={e.id} key={e.id}>{e.name}</option>)}</select></label>
  <label><span className="label">Importe USD</span><input className="input" type="number" step="0.01" min="0.01" value={transferAmount} onChange={e=>setTransferAmount(e.target.value)} placeholder="10.00"/></label>
- <label><span className="label">Explicación del incidente</span><textarea className="input" value={transferReason} onChange={e=>setTransferReason(e.target.value)} placeholder="Ej. Trabajo de Alexis cotizado $40 y cobrado por Cheo en $30. Propuesta de acuerdo pendiente."/></label>
+ <label><span className="label">Explicación del incidente</span><textarea className="input" value={transferReason} onChange={e=>setTransferReason(e.target.value)} placeholder="Ej. Trabajo de Alejandro cotizado $40 y cobrado por Alfredo en $30. Propuesta de acuerdo pendiente."/></label>
  <div className="card"><strong>Vista previa</strong><div>{employeeName(transferFrom)}: −${Math.abs(Number(transferAmount||0)).toFixed(2)}</div>
  <div>{employeeName(transferTo)}: +${Math.abs(Number(transferAmount||0)).toFixed(2)}</div>
  <div><strong>Variación neta entre empleados: $0.00</strong></div></div>

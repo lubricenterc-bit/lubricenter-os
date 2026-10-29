@@ -19,7 +19,7 @@ type Entry = {
 };
 
 const methods: readonly [Method, string][] = [
-  ["CASH_VES", "Efectivo Bs"], ["TRANSFER_BDV", "Pago móvil · Venezuela"],
+  ["CASH_VES", "Efectivo Bs"], ["TRANSFER_BDV", "Provincial · pago móvil o punto"],
   ["TRANSFER_BNC", "Pago móvil · BNC"], ["CASH_USD", "Efectivo USD"],
   ["ZELLE", "Zelle USD"], ["BINANCE", "Binance USD"],
 ];

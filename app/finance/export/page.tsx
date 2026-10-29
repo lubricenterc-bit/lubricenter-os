@@ -14,7 +14,7 @@ type CasheaOrder = {external_order:string;purchased_on:string;status:string;tota
 type Source = {provider:Provider;records:number;in_ves:number|string;out_ves:number|string;own_in_ves:number|string;unattributed_in_ves:number|string;not_final:number;coverage:string};
 type Report = {from:string;to:string;generated_at:string;status:string;transactions:Row[];orders:CasheaOrder[];
  sources:Source[];pending_transactions:number;pending_note:string};
-const providerLabels:Record<Provider,string>={BDV:'Banco de Venezuela',BNC:'Banco Nacional de Crédito',
+const providerLabels:Record<Provider,string>={BDV:'Banco Provincial',BNC:'Banco Nacional de Crédito',
  CASHEA_TRANSACTIONS:'Cashea · cuotas cobradas',CASHEA_ORDERS:'Cashea · órdenes y saldo financiado'};
 const localToday=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 function csvValue(input:unknown){
@@ -68,7 +68,7 @@ export default function FinanceExportPage(){
  }
  return <main className="container stack">
   <section className="brand-hero"><div><div className="eyebrow">FINANCE CORE · AUDITORÍA</div><h1>Exportar conciliación</h1>
-   <p>Un resumen y cuatro anexos independientes: BDV, BNC, cobros Cashea y órdenes Cashea. La plataforma no oculta los movimientos pendientes ni mezcla cuotas antiguas con nuevas ventas.</p></div>
+   <p>Un resumen y cuatro anexos independientes: Provincial, BNC, cobros Cashea y órdenes Cashea. La plataforma no oculta los movimientos pendientes ni mezcla cuotas antiguas con nuevas ventas.</p></div>
    <Link className="btn" href="/finance">Central financiera</Link>
   </section>
   {error&&<section className="error" role="alert">{error}</section>}
@@ -78,7 +78,7 @@ export default function FinanceExportPage(){
     <label>Hasta <input type="date" className="input" value={to} onChange={e=>setTo(e.target.value)} min={from} max={localToday()}/></label>
    </div>
    <button className="btn btn-primary" onClick={refresh} disabled={busy}>{busy?'Consultando evidencias…':'Generar resumen y anexos'}</button>
-   <p className="muted small">Los CSV se descargan a tu computadora, compatibles con Excel. Solo usuarios financieros autorizados pueden consultar la información. Los cobros Cashea sin orden OS se muestran como evidencia externa NO atribuida a Cabudare.</p>
+   <p className="muted small">Los CSV se descargan a tu computadora, compatibles con Excel. Solo usuarios financieros autorizados pueden consultar la información. Los cobros Cashea sin orden NT se muestran como evidencia externa NO atribuida a Norte.</p>
   </section>
   {report&&<section className="card stack">
     <div className="row-between"><h2>Conciliación del {report.from} al {report.to}</h2><span className={report.status==="CONCILIADO"?"pill ok":"pill"}>{report.status==="CONCILIADO"?"CONCILIACIÓN CERRADA":report.status==="CIERRE_CON_EXCEPCIONES"?"CIERRE CON EXCEPCIONES":"BORRADOR · NO CERRADO"}</span></div>

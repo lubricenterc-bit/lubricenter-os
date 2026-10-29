@@ -9,7 +9,7 @@ const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Caracas",year
 
 export function PurchaseReceiveSheet({invoiceId,lines,locations,onCancel,onDone}:{invoiceId:string;lines:Line[];locations:Location[];onCancel:()=>void;onDone:()=>void|Promise<void>}){
   const [date,setDate]=useState(today());
-  const [location,setLocation]=useState(locations.find(x=>x.code==="CABUDARE")?.id??"");
+  const [location,setLocation]=useState(locations.find(x=>x.code==="NORTE")?.id??"");
   const [notes,setNotes]=useState("");
   const [qty,setQty]=useState<Record<string,number>>(()=>Object.fromEntries(lines.map(x=>[x.id,0])));
   const [pending,setPending]=useState<ReceiptRequest|null>(null);

@@ -11,7 +11,7 @@ export type AppSession = {
 const Context = createContext<AppSession>({
   role: "OPERATOR",
   roleLoaded: false,
-  locationName: "Cabudare"
+  locationName: "Norte"
 });
 export const AppSessionProvider = Context.Provider;
 export function useAppSession() {

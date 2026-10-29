@@ -172,5 +172,5 @@ export default function ReceiptPage() {
 }
 
 function paymentLabel(method: string) {
-  return ({ MOBILE_PAYMENT: "Pago móvil · Banco de Venezuela", TRANSFER_BDV: "Pago móvil · Banco de Venezuela", TRANSFER_BNC: "Pago móvil · BNC", CASH_VES: "Efectivo Bs", CASH_USD: "Efectivo USD", CUSTOMER_BALANCE_USD: "Saldo a favor · USD", CUSTOMER_BALANCE_BCV: "Saldo a favor · Bs a BCV" } as Record<string,string>)[method] ?? method;
+  return ({ MOBILE_PAYMENT: "Provincial · pago móvil o punto", TRANSFER_BDV: "Provincial · pago móvil o punto", TRANSFER_BNC: "Pago móvil · BNC", CASH_VES: "Efectivo Bs", CASH_USD: "Efectivo USD", CUSTOMER_BALANCE_USD: "Saldo a favor · USD", CUSTOMER_BALANCE_BCV: "Saldo a favor · Bs a BCV" } as Record<string,string>)[method] ?? method;
 }

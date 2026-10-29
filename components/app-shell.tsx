@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const currentModule = moduleForPath(pathname);
   const [role, setRole] = useState<NavigationRole>("OPERATOR");
   const [roleLoaded, setRoleLoaded] = useState(false);
-  const [locationName, setLocationName] = useState("Cabudare");
+  const [locationName, setLocationName] = useState("Norte");
   const [otherLocations, setOtherLocations] = useState(false);
   const [expanded, setExpanded] = useState(currentModule.id);
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -63,7 +63,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       setRole(value === "OWNER" || value === "ADMIN" ? value : "OPERATOR");
       setRoleLoaded(true);
       if (!locations.error && locations.data?.length) {
-        setLocationName(locations.data[0].name.replace(/^Lubricenter\s*/i, "") || "Cabudare");
+        setLocationName(locations.data[0].name.replace(/^Lubricenter\s*/i, "") || "Norte");
         setOtherLocations(locations.data.length > 1);
       }
     }

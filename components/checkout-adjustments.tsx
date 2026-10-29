@@ -96,7 +96,7 @@ export function AdjustmentControls({
         <span className="label">PIN del dueño (más de {limit}%)</span>
         <input className="input" type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ""))} />
       </label>}
-      <div className="muted small">El cliente ahorra {fmtRef(draft.discount)}. Sale de la parte de Lubricenter: lo de Cheo y Alexis no cambia.</div>
+      <div className="muted small">El cliente ahorra {fmtRef(draft.discount)}. Sale de la parte de Lubricenter: lo de Alfredo y Alejandro no cambia.</div>
       {error && <div className="error" role="alert">{error}</div>}
       <button type="button" className="btn btn-primary btn-block" style={{ minHeight: 48 }} disabled={busy} onClick={() => void applyDiscount()}>
         {needsPin ? "Aprobar con PIN y aplicar" : `Aplicar ${Number.isFinite(pct) ? pct : 0}% · total ${fmtRef(draft.total)}`}

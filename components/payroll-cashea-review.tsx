@@ -57,7 +57,7 @@ export function CasheaPayrollChoices({employeeId,options,periodEnd,disabled,onUp
       </div>
       <label><span className="label">Motivo / acuerdo</span>
         <textarea className="input" rows={2} value={reason} onChange={e=>setReason(e.target.value)}
-         placeholder="Ej. Revisado con Cheo: espera tres cuotas, o anticipo total autorizado."/></label>
+         placeholder="Ej. Revisado con Alfredo: espera tres cuotas, o anticipo total autorizado."/></label>
       {error&&<div className="error" role="alert">{error}</div>}
       <div className="row"><button className="btn btn-primary" disabled={busy||reason.trim().length<8||(mode==="FULL_UPFRONT"&&item.amount_to_advance<.01)} onClick={()=>void save(item)}>
        {busy?"Guardando…":"Guardar decisión con auditoría"}</button><button className="btn" disabled={busy} onClick={()=>setEdit(null)}>Cancelar</button></div>

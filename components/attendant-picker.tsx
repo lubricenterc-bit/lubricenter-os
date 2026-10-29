@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 /** Mientras todos entran con la misma cuenta, cada orden guarda quién la atendió. */
-export const ATTENDANTS = ["Edgar", "Ender", "Santiago"] as const;
+export const ATTENDANTS = ["Omar", "Santiago"] as const;
 const KEY = "lubricenter:attendant";
 
 export function readAttendant(): string {

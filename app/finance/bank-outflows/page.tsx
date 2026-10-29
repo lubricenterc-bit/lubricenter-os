@@ -63,13 +63,13 @@ export default function BankOutflowsPage() {
   setCategoryId(x.category_id||'');setNote('');setTarget('');setNewCategory('');setSaveRule(false);
  }
  async function importMovements() {
-  if(!queue?.sources?.[0])throw Error('La fuente BDV no está configurada en Finance Core.');
+  if(!queue?.sources?.[0])throw Error('La fuente Provincial no está configurada en Finance Core.');
   const p=preview||parseBdv(bankText);
   if(p.errors.length)throw Error('Corrige los errores de lectura del reporte antes de importar.');
   if(!p.rows.length||!p.observed_from||!p.observed_to)throw Error('No hay movimientos para importar.');
   if(!p.balance_chain&&!acknowledged)throw Error('El extracto presenta saltos de saldo. Confirma primero que comprendes la cobertura.');
   const result=await supabase.rpc('finance_import',{
-    p_source_id:queue.sources[0].id,p_name:'BDV · clasificación progresiva '+p.observed_from+' a '+p.observed_to,
+    p_source_id:queue.sources[0].id,p_name:'Provincial · clasificación progresiva '+p.observed_from+' a '+p.observed_to,
     p_from:p.observed_from,p_to:p.observed_to,p_preview:p
   });
   if(result.error)throw result.error;
@@ -113,8 +113,8 @@ export default function BankOutflowsPage() {
   {error&&<div role="alert" className="error">{error}</div>}
   {notice&&<div role="status" className="success">{notice}</div>}
   <section className="card stack">
-   <h2 className="section-title">1 · Importar movimientos del BDV</h2>
-   <p className="muted small">Pega la tabla de seis columnas del Banco de Venezuela: Fecha, Referencia, Descripción, Débito/Crédito, Monto y Saldo. Se guardan entradas y salidas, pero esta vista muestra los egresos. Los importes y saldos del banco nunca se alteran.</p>
+   <h2 className="section-title">1 · Importar movimientos del Provincial</h2>
+   <p className="muted small">Pega la tabla de seis columnas del Banco Provincial: Fecha, Referencia, Descripción, Débito/Crédito, Monto y Saldo. Se guardan entradas y salidas, pero esta vista muestra los egresos. Los importes y saldos del banco nunca se alteran.</p>
    <textarea className="textarea" rows={7} value={bankText} onChange={e=>{setBankText(e.target.value);setPreview(null);setAcknowledged(false);}} placeholder={"Fecha\nReferencia\nDescripción\nDébito / Crédito\nMonto\nSaldo\n10-10-2026 - 08:36\n0027220815852\nCOMISION PAGOMOVILBDV\nDEBITO\n-14,00\n465.982,66"}/>
    <div className="row">
     <button className="btn" disabled={!bankText.trim()||busy} onClick={()=>{const p=parseBdv(bankText);setPreview(p);setError('');}}>Validar extracto</button>

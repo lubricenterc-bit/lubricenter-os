@@ -21,7 +21,7 @@ const groups = [
       ["/expenses", "↗", "Egresos y proveedores", "Compras, facturas y cuentas por pagar"],
       ["/cash-close", "✓", "Cuadre diario", "Cierre de efectivo y bancos"],
       ["/receivables", "$", "Cobros", "Crédito LC y abonos"],
-      ["/payroll", "%", "Nómina", "Cheo, Alexis y ajustes"],
+      ["/payroll", "%", "Nómina", "Alfredo, Alejandro, Wilfredo y ajustes"],
       ["/settings", "⚙", "Configuración", "Tasas, catálogo, CRM y reglas"],
     ],
   },

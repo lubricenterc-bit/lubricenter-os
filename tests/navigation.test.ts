@@ -55,8 +55,8 @@ describe("Navegación de escritorio Lubricenter OS", () => {
   it("encuentra herramientas por nombre y palabra clave", () => {
     expect(navigationSearch("arqueo", "OPERATOR")[0].href).toBe("/cash-close");
     expect(navigationSearch("proveedores", "OPERATOR")[0].href).toBe("/expenses");
-    expect(navigationSearch("BDV", "OWNER").some(x => x.href === "/finance/reconcile")).toBe(true);
-    expect(navigationSearch("BDV", "OPERATOR")).toEqual([]);
+    expect(navigationSearch("Provincial", "OWNER").some(x => x.href === "/finance/reconcile")).toBe(true);
+    expect(navigationSearch("Provincial", "OPERATOR")).toEqual([]);
   });
   it("no crea rutas duplicadas entre los módulos", () => {
     const hrefs = NAV_MODULES.flatMap(m => m.links.map(l => l.href));

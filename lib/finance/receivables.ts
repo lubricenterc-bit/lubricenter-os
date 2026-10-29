@@ -72,7 +72,7 @@ export function debtMessage(name: string | null, orderNumber: string, balance: R
   const fmt = (n: number) => n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const lines = [
     `Hola${name ? " " + name : ""} 👋`,
-    `Te recordamos el saldo pendiente de tu orden *${orderNumber}* en *Lubricenter Cabudare*:`,
+    `Te recordamos el saldo pendiente de tu orden *${orderNumber}* en *Lubricenter Norte*:`,
     "",
     left.usd != null ? `• En divisas (Zelle, Binance o efectivo $): *$${fmt(left.usd)}*` : null,
     left.vesToday != null ? `• En bolívares hoy (BCV): *Bs ${fmt(left.vesToday)}*` : null,

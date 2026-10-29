@@ -12,7 +12,7 @@ export default function CorrectOrder(){
  const [order,setOrder]=useState<any>(null),[items,setItems]=useState<Line[]>([]),[payments,setPayments]=useState<Pay[]>([]),[date,setDate]=useState("");
  const [reason,setReason]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[admin,setAdmin]=useState(false),[loading,setLoading]=useState(true),[finance,setFinance]=useState("");
  useEffect(()=>{(async()=>{
-  const a=await supabase.rpc("can_administer_orders");if(a.error||a.data!==true){setLoading(false);return setError(a.error?.message||"Solo lubricenterc@gmail.com puede corregir ventas cerradas.");}setAdmin(true);
+  const a=await supabase.rpc("can_administer_orders");if(a.error||a.data!==true){setLoading(false);return setError(a.error?.message||"Solo lubricenternorte@gmail.com puede corregir ventas cerradas.");}setAdmin(true);
   const [o,i,p,c,r]=await Promise.all([supabase.from("orders").select("*").eq("id",id).single(),supabase.from("order_items").select("*").eq("order_id",id).order("created_at"),supabase.from("payments").select("*").eq("order_id",id).order("paid_at"),supabase.from("cashea_sales").select("initial_percent").eq("order_id",id).maybeSingle(),supabase.from("receivables").select("id").eq("order_id",id).maybeSingle()]);
   const err=o.error||i.error||p.error||c.error||r.error;setLoading(false);if(err)return setError(err.message);
   if(o.data.status!=="CLOSED")return setError("Esta venta no está cerrada. Vuelve al listado para abrir su versión vigente.");

@@ -183,7 +183,7 @@ export function quoteCustomerMessage(
   ]);
   return [
     "¡Hola! 👋🧡",
-    "¡Gracias por escribir a *Lubricenter Cabudare*! Te compartimos la cotización que preparamos para ti.",
+    "¡Gracias por escribir a *Lubricenter Norte*! Te compartimos la cotización que preparamos para ti.",
     "",
     "*Productos y precios:*",
     ...items,
@@ -191,7 +191,7 @@ export function quoteCustomerMessage(
     "*Total:* "+keys.map(key=>format(total[key]!,key)).join("  ·  "),
     "",
     "¿Te gustaría que coordinemos tu visita? ¡Será un gusto atenderte! 🚗",
-    "*Lubricenter Cabudare* 🧡"
+    "*Lubricenter Norte* 🧡"
   ].join("\n");
 }
 

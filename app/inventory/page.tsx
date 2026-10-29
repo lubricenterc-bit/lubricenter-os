@@ -65,7 +65,7 @@ function formatSyncDate(value: string | null) {
 
 export default function InventoryPage() {
   const [locations,setLocations]=useState<Array<{id:string;code:string;name:string}>>([]);
-  const [locationCode,setLocationCode]=useState("CABUDARE");
+  const [locationCode,setLocationCode]=useState("NORTE");
   const [canManage,setCanManage]=useState(false);
   const [historyItem,setHistoryItem]=useState<InventoryRow|null>(null);
   const [rows, setRows] = useState<InventoryRow[]>([]);
