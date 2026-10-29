@@ -146,3 +146,36 @@ describe('Upload detection, BDV panel and export', () => {
     expect((sheets[2].data as unknown[][]).length - 1).toBe(6);
   });
 });
+
+describe('Lessons from the real 1–28 Oct statement', () => {
+  const header = [null, 'Fecha', 'Código\n Transacción', 'Tipo \nTransacción', 'Tipo \nOperación', 'Descripción', 'Referencia', 'Debe', 'Haber', 'Saldo'];
+  const rows = [
+    [null, '01/10/2026', '388', 'P2COTR', 'Abono Pago Movil BNC', 'PMPC', 1126681985, 0, 10666.17, 206209.85],
+    [null, '01/10/2026', '388', 'P2COTR', 'Abono Pago Movil BNC', 'PMPC', 565961, 0, 12558.56, 218768.41],
+  ];
+  it('uses the bank "Totales" row as a control instead of a movement', () => {
+    const ok = parseBnc([[null, 'CUENTA CORRIENTE ***4493'], header, ...rows, [null, 'Totales', null, null, null, null, null, 0, 23224.73, 218768.41]]);
+    expect(ok).toMatchObject({ errors: [], chain_ok: true, account: '***4493' });
+    expect(ok.lines.map(l => l.reference)).toEqual(['1126681985', '565961']);
+    const bad = parseBnc([header, ...rows, [null, 'Totales', null, null, null, null, null, 0, 99999, 218768.41]]);
+    expect(bad.errors[0].message).toMatch(/totales del banco/i);
+  });
+
+  it('suggests a mistyped OS reference even when the order only appears in the payments export', () => {
+    const input = scenario();
+    input.casheaOrders = input.casheaOrders.filter(o => o.external_order !== '216061026');
+    input.casheaPayments.push({ id: 'p-2104', occurred_at: '2026-10-26T18:47:00-04:00', reference: '62991953123', external_order: '216061026', installments: [3], currency: 'VES', amount: '12130.00', amount_ref: '13.67', rate, rate_date: '2026-10-26', invoice: '2104' });
+    const e = runEngine(input).exceptions.find(x => x.kind === 'REFERENCIA_MAL_CARGADA');
+    expect(e?.fix).toEqual({ action: 'SET_REFERENCE', sale_id: 'S-OS-000064', reference: '216061026' });
+  });
+
+  it('hides bank-only exceptions of the period already closed by a zero', () => {
+    const input = scenario();
+    input.bankLines = bank(270606.12, [
+      ['2026-10-02', '131927', OUT, 'TRANSF CED.:J413105438', 0.01, 0], ['2026-10-21', '34806', OUT, 'CED.:V030881436', 268000, 0], ['2026-10-21', '34806', FEE, 'COMISION', 804 - 0.01, 0],
+      ['2026-10-22', '77', OUT, 'TRANSF CED.:J999999999', 100, 0],
+    ]);
+    const kinds = runEngine(input).exceptions.filter(e => e.kind === 'RETIRO_CEDULA_DESCONOCIDA').map(e => e.bank_line_id);
+    expect(kinds).toEqual(['L3']);
+  });
+});

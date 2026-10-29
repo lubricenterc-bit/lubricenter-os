@@ -345,13 +345,16 @@ export function runEngine(input: EngineInput): EngineResult {
 
   // --- Linking suggestions between Cashea orders and OS sales.
   const linkedOrders = new Set(input.osSales.filter(s => s.cashea_reference).map(s => normalizeRef(s.cashea_reference)));
-  const casheaNumbers = new Set(input.casheaOrders.map(o => o.external_order));
+  // Cashea orders seen in either export; an order outside the orders window still appears in payments.
+  const knownOrders = new Map<string, { invoice: string | null; detail: string }>();
+  for (const [n, pays] of paymentsByOrder) knownOrders.set(n, { invoice: pays.find(p => p.invoice)?.invoice ?? null, detail: `${pays.length} pago(s) en el export de pagos` });
+  for (const o of input.casheaOrders) knownOrders.set(o.external_order, { invoice: o.invoice, detail: `${o.purchased_on} · ${o.total_ref} USD` });
   for (const s of input.osSales) {
-    if (!s.cashea_reference || s.status === 'CANCELLED' || casheaNumbers.has(s.cashea_reference.trim())) continue;
+    if (!s.cashea_reference || s.status === 'CANCELLED' || knownOrders.has(s.cashea_reference.trim())) continue;
     const ref = normalizeRef(s.cashea_reference);
-    const near = input.casheaOrders.filter(o => !linkedOrders.has(o.external_order) && ownerOf(o.external_order).rule !== 'MANUAL'
-      && (o.external_order.includes(ref) || ref.includes(o.external_order) || levenshteinAtMostOne(o.external_order, ref)));
-    if (near.length === 1) addException({ key: `ref:${s.sale_id}`, kind: 'REFERENCIA_MAL_CARGADA', title: `${s.order_number}: la referencia Cashea del OS (${s.cashea_reference}) parece ser ${near[0].external_order}`, detail: `Factura en Cashea "${near[0].invoice ?? 'vacía'}" · ${near[0].purchased_on} · ${near[0].total_ref} USD`, sale_id: s.sale_id, order_id: s.order_id, order_number: s.order_number, external_order: near[0].external_order, fix: { action: 'SET_REFERENCE', sale_id: s.sale_id, reference: near[0].external_order } });
+    const near = [...knownOrders.entries()].filter(([n]) => !linkedOrders.has(n) && ownerOf(n).rule !== 'MANUAL'
+      && (n.includes(ref) || ref.includes(n) || levenshteinAtMostOne(n, ref)));
+    if (near.length === 1) { const [n, k] = near[0]; addException({ key: `ref:${s.sale_id}`, kind: 'REFERENCIA_MAL_CARGADA', title: `${s.order_number}: la referencia Cashea del OS (${s.cashea_reference}) parece ser ${n}`, detail: `Factura en Cashea "${k.invoice ?? 'vacía'}" · ${k.detail}`, sale_id: s.sale_id, order_id: s.order_id, order_number: s.order_number, external_order: n, fix: { action: 'SET_REFERENCE', sale_id: s.sale_id, reference: n } }); }
   }
   const salesWithoutRef = input.osSales.filter(s => !s.cashea_reference && s.status !== 'CANCELLED');
   for (const o of input.casheaOrders) {
@@ -369,7 +372,12 @@ export function runEngine(input: EngineInput): EngineResult {
     if (os) addException({ key: `posible:${o.external_order}`, kind: 'POSIBLE_CABUDARE', title: `Orden Cashea ${o.external_order} (factura "${o.invoice ?? 'vacía'}") podría ser ${os.order_number}`, detail: `Mismo día y mismo total (${o.total_ref} USD), pero ${os.order_number} no tiene venta Cashea en el OS: puede ser coincidencia.`, external_order: o.external_order, order_id: os.order_id, order_number: os.order_number, fix: { action: 'ASSIGN_ORDER', external_order: o.external_order, branch: BRANCHES.CABUDARE } });
   }
 
-  return { ownership, lines, current, receivables, orders, exceptions, chainBreaks, zeroSuggestion, rateByDate };
+  // Bank-only exceptions before the active zero belong to a closed period: not actionable any more.
+  const closedLines = new Set(activeAnchor !== null && activeAnchor >= 0 ? lines.slice(0, activeAnchor + 1).map(l => l.id) : []);
+  const bankOnly: ExceptionKind[] = ['SIN_IDENTIFICAR', 'DEBITO_SIN_CLASIFICAR', 'RETIRO_CEDULA_DESCONOCIDA', 'SALTO_DE_SALDO'];
+  const open = exceptions.filter(e => !(e.bank_line_id && closedLines.has(e.bank_line_id) && bankOnly.includes(e.kind)));
+
+  return { ownership, lines, current, receivables, orders, exceptions: open, chainBreaks, zeroSuggestion, rateByDate };
 }
 
 /** Totals by branch for the lines after `anchor` up to `endIdx` (inclusive). */

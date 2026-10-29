@@ -69,16 +69,19 @@ export function parseBnc(cells: (XlsCell | Date)[][]): BncPreview {
   const p: BncPreview = { lines: [], errors: [], warnings: [], duplicates: 0, chain_ok: false, observed_from: null, observed_to: null, account: null };
   const headerRow = cells.findIndex(r => r?.some(c => normalizeText(c) === 'fecha'));
   if (headerRow < 0) { p.errors.push({ row: 0, message: 'No se encontró la fila de encabezados (Fecha, Referencia, Debe, Haber, Saldo).' }); return p; }
-  for (const r of cells.slice(0, headerRow)) for (const c of r ?? []) { const m = /(\d{4}[-\s]?\d{4}[-\s]?\d{2}[-\s]?\d{10}|\d{20})/.exec(String(c ?? '')); if (m && !p.account) p.account = m[1].replace(/\D/g, ''); }
+  for (const r of cells.slice(0, headerRow)) for (const c of r ?? []) { const m = /(\d{4}[-\s]?\d{4}[-\s]?\d{2}[-\s]?\d{10}|\d{20}|\*{3}\d{4})/.exec(String(c ?? '')); if (m && !p.account) p.account = m[1].startsWith('*') ? m[1] : m[1].replace(/\D/g, ''); }
   const header = cells[headerRow].map(normalizeText);
   const col = Object.fromEntries(Object.entries(HEADERS).map(([k, names]) => [k, header.findIndex(h => (names as readonly string[]).includes(h))])) as Record<keyof typeof HEADERS, number>;
   const missing = (['fecha', 'referencia', 'debe', 'haber', 'saldo'] as const).filter(k => col[k] < 0);
   if (missing.length) { p.errors.push({ row: headerRow + 1, message: `Faltan columnas: ${missing.join(', ')}` }); return p; }
   const cell = (r: (XlsCell | Date)[], k: keyof typeof HEADERS) => (col[k] < 0 ? null : r[col[k]] ?? null);
   const parsed: BncLine[] = [];
+  let totals: { row: number; debit: string; credit: string } | null = null;
   cells.slice(headerRow + 1).forEach((r, i) => {
     const row = headerRow + 2 + i;
     if (!r || r.every(c => c === null || c === '')) return;
+    // The bank closes the table with a "Totales" row: kept as a control, not as a movement.
+    if (r.some(c => /^totale?s?$/.test(normalizeText(c)))) { totals = { row, debit: bncAmount(cell(r, 'debe') as XlsCell), credit: bncAmount(cell(r, 'haber') as XlsCell) }; return; }
     let line_date: string;
     try { line_date = bncDate(cell(r, 'fecha') as XlsCell); } catch {
       const hasMoney = [cell(r, 'debe'), cell(r, 'haber')].some(v => v !== null && v !== '' && v !== 0);
@@ -96,6 +99,11 @@ export function parseBnc(cells: (XlsCell | Date)[][]): BncPreview {
     } catch (e) { p.errors.push({ row, message: (e as Error).message }); }
   });
   if (!parsed.length) { p.errors.push({ row: 0, message: 'El estado de cuenta no tiene movimientos.' }); return p; }
+  const t = totals as { row: number; debit: string; credit: string } | null;
+  if (t) {
+    const debit = parsed.reduce((s, l) => s.add(l.debit), new D(0)), credit = parsed.reduce((s, l) => s.add(l.credit), new D(0));
+    if (debit.sub(t.debit).abs().gt('0.01') || credit.sub(t.credit).abs().gt('0.01')) p.errors.push({ row: t.row, message: `Los totales del banco (Debe ${t.debit}, Haber ${t.credit}) no coinciden con los movimientos leídos (Debe ${debit.toFixed(2)}, Haber ${credit.toFixed(2)}).` });
+  }
   // Keep statement order; if it is newest-first, reverse so the running balance reads forward.
   let ordered = parsed;
   const reversed = [...parsed].reverse();
