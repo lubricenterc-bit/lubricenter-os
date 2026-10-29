@@ -150,7 +150,7 @@ export default function TechnicalCatalogPage(){
     <section className="card stack">
       <div className="row" style={{flexWrap:"wrap",gap:8}}>
         <button className={"btn "+(mode==="stock"?"btn-primary":"btn-ghost")} onClick={()=>{setMode("stock");reset();}}>Inventario · {stock.length}</button>
-        <button className={"btn "+(mode==="catalog"?"btn-primary":"btn-ghost")} onClick={()=>{setMode("catalog");reset();}}>Catálogo comercial · {catalog.length}</button>
+
       </div>
       <p className="muted small">Se clasifican SKU de inventario y productos de venta por separado. Vincularlos y validar equivalencias será una tarea independiente; no se supone compatibilidad por nombre o medidas.</p>
       <div className="grid grid-3">

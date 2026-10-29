@@ -25,7 +25,6 @@ type InventoryProduct = {
   quantity_on_hand: number; product_id: string | null; catalog_product_name: string | null;
   current_price_ves: number | null; current_ref_bcv: number | null; alt_codes?: string[] | null;
 };
-type CatalogProduct = { id: string; name: string; category: string | null; filter_code: string | null; current_price_ves: number | null; current_ref_bcv: number | null };
 type SearchResult = { key: string; kind: "STOCK" | "CATALOG"; inventory_item_id?: string; product_id?: string; title: string; subtitle: string; stock?: number; unit_ref: number; unit_ves: number };
 type CartLine = { key: string; kind: "STOCK" | "CATALOG" | "MANUAL"; inventory_item_id?: string; product_id?: string; description: string; quantity: number; unit_ref: number; source_label: string; stock?: number };
 type QuickPayloadLine = { kind: "STOCK" | "CATALOG" | "MANUAL"; inventory_item_id: string | null; product_id: string | null; description: string; quantity: number; unit_ref: number };
@@ -55,7 +54,6 @@ export function QuickSaleScreen() {
   const [quoteTransferNotice,setQuoteTransferNotice] = useState("");
   const [tenderOpen,setTenderOpen] = useState(false);
   const [inventory, setInventory] = useState<InventoryProduct[]>([]);
-  const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
   const [rates, setRates] = useState<Rates>({ bcv: 0, operative: 0 });
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -88,13 +86,9 @@ export function QuickSaleScreen() {
 
   async function load() {
     setLoading(true); setWarning("");
-    const [invRes, catRes] = await Promise.all([
-      supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,alt_codes").eq("location_code", "CABUDARE").gt("quantity_on_hand", 0).eq("needs_review", false).order("brand").order("sku").limit(1000),
-      supabase.from("product_catalog_current").select("id,name,category,filter_code,current_price_ves,current_ref_bcv").eq("available", true).order("name").limit(1000),
-    ]);
+    const invRes = await supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,alt_codes").eq("location_code", "CABUDARE").gt("quantity_on_hand", 0).eq("needs_review", false).order("brand").order("sku").limit(1000);
     const warnings: string[] = [];
     if (invRes.error) warnings.push(`Inventario: ${invRes.error.message}`); else setInventory((invRes.data ?? []).map((x: any) => ({ ...x, quantity_on_hand: Number(x.quantity_on_hand ?? 0), current_price_ves: x.current_price_ves == null ? null : Number(x.current_price_ves), current_ref_bcv: x.current_ref_bcv == null ? null : Number(x.current_ref_bcv) })) as InventoryProduct[]);
-    if (catRes.error) warnings.push(`Catálogo: ${catRes.error.message}`); else setCatalog((catRes.data ?? []).map((x: any) => ({ ...x, current_price_ves: x.current_price_ves == null ? null : Number(x.current_price_ves), current_ref_bcv: x.current_ref_bcv == null ? null : Number(x.current_ref_bcv) })) as CatalogProduct[]);
     setWarning(warnings.join(" · ")); setLoading(false); setTimeout(() => searchRef.current?.focus(), 50);
   }
   useEffect(() => {
@@ -155,7 +149,7 @@ export function QuickSaleScreen() {
   useEffect(()=>{if(draftHydrated)sessionStorage.setItem('lubricenter:quick-cart',JSON.stringify({cart,saleDate,method:selectedPayment,reference}));},[draftHydrated,cart,saleDate,selectedPayment,reference]);
   // Importa una cotización guardada al mismo carrito de venta rápida. Nunca registra ventas automáticamente.
   useEffect(() => {
-    if (loading || quoteImported.current || (!catalog.length && !inventory.length)) return;
+    if (loading || quoteImported.current || !inventory.length) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("from") !== "quote") return;
     quoteImported.current = true;
@@ -175,7 +169,8 @@ export function QuickSaleScreen() {
         });
         continue;
       }
-      const stock = inventory.find(item=>item.product_id===line.productId && item.quantity_on_hand>=line.quantity && (item.current_ref_bcv??0)>0);
+      // La cotización guarda el id del artículo de inventario (único catálogo).
+      const stock = inventory.find(item=>item.id===line.productId && item.quantity_on_hand>=line.quantity && (item.current_ref_bcv??0)>0);
       if (stock) {
         imported.push({
           key:"STOCK:"+stock.id,kind:"STOCK",inventory_item_id:stock.id,
@@ -186,16 +181,7 @@ export function QuickSaleScreen() {
         });
         continue;
       }
-      const item=catalog.find(product=>product.id===line.productId && (product.current_ref_bcv??0)>0);
-      if (!item) {
-        skipped.push("Un producto de la cotización ya no está disponible.");
-        continue;
-      }
-      imported.push({
-        key:"CATALOG:"+item.id,kind:"CATALOG",product_id:item.id,description:item.name,
-        quantity:line.quantity,unit_ref:Number(item.current_ref_bcv),
-        source_label:"Desde cotización · precio actualizado; sin descontar stock"
-      });
+      skipped.push("Un producto de la cotización ya no tiene existencia o precio en inventario.");
     }
     if (imported.length) {
       setCart(previous => {
@@ -217,17 +203,16 @@ export function QuickSaleScreen() {
     const url=new URL(window.location.href);
     url.searchParams.delete("from");url.searchParams.delete("flow");
     window.history.replaceState(window.history.state,"",url.pathname+url.search+url.hash);
-  }, [loading,catalog,inventory]);
+  }, [loading,inventory]);
 
   useEffect(()=>{setReceived(false);},[cart,selectedPayment,reference]);
 
-  const positiveCatalogIds = useMemo(() => new Set(inventory.map(i => i.product_id).filter(Boolean) as string[]), [inventory]);
   const results = useMemo<SearchResult[]>(() => {
     const q = normalize(search.trim());
-    const stockResults = inventory.filter(i => !q || matchesSearch(inventorySearchText(i), q)).map(i => ({ key: `STOCK:${i.id}`, kind: "STOCK" as const, inventory_item_id: i.id, product_id: i.product_id ?? undefined, title: [i.brand, i.sku].filter(Boolean).join(" · ") || i.sku, subtitle: i.description, stock: i.quantity_on_hand, unit_ref: Number(i.current_ref_bcv ?? 0), unit_ves: Number(i.current_price_ves ?? 0) }));
-    const catalogResults = catalog.filter(p => !positiveCatalogIds.has(p.id)).filter(p => !q || matchesSearch(`${p.name} ${p.category ?? ""} ${p.filter_code ?? ""}`, q)).map(p => ({ key: `CATALOG:${p.id}`, kind: "CATALOG" as const, product_id: p.id, title: p.name, subtitle: [p.category, p.filter_code ? `Código ${p.filter_code}` : null].filter(Boolean).join(" · ") || "Catálogo", unit_ref: Number(p.current_ref_bcv ?? 0), unit_ves: Number(p.current_price_ves ?? 0) }));
-    return [...stockResults, ...catalogResults].slice(0, q ? 12 : 6);
-  }, [inventory, catalog, positiveCatalogIds, search]);
+    // El inventario es el único catálogo: solo se ofrecen artículos con existencia.
+    const stockResults = inventory.filter(i => !q || matchesSearch(inventorySearchText(i), q)).map(i => ({ key: `STOCK:${i.id}`, kind: "STOCK" as const, inventory_item_id: i.id, product_id: i.product_id ?? undefined, title: i.catalog_product_name || [i.brand, i.sku].filter(Boolean).join(" · ") || i.sku, subtitle: [i.sku, i.current_ref_bcv == null ? "sin precio: escríbelo" : null].filter(Boolean).join(" · "), stock: i.quantity_on_hand, unit_ref: Number(i.current_ref_bcv ?? 0), unit_ves: Number(i.current_price_ves ?? 0) }));
+    return stockResults.slice(0, q ? 12 : 6);
+  }, [inventory, search]);
 
   function addResult(r: SearchResult) {
     if (r.kind === "STOCK" && (cart.find(x => x.key === r.key)?.quantity ?? 0) + 1 > (r.stock ?? 0)) return setError("Ya agregaste la existencia disponible de este producto. Revisa la cantidad en la venta.");
@@ -451,7 +436,7 @@ export function QuickSaleScreen() {
           onKeyDown={e => { if (e.key === "Enter" && results[0]) { e.preventDefault(); addResult(results[0]); } }} placeholder="Ej: Valvoline, 3387, 20W50, refrigerante…" autoComplete="off" autoFocus />
         <span className="os-search-hint"><kbd>Enter</kbd> agrega el primero</span>
       </label>
-      <div className="os-plist-head"><span>{query ? (results.length === 1 ? "1 resultado" : `${results.length} resultados`) : "Sugerencias"}</span><span>{inventory.length} con stock, {catalog.length} en catálogo</span></div>
+      <div className="os-plist-head"><span>{query ? (results.length === 1 ? "1 resultado" : `${results.length} resultados`) : "Sugerencias"}</span><span>{inventory.length} artículos con existencia</span></div>
       {loading ? <div className="os-plist os-plist-empty"><span className="os-loading-dot" />Cargando precios…</div>
         : results.length ? <div className="os-plist">
           {results.map((r, index) => {
