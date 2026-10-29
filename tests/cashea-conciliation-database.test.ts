@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const migration = readFileSync('supabase/migrations/20261029120000_cashea_branch_conciliation.sql', 'utf8');
+const autofix = readFileSync('supabase/migrations/20261029180000_cashea_conciliation_autofix.sql', 'utf8');
 let db: PGlite;
 const q = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await db.query<T>(sql, params)).rows;
 const one = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await q<T>(sql, params))[0];
@@ -21,9 +22,15 @@ beforeAll(async () => {
    create table public.audit_events(id uuid primary key default gen_random_uuid(),event_type text,entity_type text,entity_id uuid,data jsonb,created_at timestamptz default now());
    create function lubricenter_private.finance_audit() returns trigger language plpgsql as $$ begin insert into public.audit_events(event_type,entity_type) values('finance.'||lower(tg_op),tg_table_name); return coalesce(new,old); end $$;
    create table public.orders(id uuid primary key default gen_random_uuid(),order_number text,status text,total_ref numeric,business_at timestamptz,closed_at timestamptz,opened_at timestamptz default now());
-   create table public.cashea_sales(id uuid primary key default gen_random_uuid(),order_id uuid references public.orders(id),cashea_reference text,status text,ownership_status text default 'OWN',gross_ref numeric,initial_ref numeric,settled_at timestamptz);
+   create table public.cashea_sales(id uuid primary key default gen_random_uuid(),order_id uuid references public.orders(id),cashea_reference text,status text,ownership_status text default 'OWN',gross_ref numeric,initial_ref numeric,settled_at timestamptz,initial_payment_method text);
    create table public.cashea_installments(id uuid primary key default gen_random_uuid(),cashea_sale_id uuid references public.cashea_sales(id),installment_no integer,due_date date,amount_ref numeric,paid_ref numeric default 0,paid_ves_actual numeric default 0,status text default 'PENDING',paid_at timestamptz,updated_at timestamptz);
-   create table public.payments(id uuid primary key default gen_random_uuid(),order_id uuid,method text,currency text,amount_original numeric,reference text,paid_at timestamptz);
+   create table public.payments(id uuid primary key default gen_random_uuid(),order_id uuid,method text,currency text,amount_original numeric,reference text,paid_at timestamptz,receivable_id uuid,financial_account_id uuid);
+   create table public.financial_accounts(id uuid primary key default gen_random_uuid(),code text unique,active boolean default true);
+   insert into public.financial_accounts(code) values('BDV'),('BNC');
+   create table public.account_movements(id uuid primary key default gen_random_uuid(),account_id uuid,source_payment_id uuid,reference text,amount_original numeric);
+   create table public.reconciliation_allocations(id uuid primary key default gen_random_uuid(),account_movement_id uuid,reversed_at timestamptz);
+   create table public.order_tenders(id uuid primary key default gen_random_uuid(),order_id uuid,payment_id uuid);
+   create function lubricenter_private.require_order_admin() returns void language plpgsql as $$ begin if lubricenter_private.finance_role() not in ('ADMIN','OWNER') then raise exception 'Solo administradores'; end if; end $$;
    create table public.external_sources(id uuid primary key default gen_random_uuid(),provider text);
    create table public.external_import_batches(id uuid primary key default gen_random_uuid(),source_id uuid,row_count integer,observed_from date,observed_to date,created_at timestamptz default now());
    create table public.external_transactions(id uuid primary key default gen_random_uuid(),source_id uuid,occurred_at timestamptz,reference text,description text,direction text default 'IN',currency text,amount numeric,balance numeric,amount_ref numeric,exchange_rate numeric,rate_date date,external_order text,installments integer[],ownership_status text,ownership_reason text,ownership_evidence jsonb,raw jsonb);
@@ -31,6 +38,7 @@ beforeAll(async () => {
    create table public.cashea_order_snapshots(id uuid primary key default gen_random_uuid(),batch_id uuid,external_order text,purchased_on date,status text,total_ref numeric,initial_ref numeric,installments jsonb,raw jsonb,created_at timestamptz default now());
   `);
   await db.exec(migration);
+  await db.exec(autofix);
 }, 120000);
 afterAll(async () => { await db?.close(); });
 
@@ -136,5 +144,26 @@ describe('Cashea branch reconciliation database layer', () => {
     expect(d.d.cutoffs).toHaveLength(2);
     expect(d.d.os_sales).toHaveLength(2);
     expect(d.d.cashea_payments).toHaveLength(4);
+  });
+
+  it('moves an OS payment to BNC with the bank reference only after confirmation and with matching evidence', async () => {
+    const o = await one<{ id: string }>("insert into public.orders(order_number,status,total_ref) values('OS-000321','CLOSED',82.5) returning id");
+    await db.query("insert into public.cashea_sales(order_id,cashea_reference,status,gross_ref,initial_ref) values($1,'235385859','ACTIVE',82.5,33)", [o.id]);
+    const bdv = await one<{ id: string }>("select id from public.financial_accounts where code='BDV'");
+    const p = await one<{ id: string }>("insert into public.payments(order_id,method,currency,amount_original,reference,paid_at,financial_account_id) values($1,'TRANSFER_BDV','VES',29245.49,'2884','2026-10-24T17:09:13Z',$2) returning id", [o.id, bdv.id]);
+    await db.query("insert into public.account_movements(account_id,source_payment_id,reference,amount_original) values($1,$2,'2884',29245.49)", [bdv.id, p.id]);
+    await db.query('select public.cashea_conc_import_bnc($1,$2::jsonb,true)', ['Rpt4.xls', JSON.stringify([
+      { row: 1, line_date: '2026-10-24', day_index: 5, reference: '001193082884', debit: 0, credit: 29245.49, balance: 52547.61 },
+      { row: 2, line_date: '2026-10-27', day_index: 0, reference: '777700001111', debit: 0, credit: 29245.49, balance: 81793.10 }])]);
+    const line = await one<{ id: string }>("select id from public.cashea_bnc_lines where reference='001193082884'");
+    const late = await one<{ id: string }>("select id from public.cashea_bnc_lines where reference='777700001111'");
+    await expect(db.query('select public.cashea_conc_fix_payment($1,$2,false)', [p.id, line.id])).rejects.toThrow(/Confirma/);
+    await expect(db.query('select public.cashea_conc_fix_payment($1,$2,true)', [p.id, late.id])).rejects.toThrow(/fecha/);
+    const r = await one<{ r: { reference: string } }>('select public.cashea_conc_fix_payment($1,$2,true) r', [p.id, line.id]);
+    expect(r.r.reference).toBe('001193082884');
+    expect(await one('select p.method,p.reference,a.code from public.payments p join public.financial_accounts a on a.id=p.financial_account_id where p.id=$1', [p.id])).toEqual({ method: 'TRANSFER_BNC', reference: '001193082884', code: 'BNC' });
+    expect(await one('select a.code,m.reference,m.amount_original::float amt from public.account_movements m join public.financial_accounts a on a.id=m.account_id where m.source_payment_id=$1', [p.id])).toEqual({ code: 'BNC', reference: '001193082884', amt: 29245.49 });
+    expect((await one<{ n: number }>("select count(*)::int n from public.audit_events where event_type='cashea.conciliation_payment_fixed'")).n).toBe(1);
+    await expect(db.query('select public.cashea_conc_fix_payment($1,$2,true)', [p.id, line.id])).rejects.toThrow(/ya está registrado/);
   });
 });

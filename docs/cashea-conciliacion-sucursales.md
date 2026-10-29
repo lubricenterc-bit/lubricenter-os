@@ -28,6 +28,13 @@ Cashea tiene una sola tienda para todas las sucursales (Cabudare, Norte, La Mor�
 
 Retiros: por cédula del destino (tabla editable; V-30881436 → Cabudare, V-12306298 → Afuera sin asignar). La comisión sigue al retiro con la misma referencia. Los pagos a otras sucursales desde el BDV de Cabudare se registran como **ajuste entre sucursales** (a favor de Cabudare, a cargo de quien recibió).
 
+## Correcciones con un "Sí"
+Cada excepción corregible muestra lo que va a cambiar y se aplica solo después de **Sí, corregir** (auditado):
+- **Corregir** (pago del OS que cayó en el BNC, o con otra referencia): mueve el pago y su movimiento a la cuenta BNC y guarda la referencia completa del banco. Exige que coincidan la fecha (±1 día) y la referencia (últimos 4) o el monto exacto. El monto no cambia (`cashea_conc_fix_payment`).
+- **Vincular**: corrige la referencia Cashea de la venta del OS.
+- **Asignar**: asigna la orden Cashea a la sucursal sugerida.
+- **Revisar** (monto del OS distinto al del banco): abre la corrección manual, porque hay que decidir si es sobrepago, vuelto o un total mal cargado.
+
 ## Control
 La fila de control compara: saldo del cero + Σ(le toca) = saldo BNC del último movimiento. Una diferencia (en rojo) significa que falta un reporte o hay un salto en la cadena de saldos.
 
