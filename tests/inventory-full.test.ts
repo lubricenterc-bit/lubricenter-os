@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inventoryState, matchesInventoryFilter, INVENTORY_FILTERS } from "@/lib/inventory-full";
+import { inventoryState, matchesInventoryFilter, INVENTORY_FILTERS } from "../lib/inventory-full";
 
 const base = { quantity_on_hand: 0, movement_count: 0, active: true, merged_into: null as string | null, price_usd: null as number | null, in_catalog: false };
 

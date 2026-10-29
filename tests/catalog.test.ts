@@ -91,7 +91,8 @@ describe("Catálogo visual sincronizado desde Notion", () => {
     expect(moduleForPath("/catalog").id).toBe("inventory");
     expect(NAV_MODULES.find(m=>m.id==="inventory")?.links.some(l=>l.href==="/catalog")).toBe(true);
     expect(navigationSearch("foto", "OPERATOR").some(l=>l.href==="/catalog")).toBe(true);
-    expect(navigationSearch("notion", "OWNER").some(l=>l.href==="/catalog")).toBe(true);
+    expect(navigationSearch("precios", "OWNER").some(l=>l.href==="/catalog")).toBe(true);
+    expect(NAV_MODULES.find(m=>m.id==="inventory")?.links.some(l=>l.href==="/catalog/manage")).toBe(false);
   });
 
   it("advierte si los precios están desactualizados y expresa la hora de Caracas", () => {
