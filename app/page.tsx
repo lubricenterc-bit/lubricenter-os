@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAppSession } from "@/components/app-session-context";
-import { MesaHome, type MesaDashboard as Dashboard } from "@/components/mesa-home";
+import { OsHome, type HomeBoardRow, type HomeDashboard as Dashboard } from "@/components/os-home";
 
 const INITIAL: Dashboard = {
   localDate: "", closedOrdersToday: 0, salesRefToday: 0, collectedRefToday: 0,
@@ -16,12 +16,20 @@ export default function HomePage() {
   const { role, roleLoaded, locationName } = useAppSession();
   const owner = roleLoaded && (role === "OWNER" || role === "ADMIN");
   const [data, setData] = useState<Dashboard>(INITIAL);
+  const [board, setBoard] = useState<HomeBoardRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   async function load() {
     setLoading(true); setError("");
-    const result = await supabase.rpc("dashboard_overview");
+    const [result, boardResult] = await Promise.all([
+      supabase.rpc("dashboard_overview"),
+      supabase.from("workshop_board_current")
+        .select("id,order_number,workflow_status,workflow_updated_at,plate,make,model,is_walk_in,customer_name,service_areas")
+        .order("workflow_updated_at", { ascending: true }).limit(80),
+    ]);
+    // Las placas del tablero son un adorno del inicio: si fallan, el resumen sigue.
+    if (!boardResult.error) setBoard((boardResult.data ?? []) as HomeBoardRow[]);
     if (result.error) { setError(result.error.message); setLoading(false); return; }
     const row = Array.isArray(result.data) ? result.data[0] : result.data;
     if (row) setData({
@@ -51,5 +59,6 @@ export default function HomePage() {
   }
   useEffect(() => { void load(); }, []);
 
-  return <MesaHome data={data} owner={owner} locationName={locationName} loading={loading} error={error} onRefresh={() => void load()}/>;
+  return <OsHome data={data} board={board} owner={owner} locationName={locationName} loading={loading} error={error}
+    onRefresh={() => void load()} />;
 }

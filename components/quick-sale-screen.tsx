@@ -5,7 +5,7 @@ import { inventorySearchText, matchesSearch } from "@/lib/domain/search";
 
 import { businessInstant,caracasInput } from "@/lib/order-admin";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { D } from "@/lib/finance/money";
 import { referenceError } from "@/lib/finance/money";
@@ -16,7 +16,9 @@ import { OsIcon } from "@/components/os-icon";
 import { QUOTE_HANDOFF_KEY, takeQuoteLines } from "@/lib/sales-quote";
 import { AdjustmentControls, NO_ADJUSTMENT, useDiscountLimit, type AdjustmentState } from "@/components/checkout-adjustments";
 import { distributeCartAdjustment, previewAdjustments } from "@/lib/domain/economics";
-import { AttendantPicker, stampAttendant } from "@/components/attendant-picker";
+import { AttendantPicker, stampAttendant, useAttendant } from "@/components/attendant-picker";
+import { BrandIcon, Gotin, prefersCalm, replay, useLive } from "@/components/gotin";
+import type { BrandIconName } from "@/lib/brand-art";
 
 type InventoryProduct = {
   id: string; sku: string; brand: string | null; description: string; category: string | null;
@@ -297,92 +299,278 @@ export function QuickSaleScreen() {
     if (error) return setError(error.message); const row = Array.isArray(data) ? data[0] : data; router.push(`/orders/${row.order_id}`);
   }
 
-  if(prepared)return <main className="container stack">{error&&<div className="error" role="alert">{error}</div>}<section className="card stack"><div className="eyebrow">ORDEN GUARDADA · PENDIENTE DE COBRO</div><h1>{prepared.order_number}</h1><p>Usa este número en Cashea antes de que el cliente pague. La venta se registra como cobrada al confirmar la inicial.</p><Link className="btn" href={'/orders/'+prepared.order_id}>Abrir orden / continuar después</Link></section><OrderCasheaSheet orderId={prepared.order_id} totalRef={prepared.total_ref} totalVes={prepared.total_ves} paidVes={0} onCancel={()=>{sessionStorage.removeItem('lubricenter:pending-quick-sale');router.push('/orders/'+prepared.order_id);}} onDone={async()=>{const q=await supabase.from('cashea_sales').select('initial_ref,financed_ref,commission_ref').eq('order_id',prepared.order_id).single();if(q.error)throw q.error;setCompleted({...prepared,cashea:{initial_ref:Number(q.data.initial_ref),financed_ref:Number(q.data.financed_ref),commission_ref:Number(q.data.commission_ref)}});sessionStorage.removeItem('lubricenter:pending-quick-sale');setPrepared(null);prepareRequest.current=null;resetAfterSale();await load();}}/></main>;
+  const attendant = useAttendant();
+  const [searchFocused, setSearchFocused] = useState(false);
+  const peekRef = useRef<HTMLSpanElement>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const guideRef = useRef<HTMLSpanElement>(null);
+  const receivedRef = useRef<HTMLLabelElement>(null);
+  const chargeRef = useRef<HTMLButtonElement>(null);
+  const paysRef = useRef<HTMLDivElement>(null);
+  const thumbRef = useRef<HTMLSpanElement>(null);
+  const mainLive = useLive<HTMLDivElement>();
+  const ticketLive = useLive<HTMLDivElement>();
+  const doneLive = useLive<HTMLElement>();
+  const setWrap = useCallback((element: HTMLDivElement | null) => { wrapRef.current = element; ticketLive(element); }, [ticketLive]);
 
-  return <main className="container stack mesa-quick-sale"><fieldset disabled={busy} style={{display:"contents"}}>
-    <section className="mesa-sale-hero"><div><div className="eyebrow">02 / VENTA RÁPIDA · MOSTRADOR</div><h1>Vender<span>.</span></h1><p>Cotiza sin crear una orden. Para Cashea, guarda primero la orden pendiente y usa su número antes de cobrar.</p></div><span className="mesa-sale-signature" aria-hidden="true">RÁPIDO<br/>SENCILLO<br/>PARA TU<br/>TALLER<span>↗</span></span></section>
-    <AttendantPicker />
-    <div className="row-between"><span className="muted small">Venta directa o Cashea tradicional desde el mismo carrito.</span><div className="row"><Link className="btn btn-ghost" href="/quote"><OsIcon name="receipt" size={16}/> Cotizar productos</Link><Link className="btn btn-ghost" href="/cashea">Seguimiento Cashea</Link></div></div>
-    {error && <div className="error" role="alert">{error}</div>}
-    {quoteFlow && <section className="card stack" style={{borderColor:"rgba(255,128,47,.72)",background:"rgba(255,128,47,.08)"}}>
-      <div className="row-between"><div><strong>{quoteFlow==="order"?"Continuar cotización como orden":"Cotización lista para cobrar"}</strong>
-        <div className="muted small">{quoteTransferNotice}</div></div><Link className="btn btn-ghost" href="/quote">Volver al cotizador</Link></div>
-      <div className="row" style={{flexWrap:"wrap"}}>
-        {quoteFlow==="order"
-          ? <button className="btn btn-primary" disabled={!cartValid||busy} onClick={()=>void continueAsOrder()}>
-              {busy?"Creando orden…":"Confirmar y crear orden"}
-            </button>
-          : <button className="btn btn-primary" disabled={!cartValid} onClick={()=>
-              document.getElementById("quick-sale-checkout")?.scrollIntoView({behavior:"smooth",block:"start"})}>
-              Ir a cobrar
-            </button>}
-        <button className="btn btn-ghost" onClick={()=>setQuoteFlow(v=>v==="order"?"sale":"order")}>
-          {quoteFlow==="order"?"Cambiar a venta rápida":"Cambiar a orden"}
-        </button>
-      </div>
-      <div className="muted small">Los importes se toman de los precios actuales del catálogo. Nada se registra hasta que confirmes aquí.</div>
-    </section>}
-    {warning && <div className="card" style={{ borderColor: "rgba(255,93,21,.45)" }}><strong>Modo degradado disponible</strong><div className="muted small">{warning}. La venta manual sigue disponible si catálogo o inventario no cargan.</div></div>}
+  const itemCount = cart.reduce((sum, line) => sum + (Number.isFinite(line.quantity) ? line.quantity : 0), 0);
+  const paymentReady = checkoutMode === "CASHEA" ? totalRef >= CASHEA_MIN_REF : received && !referenceError(selectedPayment, reference);
+  const chargeEnabled = checkoutMode === "DIRECT" ? cartValid && !busy && received : cartValid && totalRef >= CASHEA_MIN_REF && !busy;
+  const steps: [string, "ok" | "now" | ""][] = [
+    ["Productos", cart.length ? "ok" : "now"],
+    ["Pago", cart.length && paymentReady ? "ok" : cart.length ? "now" : ""],
+    ["Cobro", cart.length && paymentReady ? "now" : ""],
+  ];
+  const chargeLabel = checkoutMode === "DIRECT"
+    ? busy ? "Registrando venta…" : !cart.length ? "Agrega un producto" : !received ? "Confirma que recibiste el pago" : `Registrar y cerrar venta · ${fmtRef(totalRef)}`
+    : busy ? "Registrando Cashea…" : !cart.length ? "Agrega un producto" : totalRef < CASHEA_MIN_REF ? `Faltan ${fmtRef(CASHEA_MIN_REF - totalRef)} para Cashea` : "Obtener número de orden para Cashea";
 
-    {completed && <section className="card stack" style={{ borderColor: "rgba(63,190,115,.55)" }}>
-      <div className="row-between"><div><div className="eyebrow">VENTA REGISTRADA Y CERRADA</div><div className="money-lg">{completed.order_number}</div></div><span className="pill ok">{completed.cashea ? "CASHEA" : completed.credit ? "CRÉDITO LC" : "COBRADA"}</span></div>
-      <div className="row-between"><strong>{fmtRef(completed.total_ref)}</strong><strong>{fmtVes(completed.total_ves)}</strong></div>
-      {completed.cashea && <div className="grid grid-3"><div><div className="muted small">INICIAL</div><strong>{fmtRef(completed.cashea.initial_ref)}</strong></div><div><div className="muted small">POR RECIBIR</div><strong>{fmtRef(completed.cashea.financed_ref)}</strong></div><div><div className="muted small">COMISIÓN 4%</div><strong>{fmtRef(completed.cashea.commission_ref)}</strong></div></div>}
-      {completed.credit && <div className="card" style={{borderColor:"rgba(255,106,26,.6)"}}><div className="muted small">SALDO REGISTRADO EN CRÉDITO LC</div><strong>{fmtVes(completed.credit.outstanding_ves)}</strong><div className="muted small">{fmtRef(completed.credit.outstanding_ref)} · disponible en Cobros</div></div>}
-      <div className="grid grid-2"><Link className="btn" href={`/orders/${completed.order_id}/receipt`}>Ver recibo</Link>{completed.cashea ? <Link className="btn btn-primary" href="/cashea">Ver Cashea</Link> : <button className="btn btn-primary" onClick={() => { setCompleted(null); searchRef.current?.focus(); }}>Nueva venta</button>}</div>
-    </section>}
+  // Gotín sigue con la mirada lo que se escribe en el buscador.
+  useEffect(() => {
+    const x = Math.min(1, search.length / 26);
+    const transform = `translate(${-12 + x * 10}px, ${searchFocused ? 5 : 0}px)`;
+    peekRef.current?.querySelectorAll<SVGElement>(".eye").forEach(eye => { eye.style.transform = transform; });
+  }, [search, searchFocused]);
 
-    {tenderOpen&&<QuickTenderCheckout items={payload()} method={selectedPayment} reference={reference} totalVes={totalVes} totalRef={totalRef} rate={rates.operative} bcv={rates.bcv} businessAt={businessInstant(saleDate)} onCancel={()=>setTenderOpen(false)} onDone={async row=>{setCompleted({order_id:row.order_id,order_number:row.order_number,total_ves:Number(row.total_ves),total_ref:Number(row.total_ref)});setTenderOpen(false);resetAfterSale();await load();}}/>}
-    <div className="mesa-sale-layout">
-    <div className="mesa-sale-workbench">
-    <section className="card stack mesa-sale-search">
-      <div className="row-between"><div><strong>1. Buscar / cotizar</strong><div className="muted small">SKU, marca, descripción, filtro o nombre. Enter agrega el primer resultado.</div></div><span className="pill">{inventory.length} stock · {catalog.length} catálogo</span></div>
-      <input ref={searchRef} className="input" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && results[0]) { e.preventDefault(); addResult(results[0]); } }} placeholder="Ej: Valvoline, 3387, 20W50, refrigerante…" autoFocus />
-      {loading ? <div className="muted">Cargando precios…</div> : <div className="stack" style={{ maxHeight: 430, overflow: "auto" }}>
-        {results.map(r => <button key={r.key} className="card directory-option" style={{ padding: 14, textAlign: "left" }} onClick={() => addResult(r)}><div className="row-between" style={{ gap: 12 }}><div style={{ minWidth: 0 }}><strong>{r.title}</strong><div className="muted small">{r.subtitle}</div><div className="muted small">{r.kind === "STOCK" ? `Stock físico: ${r.stock}` : "Sin stock confirmado · venta permitida"}</div></div><div style={{ textAlign: "right", flexShrink: 0 }}><div className="money-lg">{r.unit_ref > 0 ? fmtRef(r.unit_ref) : "Sin precio"}</div><div className="muted small">{r.unit_ves > 0 ? fmtVes(r.unit_ves) : "editable al agregar"}</div></div></div></button>)}
-        {!results.length && <div className="muted">{manualAllowed ? "No aparece en stock ni catálogo. Regístralo abajo como venta manual." : "No aparece en stock ni catálogo. Pide a un administrador que lo cargue en inventario."}</div>}
-      </div>}
+  // El guante señala lo que falta: confirmar el pago o cobrar.
+  const placeGuide = useCallback(() => {
+    const wrap = wrapRef.current, guide = guideRef.current;
+    if (!wrap || !guide) return;
+    const target = !cart.length ? null : checkoutMode === "DIRECT" && !received ? receivedRef.current : chargeEnabled ? chargeRef.current : null;
+    if (!target) { guide.style.opacity = "0"; return; }
+    const box = wrap.getBoundingClientRect(), rect = target.getBoundingClientRect();
+    guide.style.transform = `translate(-50px, ${rect.top - box.top + rect.height / 2 - 22}px)`;
+    guide.style.opacity = "1";
+  }, [cart.length, checkoutMode, received, chargeEnabled]);
+  useLayoutEffect(() => { placeGuide(); }, [placeGuide, totalRef, adjust, saleDate]);
+  useEffect(() => {
+    window.addEventListener("resize", placeGuide);
+    return () => window.removeEventListener("resize", placeGuide);
+  }, [placeGuide]);
+
+  // La pastilla oscura salta al método de pago elegido.
+  useLayoutEffect(() => {
+    const pays = paysRef.current, thumb = thumbRef.current;
+    const button = pays?.querySelector<HTMLButtonElement>('[aria-pressed="true"]');
+    if (!thumb) return;
+    if (!button) { thumb.style.opacity = "0"; return; }
+    const first = thumb.style.opacity !== "1";
+    if (first) thumb.style.transition = "none";
+    thumb.style.transform = `translate(${button.offsetLeft}px, ${button.offsetTop}px)`;
+    thumb.style.width = button.offsetWidth + "px";
+    thumb.style.height = button.offsetHeight + "px";
+    thumb.style.opacity = "1";
+    if (first) { void thumb.offsetWidth; thumb.style.transition = ""; }
+  }, [selectedPayment, checkoutMode]);
+
+  const wasEnabled = useRef(false);
+  useEffect(() => {
+    if (chargeEnabled && !wasEnabled.current) replay(chargeRef.current, "is-ready", 700);
+    wasEnabled.current = chargeEnabled;
+  }, [chargeEnabled]);
+
+  function removeLine(event: MouseEvent<HTMLButtonElement>, key: string) {
+    const remove = () => setCart(lines => lines.filter(x => x.key !== key));
+    const item = event.currentTarget.closest("li");
+    if (!item || prefersCalm() || typeof item.animate !== "function") return remove();
+    item.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateX(20px) scale(.96)" }], { duration: 180, easing: "ease-in" }).onfinish = remove;
+  }
+  const rate = (value: number) => ratesLoading || !value ? "…" : value.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  if(prepared)return <main className="container os-sale" ref={doneLive}>{error&&<div className="error" role="alert">{error}</div>}
+    <section className="os-sale-pending">
+      <Gotin pose="clip" />
+      <div><span className="os-kicker">Orden guardada, pendiente de cobro</span><h1>{prepared.order_number}</h1>
+        <p>Usa este número en Cashea antes de que el cliente pague. La venta se registra como cobrada al confirmar la inicial.</p>
+        <Link className="btn" href={'/orders/'+prepared.order_id}>Abrir orden / continuar después</Link></div>
     </section>
+    <OrderCasheaSheet orderId={prepared.order_id} totalRef={prepared.total_ref} totalVes={prepared.total_ves} paidVes={0} onCancel={()=>{sessionStorage.removeItem('lubricenter:pending-quick-sale');router.push('/orders/'+prepared.order_id);}} onDone={async()=>{const q=await supabase.from('cashea_sales').select('initial_ref,financed_ref,commission_ref').eq('order_id',prepared.order_id).single();if(q.error)throw q.error;setCompleted({...prepared,cashea:{initial_ref:Number(q.data.initial_ref),financed_ref:Number(q.data.financed_ref),commission_ref:Number(q.data.commission_ref)}});sessionStorage.removeItem('lubricenter:pending-quick-sale');setPrepared(null);prepareRequest.current=null;resetAfterSale();await load();}}/></main>;
 
-    {manualAllowed && <section className="card stack"><div><strong>Venta manual inmediata</strong><div className="muted small">Para productos que todavía no existen en catálogo. No descuenta inventario.</div></div><input className="input" value={manualDescription} onChange={e => setManualDescription(e.target.value)} placeholder="Descripción del producto" /><div className="grid grid-2"><input className="input" type="number" min="0" step="0.01" value={manualPrice} onChange={e => setManualPrice(e.target.value)} placeholder="Precio unitario REF" /><input className="input" type="number" min="0.01" step="0.01" value={manualQty} onChange={e => setManualQty(e.target.value)} placeholder="Cantidad" /></div><button className="btn" onClick={addManual}>+ Agregar manual</button></section>}
+  const query = search.trim();
+  return <main className="container os-sale"><fieldset disabled={busy} style={{display:"contents"}}>
+    <div className="os-pos">
+    <div className="os-pos-main" ref={mainLive}>
+      <header className="os-sale-head">
+        <div><h1>Venta rápida</h1>
+          <p>{attendant ? <>Atiende <b>{attendant}</b>. </> : null}Precios en REF a tasa BCV. Para Cashea, guarda primero la orden y usa su número antes de cobrar.</p></div>
+        <div className="os-sale-side">
+          <div className="os-rates" aria-live="polite">
+            <div><small>BCV</small><b>{rate(rates.bcv)}</b></div>
+            <div><small>Operativa</small><b>{rate(rates.operative)}</b></div>
+          </div>
+          <div className="os-sale-links"><Link className="btn btn-ghost" href="/quote"><OsIcon name="receipt" size={16}/> Cotizar productos</Link><Link className="btn btn-ghost" href="/cashea">Seguimiento Cashea</Link></div>
+        </div>
+      </header>
+      {!attendant && <AttendantPicker />}
+      {error && <div className="error" role="alert">{error}</div>}
+      {quoteFlow && <section className="os-banner">
+        <BrandIcon name="clip" className="os-banner-icon" />
+        <div className="os-banner-text"><strong>{quoteFlow==="order"?"Continuar cotización como orden":"Cotización lista para cobrar"}</strong>
+          <span>{quoteTransferNotice}</span>
+          <small>Los importes se toman de los precios actuales del catálogo. Nada se registra hasta que confirmes aquí.</small></div>
+        <div className="os-banner-actions">
+          {quoteFlow==="order"
+            ? <button className="btn btn-primary" disabled={!cartValid||busy} onClick={()=>void continueAsOrder()}>
+                {busy?"Creando orden…":"Confirmar y crear orden"}
+              </button>
+            : <button className="btn btn-primary" disabled={!cartValid} onClick={()=>
+                document.getElementById("quick-sale-checkout")?.scrollIntoView({behavior:prefersCalm()?"auto":"smooth",block:"start"})}>
+                Ir a cobrar
+              </button>}
+          <button className="btn btn-ghost" onClick={()=>setQuoteFlow(v=>v==="order"?"sale":"order")}>
+            {quoteFlow==="order"?"Cambiar a venta rápida":"Cambiar a orden"}
+          </button>
+          <Link className="btn btn-ghost" href="/quote">Volver al cotizador</Link>
+        </div>
+      </section>}
+      {warning && <section className="os-banner is-warn"><BrandIcon name="hourglass" className="os-banner-icon" /><div className="os-banner-text"><strong>Modo degradado disponible</strong><span>{warning}. La venta manual sigue disponible si catálogo o inventario no cargan.</span></div></section>}
 
-    <section className="card stack">
-      <div className="row-between"><div><strong>2. Venta</strong><div className="muted small">Precio editable solo para esta venta; no cambia el catálogo.</div></div><span className="pill">{cart.length} líneas</span></div>
-      {cart.map(line => { const exceeds = line.kind === "STOCK" && line.stock != null && line.quantity > line.stock; return <div className="order-item" key={line.key}><div className="row-between"><div><strong>{line.description}</strong><div className="muted small">{line.source_label}</div></div><button className="btn btn-ghost" onClick={() => setCart(lines => lines.filter(x => x.key !== line.key))}>Quitar</button></div><div className="grid grid-2" style={{ marginTop: 10 }}><label><span className="label">Cantidad</span><input className="input" type="number" min="0.01" step="0.01" value={line.quantity} onChange={e => updateLine(line.key, { quantity: Number(e.target.value) })} /></label><label><span className="label">Precio unitario REF</span><input className="input" type="number" min="0.01" step="0.01" value={line.unit_ref || ""} onChange={e => updateLine(line.key, { unit_ref: Number(e.target.value) })} /></label></div><div className="row-between"><span className="muted small">Subtotal</span><strong>{fmtRef(line.quantity * Number(line.unit_ref || 0))}</strong></div>{exceeds && <div className="error">Solo hay {line.stock} en stock físico. Reduce la cantidad o vende la diferencia desde catálogo/manual.</div>}</div>; })}
-      {!cart.length && <div className="muted">Agrega productos para armar la cotización. Todavía no se crea ninguna OS.</div>}
-    </section>
+      {completed && <section className="os-sale-done" ref={doneLive} aria-live="polite">
+        <div className="os-done-art" aria-hidden="true">
+          <Gotin pose="cheer" jump />
+          <span className="os-burst">{Array.from({ length: 8 }, (_, index) => <BrandIcon key={index} name="star" />)}</span>
+        </div>
+        <div className="os-done-body">
+          <span className="os-kicker">{completed.cashea ? "Venta registrada con Cashea" : completed.credit ? "Venta registrada con Crédito LC" : "Venta cobrada y cerrada"}</span>
+          <h2>{completed.order_number}</h2>
+          <p className="os-done-total"><b>{fmtRef(completed.total_ref)}</b><span>{fmtVes(completed.total_ves)}</span></p>
+          {completed.cashea && <dl className="os-done-split"><div><dt>Inicial</dt><dd>{fmtRef(completed.cashea.initial_ref)}</dd></div><div><dt>Por recibir</dt><dd>{fmtRef(completed.cashea.financed_ref)}</dd></div><div><dt>Comisión 4%</dt><dd>{fmtRef(completed.cashea.commission_ref)}</dd></div></dl>}
+          {completed.credit && <dl className="os-done-split"><div><dt>Saldo en Crédito LC</dt><dd>{fmtVes(completed.credit.outstanding_ves)}</dd></div><div><dt>Equivale a</dt><dd>{fmtRef(completed.credit.outstanding_ref)}</dd></div><div><dt>Dónde</dt><dd>Disponible en Cobros</dd></div></dl>}
+          <div className="os-done-actions"><Link className="btn" href={`/orders/${completed.order_id}/receipt`}>Ver recibo</Link>{completed.cashea ? <Link className="btn btn-primary" href="/cashea">Ver Cashea</Link> : <button className="btn btn-primary" onClick={() => { setCompleted(null); searchRef.current?.focus(); }}>Nueva venta</button>}</div>
+        </div>
+      </section>}
 
+      {tenderOpen&&<QuickTenderCheckout items={payload()} method={selectedPayment} reference={reference} totalVes={totalVes} totalRef={totalRef} rate={rates.operative} bcv={rates.bcv} businessAt={businessInstant(saleDate)} onCancel={()=>setTenderOpen(false)} onDone={async row=>{setCompleted({order_id:row.order_id,order_number:row.order_number,total_ves:Number(row.total_ves),total_ref:Number(row.total_ref)});setTenderOpen(false);resetAfterSale();await load();}}/>}
+
+
+      <label className="os-search">
+        <span className="sr-only">Buscar producto por SKU, marca, descripción, filtro o nombre</span>
+        <OsIcon name="search" size={22} className="os-search-icon" />
+        <span className="os-peek" ref={peekRef} aria-hidden="true"><Gotin pose="idle" /></span>
+        <input ref={searchRef} value={search} onChange={e => setSearch(e.target.value)} onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)}
+          onKeyDown={e => { if (e.key === "Enter" && results[0]) { e.preventDefault(); addResult(results[0]); } }} placeholder="Ej: Valvoline, 3387, 20W50, refrigerante…" autoComplete="off" autoFocus />
+        <span className="os-search-hint"><kbd>Enter</kbd> agrega el primero</span>
+      </label>
+      <div className="os-plist-head"><span>{query ? (results.length === 1 ? "1 resultado" : `${results.length} resultados`) : "Sugerencias"}</span><span>{inventory.length} con stock, {catalog.length} en catálogo</span></div>
+      {loading ? <div className="os-plist os-plist-empty"><span className="os-loading-dot" />Cargando precios…</div>
+        : results.length ? <div className="os-plist">
+          {results.map((r, index) => {
+            const visc = viscosity(r.title + " " + r.subtitle);
+            const first = !!query && index === 0;
+            const low = r.kind === "STOCK" && (r.stock ?? 0) <= 4;
+            return <button key={r.key} type="button" className={"os-prow hov" + (first ? " is-first" : "")}
+              onClick={event => { replay(event.currentTarget.querySelector(".os-add"), "is-squash", 500); addResult(r); }}>
+              <span className="os-pic"><BrandIcon name={productIcon(r.title + " " + r.subtitle)} /></span>
+              <span className="os-pn"><strong>{r.title}{visc && <em className="os-visc">{visc}</em>}{first && <kbd>Enter</kbd>}</strong><small>{r.subtitle}</small></span>
+              <span className={"os-stk" + (low ? " is-low" : "") + (r.kind === "CATALOG" ? " is-catalog" : "")}>
+                {r.kind === "STOCK" ? (low ? `Quedan ${r.stock}` : `${r.stock} disponibles`) : "Sin stock confirmado"}
+                {r.kind === "STOCK" && <i><b style={{ width: Math.min(100, (r.stock ?? 0) / 24 * 100) + "%" }} /></i>}
+              </span>
+              <span className="os-price"><b>{r.unit_ref > 0 ? fmtRef(r.unit_ref) : "Sin precio"}</b><small>{r.unit_ves > 0 ? fmtVes(r.unit_ves) : "editable al agregar"}</small></span>
+              <span className="os-add" aria-hidden="true"><OsIcon name="plus" size={22} /></span>
+            </button>;
+          })}
+        </div>
+        : <div className="os-plist os-plist-empty"><Gotin pose="shrug" /><strong>{query ? `No encontré «${query}»` : "No hay productos para mostrar"}</strong>
+          <span>{manualAllowed ? "No aparece en stock ni catálogo. Regístralo abajo como venta manual." : "No aparece en stock ni catálogo. Pide a un administrador que lo cargue en inventario."}</span></div>}
+
+      {manualAllowed && <section className="os-manual"><div><strong>Venta manual inmediata</strong><small>Para productos que todavía no existen en catálogo. No descuenta inventario.</small></div>
+        <div className="os-manual-fields"><input className="input" value={manualDescription} onChange={e => setManualDescription(e.target.value)} placeholder="Descripción del producto" aria-label="Descripción del producto" /><input className="input" type="number" min="0" step="0.01" value={manualPrice} onChange={e => setManualPrice(e.target.value)} placeholder="Precio unitario REF" aria-label="Precio unitario REF" /><input className="input" type="number" min="0.01" step="0.01" value={manualQty} onChange={e => setManualQty(e.target.value)} placeholder="Cantidad" aria-label="Cantidad" /><button className="btn" onClick={addManual}><OsIcon name="plus" size={16}/> Agregar manual</button></div></section>}
     </div>
-    <section id="quick-sale-checkout" className="card stack mesa-sale-checkout" style={{ borderColor: cart.length ? "rgba(255,93,21,.42)" : undefined, scrollMarginTop: 80 }}>
-      <div><div className="eyebrow">3. FINALIZAR VENTA</div><h2 style={{ margin: "4px 0 0" }}>Registrar y cobrar</h2></div>
-      {cart.length > 0 && <AdjustmentControls subtotal={listTotalRef} current={adjust} limit={discountLimit} disabled={busy} onApply={applyCartAdjustment} />}
-      {adjustError && <div className="error" role="alert">{adjustError}</div>}
-      <div className="row-between"><div><div className="muted small">TOTAL A COBRAR</div><div className="money-lg">{fmtRef(totalRef)}</div></div><div style={{ textAlign: "right" }}><strong>{fmtVes(totalVes)}</strong><div className="muted small">USD físico aprox. {cashUsd.toFixed(2)}</div></div></div>
-      <div className="segmented"><button type="button" className={`btn ${checkoutMode === "DIRECT" ? "btn-primary" : "btn-ghost"}`} onClick={() => setCheckoutMode("DIRECT")}>Cobro directo</button><button type="button" className={`btn ${checkoutMode === "CASHEA" ? "btn-primary" : "btn-ghost"}`} onClick={() => setCheckoutMode("CASHEA")}>Cashea tradicional</button></div>
 
-      <label><span className="label">Fecha de venta · Venezuela (vacío = ahora)</span><input className="input" type="datetime-local" value={saleDate} max={caracasInput()} disabled={busy} onChange={e=>{setRatesLoading(true);setSaleDate(e.target.value);}} /></label>
-      <div className="muted small" role="status">{ratesLoading?"Buscando tasas de la fecha…":rateSource} · BCV {rates.bcv} · Operativa {rates.operative}</div>
-      {saleDate && <p className="muted small">Se aplican las tasas registradas para esta fecha. Los precios REF son editables para esta venta.</p>}
-      {checkoutMode==="DIRECT" && <label className="row"><input type="checkbox" checked={received} onChange={e=>setReceived(e.target.checked)} /> Confirmo que recibí el pago de la venta.</label>}
-      {checkoutMode === "DIRECT" ? <>
-        <div><span className="label">Forma de pago</span><div className="grid grid-2">{DIRECT_PAYMENT_METHODS.map(([method, label]) => <button key={method} type="button" className={selectedPayment === method ? "btn btn-primary" : "btn"} onClick={() => setSelectedPayment(method)} disabled={busy}>{selectedPayment === method ? `✓ ${label}` : label}</button>)}</div></div>
-        <input className="input" value={reference} onChange={e => setReference(e.target.value)} placeholder={selectedPayment.startsWith("TRANSFER") ? "Últimos 4 de referencia · obligatorio" : "Referencia de pago (opcional)"} />
-        <button className="btn btn-primary btn-block" style={{ minHeight: 56, fontSize: 17 }} disabled={!cartValid || busy || !received} onClick={completeDirect}>{busy ? "Registrando venta…" : `Registrar y cerrar venta · ${fmtRef(totalRef)}`}</button>
-        <button className="btn btn-block" disabled={!cartValid||busy} onClick={()=>setTenderOpen(true)}>Cobro con vuelto o precio pactado USD</button>
-        <button className="btn btn-block" style={{border:"1px solid rgba(255,106,26,.72)",background:"rgba(255,106,26,.12)"}} disabled={!cartValid || busy} onClick={() => setPartialCreditOpen(true)}>Abono + saldo a Crédito LC</button>
-      </> : <div className="stack">
-        <p>Primero guarda la orden para obtener su número. Después registra la compra en Cashea y confirma la inicial recibida.</p>
-        <button className="btn btn-primary btn-block" style={{ minHeight: 56, fontSize: 17 }} disabled={!cartValid || totalRef<CASHEA_MIN_REF || busy} onClick={prepareCashea}>{busy ? "Registrando Cashea…" : `Obtener número de orden para Cashea`}</button>
-      </div>}
+    <div className="os-ticket-wrap" ref={setWrap}>
+      <span className="os-guide" ref={guideRef} aria-hidden="true"><span className="os-guide-in"><BrandIcon name="glove" /></span></span>
+      <aside id="quick-sale-checkout" className="os-ticket" aria-label="Ticket de venta">
+        <div className="os-tk-head">
+          <div><small>Ticket</small><b>{cart.length ? `${cart.length} ${cart.length === 1 ? "línea" : "líneas"}` : "Nuevo"}</b></div>
+          <ol className="os-steps" aria-label="Pasos de la venta">{steps.map(([label, state]) => <li key={label} className={state ? "is-" + state : undefined} aria-current={state === "now" ? "step" : undefined}><BrandIcon name="drop" />{label}</li>)}</ol>
+        </div>
+        <div className="os-tk-body">
+          <section className="os-tk-sec">
+            <div className="os-tk-label"><span>Productos</span><span>{cart.length ? `${itemCount.toLocaleString("es-VE")} ${itemCount === 1 ? "artículo" : "artículos"}` : "Vacío"}</span></div>
+            {cart.length ? <ul className="os-lines">
+              {cart.map(line => { const exceeds = line.kind === "STOCK" && line.stock != null && line.quantity > line.stock; return <li className="os-line" key={line.key}>
+                <div className="os-line-name">{line.description}<small>{line.source_label}</small></div>
+                <b key={line.quantity + ":" + line.unit_ref} className="os-line-total">{fmtRef(line.quantity * Number(line.unit_ref || 0))}</b>
+                <div className="os-line-controls">
+                  <div className="os-qty">
+                    <button type="button" aria-label="Quitar uno" disabled={line.quantity <= 1} onClick={() => updateLine(line.key, { quantity: Math.round((line.quantity - 1) * 100) / 100 })}><OsIcon name="minus" size={16} /></button>
+                    <input type="number" min="0.01" step="0.01" value={line.quantity} aria-label="Cantidad" onChange={e => updateLine(line.key, { quantity: Number(e.target.value) })} />
+                    <button type="button" aria-label="Agregar uno" onClick={() => updateLine(line.key, { quantity: Math.round((line.quantity + 1) * 100) / 100 })}><OsIcon name="plus" size={16} /></button>
+                  </div>
+                  <label className="os-line-price"><span>Precio c/u REF</span><input type="number" min="0.01" step="0.01" value={line.unit_ref || ""} onChange={e => updateLine(line.key, { unit_ref: Number(e.target.value) })} /></label>
+                  <button type="button" className="os-rm" onClick={event => removeLine(event, line.key)}>Quitar</button>
+                </div>
+                {exceeds && <div className="error">Solo hay {line.stock} en stock físico. Reduce la cantidad o vende la diferencia desde catálogo/manual.</div>}
+              </li>; })}
+            </ul> : <div className="os-tk-empty"><Gotin pose="shrug" /><span><b>El ticket está vacío.</b>Busca un producto y presiona Enter para agregar el primero. Todavía no se crea ninguna orden.</span></div>}
+            <p className="os-tk-hint">El precio se puede editar solo para esta venta; no cambia el catálogo.</p>
+          </section>
 
-      <p className="muted small">Para preparar un recibo sin cobrar, continúa como orden y usa su cotización. Imprimir no cierra la venta.</p>
-      <button className="btn btn-ghost btn-block" disabled={!cartValid || busy} onClick={continueAsOrder}>Saldo a favor / pago mixto / Crédito LC → continuar como orden</button>
-      {!cart.length && <div className="muted small">Agrega al menos un producto para habilitar el cierre.</div>}
-      {!cartValid && cart.length > 0 && <div className="muted small">Corrige cantidades o precios antes de registrar la venta.</div>}
-    </section>
+          {cart.length > 0 && <section className="os-tk-sec"><AdjustmentControls subtotal={listTotalRef} current={adjust} limit={discountLimit} disabled={busy} onApply={applyCartAdjustment} />
+            {adjustError && <div className="error" role="alert">{adjustError}</div>}</section>}
+
+          <section className="os-tk-sec">
+            <div className="os-tk-label"><span>Cómo cobra</span><span>{checkoutMode === "DIRECT" ? "Cobro directo" : "Cashea tradicional"}</span></div>
+            <div className="segmented"><button type="button" className={`btn ${checkoutMode === "DIRECT" ? "btn-primary" : "btn-ghost"}`} onClick={() => setCheckoutMode("DIRECT")}>Cobro directo</button><button type="button" className={`btn ${checkoutMode === "CASHEA" ? "btn-primary" : "btn-ghost"}`} onClick={() => setCheckoutMode("CASHEA")}>Cashea tradicional</button></div>
+            {checkoutMode === "DIRECT" ? <>
+              <div className="os-pays" ref={paysRef} role="group" aria-label="Forma de pago"><span className="os-pay-thumb" ref={thumbRef} aria-hidden="true" />
+                {DIRECT_PAYMENT_METHODS.map(([method, label]) => <button key={method} type="button" className="os-pay" aria-pressed={selectedPayment === method} onClick={() => setSelectedPayment(method)} disabled={busy}>
+                  <span>{label.split(" · ")[0]}{label.includes(" · ") && <em>{label.split(" · ")[1]}</em>}</span><small>{method === "CASH_USD" || method === "ZELLE" || method === "BINANCE" ? "$" : "Bs"}</small></button>)}
+              </div>
+              <input className="input" value={reference} onChange={e => setReference(e.target.value)} aria-label="Referencia de pago" placeholder={selectedPayment.startsWith("TRANSFER") ? "Últimos 4 de referencia · obligatorio" : "Referencia de pago (opcional)"} />
+            </> : <p className="os-note"><BrandIcon name={totalRef >= CASHEA_MIN_REF ? "cal" : "clock"} /><span>Primero guarda la orden para obtener su número. Después registra la compra en Cashea y confirma la inicial recibida.{totalRef < CASHEA_MIN_REF && <> Cashea acepta compras desde <b>{fmtRef(CASHEA_MIN_REF)}</b>.</>}</span></p>}
+          </section>
+
+          <section className="os-tk-sec">
+            <details className="os-sale-date" open={saleDate ? true : undefined}>
+              <summary><span>Fecha de venta</span><b>{saleDate ? saleDate.replace("T", ", ") : "Ahora"}</b></summary>
+              <label><span className="label">Fecha de venta · Venezuela (vacío = ahora)</span><input className="input" type="datetime-local" value={saleDate} max={caracasInput()} disabled={busy} onChange={e=>{setRatesLoading(true);setSaleDate(e.target.value);}} /></label>
+              {saleDate && <p className="muted small">Se aplican las tasas registradas para esta fecha. Los precios REF son editables para esta venta.</p>}
+            </details>
+            <div className="os-tk-hint" role="status">{ratesLoading?"Buscando tasas de la fecha…":rateSource} · BCV {rates.bcv} · Operativa {rates.operative}</div>
+          </section>
+
+          <section className="os-tk-sec os-alt">
+            <div className="os-tk-label"><span>Otras formas de cerrar</span></div>
+            {checkoutMode === "DIRECT" && <>
+              <button className="os-alt-btn" disabled={!cartValid||busy} onClick={()=>setTenderOpen(true)}><BrandIcon name="tag" /><span>Cobro con vuelto o precio pactado USD</span><OsIcon name="arrow" size={16} /></button>
+              <button className="os-alt-btn is-credit" disabled={!cartValid || busy} onClick={() => setPartialCreditOpen(true)}><BrandIcon name="cal" /><span>Abono + saldo a Crédito LC</span><OsIcon name="arrow" size={16} /></button>
+            </>}
+            <button className="os-alt-btn" disabled={!cartValid || busy} onClick={continueAsOrder}><BrandIcon name="clip" /><span>Saldo a favor / pago mixto / Crédito LC → continuar como orden</span><OsIcon name="arrow" size={16} /></button>
+            <p className="os-tk-hint">Para preparar un recibo sin cobrar, continúa como orden y usa su cotización. Imprimir no cierra la venta.</p>
+          </section>
+        </div>
+        <div className="os-tk-foot">
+          <div className="os-trow"><span>En bolívares, tasa BCV</span><b>{fmtVes(totalVes)}</b></div>
+          <div className="os-trow"><span>USD físico aprox., tasa operativa</span><b>${cashUsd.toFixed(2)}</b></div>
+          <div className="os-tbig"><span>Total a cobrar</span><b key={totalRef.toFixed(2)} className="os-tick">{fmtRef(totalRef)}</b></div>
+          {checkoutMode==="DIRECT" && <label className="os-check" ref={receivedRef}><input type="checkbox" checked={received} onChange={e=>setReceived(e.target.checked)} /><span>Confirmo que recibí el pago de la venta.</span></label>}
+          {checkoutMode === "DIRECT"
+            ? <button ref={chargeRef} className="btn btn-primary btn-block os-charge" disabled={!cartValid || busy || !received} onClick={completeDirect}>{chargeLabel}</button>
+            : <button ref={chargeRef} className="btn btn-primary btn-block os-charge" disabled={!cartValid || totalRef<CASHEA_MIN_REF || busy} onClick={prepareCashea}>{chargeLabel}</button>}
+          {!cartValid && cart.length > 0 && <div className="os-tk-hint">Corrige cantidades o precios antes de registrar la venta.</div>}
+        </div>
+      </aside>
+    </div>
+    <button type="button" className="os-mbar" onClick={() => document.getElementById("quick-sale-checkout")?.scrollIntoView({ behavior: prefersCalm() ? "auto" : "smooth", block: "start" })}>
+      <span>{cart.length ? `Ver ticket, ${cart.length} ${cart.length === 1 ? "línea" : "líneas"}` : "Ticket vacío"}</span><b>{fmtRef(totalRef)}</b></button>
     </div>
     {partialCreditOpen && <QuickPartialCreditSheet items={payload()} totalVes={totalVes} totalRef={totalRef} rates={rates} saleDate={saleDate} onCancel={()=>setPartialCreditOpen(false)} onDone={async row=>{setPartialCreditOpen(false);setCompleted({order_id:row.order_id,order_number:row.order_number,total_ves:Number(row.total_ves??0),total_ref:Number(row.total_ref??0),credit:{outstanding_ves:Number(row.outstanding_ves??0),outstanding_ref:Number(row.outstanding_ref??0)}});resetAfterSale();await load();}}/>}
   </fieldset></main>;
+}
+
+/** Icono de marca según lo que se vende. */
+function productIcon(text: string): BrandIconName {
+  const value = normalize(text);
+  if (/filtro|filter/.test(value)) return "filter";
+  if (/refriger|coolant|limpia|aditivo|spray|silicon|desengras/.test(value)) return "spray";
+  if (/aceite|\d{1,2}w-?\d{2}|sae|atf|lubric|motor oil/.test(value)) return "bottle";
+  return "can";
+}
+function viscosity(text: string) {
+  const match = /\b(\d{1,2})\s?w\s?-?\s?(\d{2})\b/i.exec(text);
+  return match ? `${match[1]}W-${match[2]}` : "";
 }
 
 function QuickPartialCreditSheet({ items, totalVes, totalRef, rates, saleDate, onCancel, onDone }: { items:QuickPayloadLine[]; totalVes:number; totalRef:number; rates:Rates; saleDate:string; onCancel:()=>void; onDone:(row:any)=>void|Promise<void> }) {

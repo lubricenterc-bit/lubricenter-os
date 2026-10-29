@@ -10,7 +10,7 @@ const KEY = "lubricenter:attendant";
 export function readAttendant(): string {
   try { return window.localStorage.getItem(KEY) ?? ""; } catch { return ""; }
 }
-function writeAttendant(name: string) {
+export function writeAttendant(name: string) {
   try { window.localStorage.setItem(KEY, name); } catch { /* sin almacenamiento: se pregunta cada vez */ }
   window.dispatchEvent(new CustomEvent("lubricenter:attendant", { detail: name }));
 }
@@ -44,10 +44,12 @@ export function AttendantPicker({ orderId, onChange }: { orderId?: string | null
       if (error) setError(error.message);
     }
   }
-  return <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-    <span className="muted small">¿Quién atiende?</span>
-    {ATTENDANTS.map(n => <button key={n} type="button" className={`btn ${current === n ? "btn-primary" : "btn-ghost"}`}
-      aria-pressed={current === n} onClick={() => void choose(n)}>{n}</button>)}
+  return <div className="os-attendant" role="group" aria-label="Quién atiende">
+    <span className="os-attendant-label">¿Quién atiende?</span>
+    <div className="os-attendant-options">
+      {ATTENDANTS.map(n => <button key={n} type="button" className={current === n ? "is-active" : undefined}
+        aria-pressed={current === n} onClick={() => void choose(n)}><span className="os-mono">{n.slice(0, 2).toUpperCase()}</span>{n}</button>)}
+    </div>
     {!current && <span className="muted small">Toca tu nombre una vez; se recuerda en este equipo.</span>}
     {error && <span className="error small">{error}</span>}
   </div>;
