@@ -7,6 +7,7 @@ on:
       - 'app/cashea/**'
       - 'lib/navigation.ts'
       - 'supabase/migrations/20261029120000_cashea_branch_conciliation.sql'
+      - 'supabase/migrations/20261029180000_cashea_conciliation_autofix.sql'
       - 'tests/cashea-conciliation*.test.ts'
       - 'tests/fixtures/cashea-scenario.ts'
       - 'tests/fixtures/bnc-sintetico.xls'

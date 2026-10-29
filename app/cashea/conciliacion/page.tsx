@@ -26,7 +26,7 @@ const KIND_LABEL: Record<Upload["kind"], string> = { BNC: "Estado de cuenta BNC"
 const EXCEPTION_LABEL: Record<string, string> = {
   SIN_IDENTIFICAR: "Pago sin identificar", DEBITO_SIN_CLASIFICAR: "Salida sin clasificar", RETIRO_CEDULA_DESCONOCIDA: "Retiro a cédula nueva", CANCELADA_CON_INICIAL: "Cancelada con inicial cobrado",
   OS_BDV_EN_BNC: "OS dice BDV, cayó en BNC", MONTO_DIFERENTE: "Monto OS ≠ banco", FACTURA_MAL_ESCRITA: "Factura mal escrita", REFERENCIA_MAL_CARGADA: "Referencia mal cargada",
-  POSIBLE_CABUDARE: "Posible Cabudare", CABUDARE_SIN_ENLACE: "Cabudare sin enlace", INICIAL_NO_REGISTRADO: "Inicial no registrado en el OS", SALTO_DE_SALDO: "Falta un reporte", CORTE_NO_ENCONTRADO: "Cero no encontrado",
+  POSIBLE_CABUDARE: "Posible Cabudare", CABUDARE_SIN_ENLACE: "Cabudare sin enlace", INICIAL_NO_REGISTRADO: "Inicial no registrado en el OS", REFERENCIA_PAGO_DISTINTA: "Referencia distinta en el OS", SALTO_DE_SALDO: "Falta un reporte", CORTE_NO_ENCONTRADO: "Cero no encontrado",
 };
 const money = (v: string | number) => new Decimal(v || 0);
 // Reconciliation figures always show cents so they can be checked against the bank statement.
@@ -47,6 +47,7 @@ export default function CasheaConciliationPage() {
   const [search, setSearch] = useState("");
   const [assign, setAssign] = useState<{ subject: "ORDER" | "BANK_LINE"; key: string; label: string; branch: string } | null>(null);
   const [assignNote, setAssignNote] = useState("");
+  const [proposal, setProposal] = useState<{ title: string; lines: string[]; apply: () => Promise<string> } | null>(null);
 
   const load = useCallback(async () => {
     const r = await supabase.rpc("finance_role");
@@ -160,17 +161,40 @@ export default function CasheaConciliationPage() {
     setAssign(null); setAssignNote(""); await load();
   }
 
-  async function fix(e: EngineException) {
-    if (!e.fix) return;
-    if (e.fix.action === "SET_REFERENCE") {
-      const reason = window.prompt(`Vincular la venta ${e.order_number ?? ""} con la orden Cashea ${e.fix.reference}. Motivo:`, e.kind === "REFERENCIA_MAL_CARGADA" ? "Referencia Cashea mal escrita en el OS" : "Identificada por fecha y monto en la conciliación Cashea");
-      if (!reason) return;
-      const r = await supabase.rpc("cashea_conc_set_reference", { p_sale_id: e.fix.sale_id, p_reference: e.fix.reference, p_reason: reason });
+  // Every automatic correction is shown first; it is applied only after the explicit "Sí".
+  function propose(e: EngineException) {
+    const f = e.fix;
+    if (!f) return;
+    if (f.action === "CORRECT_PAYMENT") { window.location.href = `/orders/${f.order_id}/correct-payment`; return; }
+    if (f.action === "MOVE_TO_BNC") setProposal({ title: `Corregir pago de ${f.order_number}`, lines: [
+      `Monto: ${fmtVes(f.amount_ves)} (no cambia)`,
+      `Cuenta: ${f.from_method === "TRANSFER_BNC" ? "BNC" : f.from_method === "TRANSFER_BDV" ? "BDV" : "Pago móvil"} → BNC`,
+      `Referencia: ${f.from_reference || "—"} → ${f.to_reference}`,
+      `Evidencia: abono del BNC del ${f.bank_date} por ${fmtVes(f.bank_amount_ves)}`,
+    ], apply: async () => {
+      const r = await supabase.rpc("cashea_conc_fix_payment", { p_payment_id: f.payment_id, p_bank_line_id: f.bank_line_id, p_confirmed: true });
       if (r.error) throw r.error;
-      await load(); setNotice(`Referencia corregida. Presiona «Actualizar el OS» para reconciliar.`);
-    } else if (e.fix.action === "ASSIGN_ORDER") {
-      setAssign({ subject: "ORDER", key: e.fix.external_order, label: `Orden Cashea ${e.fix.external_order}`, branch: e.fix.branch }); setAssignNote(`Posible ${e.order_number ?? "Cabudare"}: mismo día y total`);
-    } else window.location.href = `/orders/${e.fix.order_id}/correct-payment`;
+      return `${f.order_number}: pago movido al BNC con referencia ${f.to_reference}.`;
+    } });
+    else if (f.action === "SET_REFERENCE") setProposal({ title: `Vincular ${e.order_number ?? "la venta"} con Cashea`, lines: [
+      `Orden Cashea: ${f.reference}`, e.title, e.detail,
+    ], apply: async () => {
+      const r = await supabase.rpc("cashea_conc_set_reference", { p_sale_id: f.sale_id, p_reference: f.reference, p_reason: e.kind === "REFERENCIA_MAL_CARGADA" ? "Referencia Cashea mal escrita en el OS (conciliación Cashea)" : "Identificada por fecha y monto en la conciliación Cashea" });
+      if (r.error) throw r.error;
+      return `${e.order_number ?? "Venta"} vinculada con la orden Cashea ${f.reference}.`;
+    } });
+    else setProposal({ title: `Asignar orden Cashea ${f.external_order}`, lines: [`Sucursal: ${branchName.get(f.branch) ?? f.branch}`, e.detail], apply: async () => {
+      const r = await supabase.rpc("cashea_conc_set_override", { p_subject: "ORDER", p_key: f.external_order, p_branch: f.branch, p_note: `Confirmado en conciliación: ${e.title}` });
+      if (r.error) throw r.error;
+      return `Orden ${f.external_order} asignada a ${branchName.get(f.branch) ?? f.branch}.`;
+    } });
+  }
+
+  async function applyProposal() {
+    if (!proposal) return;
+    const message = await proposal.apply();
+    setProposal(null); await load();
+    setNotice(`${message} Cuando termines, presiona «Actualizar el OS».`);
   }
 
   async function markZero(line: ClassifiedLine) {
@@ -257,7 +281,7 @@ export default function CasheaConciliationPage() {
         <h2 className="section-title">Excepciones ({result.exceptions.length})</h2>
         {!result.exceptions.length && <p className="muted">Nada pendiente.</p>}
         {result.exceptions.map(e => <div key={e.key} className="row-between order-item"><div><span className="pill warn">{EXCEPTION_LABEL[e.kind] ?? e.kind}</span> <strong>{e.title}</strong><div className="muted small">{e.detail}{e.amount_ves ? ` · ${fmtVes(e.amount_ves)}` : ""}</div></div>
-          <div className="row">{e.fix && <button className="btn" disabled={busy} onClick={() => run(() => fix(e))}>{e.fix.action === "SET_REFERENCE" ? "Vincular" : e.fix.action === "ASSIGN_ORDER" ? "Asignar" : "Corregir"}</button>}
+          <div className="row">{e.fix && <button className="btn" disabled={busy} onClick={() => propose(e)}>{e.fix.action === "SET_REFERENCE" ? "Vincular" : e.fix.action === "ASSIGN_ORDER" ? "Asignar" : e.fix.action === "MOVE_TO_BNC" ? "Corregir" : "Revisar"}</button>}
             {e.bank_line_id && <button className="btn btn-ghost" onClick={() => setAssign({ subject: "BANK_LINE", key: e.bank_line_id!, label: e.title, branch: "" })}>Asignar sucursal</button>}
             {!e.bank_line_id && e.external_order && e.kind !== "POSIBLE_CABUDARE" && <button className="btn btn-ghost" onClick={() => setAssign({ subject: "ORDER", key: e.external_order!, label: `Orden Cashea ${e.external_order}`, branch: "" })}>Reasignar</button>}</div></div>)}
       </section>
@@ -302,6 +326,12 @@ export default function CasheaConciliationPage() {
       </section>}
     </>}
 
+    {proposal && <div className="overlay"><div className="sheet stack">
+      <h2>{proposal.title}</h2>
+      <ul className="stack">{proposal.lines.filter(Boolean).map(x => <li key={x}>{x}</li>)}</ul>
+      <p className="muted small">Queda registrado en la auditoría del OS.</p>
+      <div className="row"><button className="btn btn-primary" disabled={busy} onClick={() => run(applyProposal)}>{busy ? "Corrigiendo…" : "Sí, corregir"}</button><button className="btn" disabled={busy} onClick={() => setProposal(null)}>No</button></div>
+    </div></div>}
     {assign && <div className="overlay"><div className="sheet stack">
       <h2>Reasignar sucursal</h2><p className="muted">{assign.label}. La decisión manual gana sobre las reglas y queda registrada con su motivo.</p>
       <label>Sucursal<select className="select" value={assign.branch} onChange={e => setAssign({ ...assign, branch: e.target.value })}><option value="">Volver a la regla automática</option>{data?.branches.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}</select></label>

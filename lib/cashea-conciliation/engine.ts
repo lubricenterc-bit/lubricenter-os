@@ -55,11 +55,15 @@ export type ClassifiedLine = BankLine & { kind: LineKind; origin: MatchOrigin; a
 export type ExceptionKind =
   | 'SIN_IDENTIFICAR' | 'DEBITO_SIN_CLASIFICAR' | 'RETIRO_CEDULA_DESCONOCIDA' | 'CANCELADA_CON_INICIAL' | 'OS_BDV_EN_BNC'
   | 'MONTO_DIFERENTE' | 'FACTURA_MAL_ESCRITA' | 'REFERENCIA_MAL_CARGADA' | 'POSIBLE_CABUDARE' | 'CABUDARE_SIN_ENLACE'
-  | 'INICIAL_NO_REGISTRADO' | 'SALTO_DE_SALDO' | 'CORTE_NO_ENCONTRADO';
+  | 'INICIAL_NO_REGISTRADO' | 'SALTO_DE_SALDO' | 'CORTE_NO_ENCONTRADO' | 'REFERENCIA_PAGO_DISTINTA';
+export type MoveToBncFix = {
+  action: 'MOVE_TO_BNC'; payment_id: string; bank_line_id: string; order_id: string; order_number: string; from_method: string;
+  from_reference: string; to_reference: string; amount_ves: string; bank_amount_ves: string; bank_date: string;
+};
 export type EngineException = {
   key: string; kind: ExceptionKind; title: string; detail: string; amount_ves?: string; amount_ref?: string;
   bank_line_id?: string; external_order?: string; order_id?: string; order_number?: string; sale_id?: string;
-  fix?: { action: 'SET_REFERENCE'; sale_id: string; reference: string } | { action: 'CORRECT_PAYMENT'; order_id: string } | { action: 'ASSIGN_ORDER'; external_order: string; branch: BranchCode };
+  fix?: MoveToBncFix | { action: 'SET_REFERENCE'; sale_id: string; reference: string } | { action: 'CORRECT_PAYMENT'; order_id: string } | { action: 'ASSIGN_ORDER'; external_order: string; branch: BranchCode };
 };
 export type BranchRow = { branch: BranchCode; name: string; entered: string; withdrawn: string; adjustments: string; due: string };
 export type PeriodSummary = {
@@ -222,21 +226,32 @@ export function runEngine(input: EngineInput): EngineResult {
       } else {
         // OS payment registered with the last 4 digits of the bank reference (initials paid to BNC).
         const last4 = l.reference.replace(/\D/g, '').slice(-4);
-        const candidates = input.osPayments.filter(p => !usedOsPayments.has(p.payment_id) && p.currency === 'VES' && /^(TRANSFER_|MOBILE_PAYMENT)/.test(p.method)
-          && (p.reference ?? '').replace(/\D/g, '').slice(-4) === last4 && last4.length === 4 && Math.abs(dayDiff(caracasDate(p.paid_at), l.line_date)) <= 1)
+        const near = input.osPayments.filter(p => !usedOsPayments.has(p.payment_id) && p.currency === 'VES' && /^(TRANSFER_|MOBILE_PAYMENT)/.test(p.method)
+          && Math.abs(dayDiff(caracasDate(p.paid_at), l.line_date)) <= 1);
+        const candidates = near.filter(p => (p.reference ?? '').replace(/\D/g, '').slice(-4) === last4 && last4.length === 4)
           .map(p => ({ p, diff: new D(p.amount).sub(l.credit).abs() }))
           .filter(x => x.p.cashea_order || x.diff.lte(D.max(1, new D(l.credit).mul('0.02'))))
           .sort((a, b) => a.diff.cmp(b.diff));
-        const os = candidates[0]?.p;
+        // Same Cashea initial typed with another reference: exact amount to the cent, unique, same day ±1.
+        const exact = candidates.length ? [] : near.filter(p => p.cashea_order && new D(p.amount).sub(l.credit).abs().lte('0.01'));
+        const os = candidates[0]?.p ?? (exact.length === 1 ? exact[0] : undefined);
         if (os) {
           usedOsPayments.add(os.payment_id);
           const sale = input.osSales.find(s => s.order_id === os.order_id);
           if (sale?.cashea_reference) initialMatched.add(sale.cashea_reference);
+          const refMatches = candidates.length > 0;
           cl.origin = 'OS_PAYMENT';
           cl.allocations = single(BRANCHES.CABUDARE, { os_order_number: os.order_number, external_order: sale?.cashea_reference ?? null, installments: [0] });
-          cl.note = `${os.order_number} · pago ${os.method} ref ${os.reference}`;
-          if (os.method !== 'TRANSFER_BNC') addException({ key: `bdv-en-bnc:${os.payment_id}`, kind: 'OS_BDV_EN_BNC', title: `${os.order_number}: el OS registró ${os.method} pero el dinero cayó en el BNC`, detail: `${l.line_date} · ref ${l.reference} · ${fixed(new D(l.credit))} Bs`, amount_ves: l.credit, bank_line_id: l.id, order_id: os.order_id, order_number: os.order_number, fix: { action: 'CORRECT_PAYMENT', order_id: os.order_id } });
-          if (new D(os.amount).sub(l.credit).abs().gt(1)) addException({ key: `monto:${os.payment_id}`, kind: 'MONTO_DIFERENTE', title: `${os.order_number}: monto del OS distinto al del banco`, detail: `OS ${fixed(new D(os.amount))} Bs · banco ${fixed(new D(l.credit))} Bs`, amount_ves: fixed(new D(l.credit).sub(os.amount)), bank_line_id: l.id, order_id: os.order_id, order_number: os.order_number, fix: { action: 'CORRECT_PAYMENT', order_id: os.order_id } });
+          cl.note = `${os.order_number} · pago ${os.method} ref ${os.reference}${refMatches ? '' : ' (monto exacto, referencia distinta)'}`;
+          const move = { action: 'MOVE_TO_BNC' as const, payment_id: os.payment_id, bank_line_id: l.id, order_id: os.order_id, order_number: os.order_number, from_method: os.method, from_reference: os.reference ?? '', to_reference: l.reference.replace(/\D/g, ''), amount_ves: fixed(new D(os.amount)), bank_amount_ves: fixed(new D(l.credit)), bank_date: l.line_date };
+          if (os.method !== 'TRANSFER_BNC') addException({ key: `bdv-en-bnc:${os.payment_id}`, kind: 'OS_BDV_EN_BNC', title: `${os.order_number}: el OS registró ${os.method} pero el dinero cayó en el BNC`, detail: `${l.line_date} · ref ${l.reference} · ${fixed(new D(l.credit))} Bs${refMatches ? '' : ` · el OS tiene la referencia ${os.reference}`}`, amount_ves: l.credit, bank_line_id: l.id, order_id: os.order_id, order_number: os.order_number, fix: move });
+          else if (!refMatches) addException({ key: `ref-pago:${os.payment_id}`, kind: 'REFERENCIA_PAGO_DISTINTA', title: `${os.order_number}: el pago BNC del OS tiene otra referencia`, detail: `OS ref ${os.reference} · banco ${l.reference} · ${fixed(new D(l.credit))} Bs el ${l.line_date}`, amount_ves: l.credit, bank_line_id: l.id, order_id: os.order_id, order_number: os.order_number, fix: move });
+          if (new D(os.amount).sub(l.credit).abs().gt(1)) {
+            const snap = sale?.cashea_reference ? orderByNumber.get(sale.cashea_reference) : undefined;
+            const rate = rateFor(l.line_date);
+            const cashea = snap && rate ? ` · Cashea: inicial ${new D(snap.initial_ref).toFixed(2)} USD ≈ ${fixed(new D(snap.initial_ref).mul(rate))} Bs` : '';
+            addException({ key: `monto:${os.payment_id}`, kind: 'MONTO_DIFERENTE', title: `${os.order_number}: monto del OS distinto al del banco`, detail: `OS ${fixed(new D(os.amount))} Bs · banco ${fixed(new D(l.credit))} Bs${cashea}. Requiere decidir si es sobrepago, vuelto o error del total.`, amount_ves: fixed(new D(l.credit).sub(os.amount)), bank_line_id: l.id, order_id: os.order_id, order_number: os.order_number, fix: { action: 'CORRECT_PAYMENT', order_id: os.order_id } });
+          }
         } else deferred.push(cl);
       }
     }
