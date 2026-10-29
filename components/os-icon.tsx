@@ -12,6 +12,7 @@ export const glyphs = {
   down:"m6 9 6 6 6-6",
   right:"m9 6 6 6-6 6",
   plus:"M12 5v14 M5 12h14",
+  minus:"M5 12h14",
   bell:"M18 8a6 6 0 0 0-12 0c0 7-3 8-3 9h18c0-1-3-2-3-9 M10 21h4",
   menu:"M4 6h16 M4 12h16 M4 18h16",
   close:"M5 5l14 14 M19 5 5 19",

@@ -35,8 +35,8 @@ export function PricingStatus() {
     };
   }, [check]);
 
-  return <Link href="/settings" className={`pill ${fresh === false ? "warn" : "ok"}`} title="Estado del catálogo y tasas">
-    {fresh === null ? "Precios…" : fresh ? "Precios al día ✓" : "Precios ⚠"}
+  return <Link href="/settings" className={`pill os-pricing ${fresh === false ? "warn" : "ok"}`} title="Estado del catálogo y tasas">
+    <span className="os-pricing-dot" aria-hidden="true" />{fresh === null ? "Precios…" : fresh ? "Precios al día" : "Revisar precios"}
   </Link>;
 }
 

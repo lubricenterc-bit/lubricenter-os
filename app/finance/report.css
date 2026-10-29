@@ -50,7 +50,7 @@
 .finance-report-table{min-width:580px}
 .finance-tools{flex-wrap:wrap}
 .finance-channel-card{padding:15px}}
-@media print{body:has(.finance-page){background:#fff!important;color:#171715!important;color-scheme:light}body:has(.finance-page) .mesa-rail,body:has(.finance-page) .mesa-dock,body:has(.finance-page) .mesa-masthead,body:has(.finance-page) .mesa-page-path,body:has(.finance-page) .mesa-skip-link,body:has(.finance-page) .os-sidebar,body:has(.finance-page) .os-mobile-nav,body:has(.finance-page) .os-topbar,.finance-page .finance-tools,.finance-page .finance-controls,.finance-page .finance-extra,.finance-page .finance-cash-alerts,.finance-page>.brand-hero{display:none!important}
+@media print{body:has(.finance-page){background:#fff!important;color:#171715!important;color-scheme:light}body:has(.finance-page) .os-masthead,body:has(.finance-page) .os-subnav,body:has(.finance-page) .os-dock,body:has(.finance-page) .os-skip-link,.finance-page .finance-tools,.finance-page .finance-controls,.finance-page .finance-extra,.finance-page .finance-cash-alerts,.finance-page>.brand-hero{display:none!important}
 .finance-page{width:100%!important;max-width:none!important;margin:0!important;padding:0!important;--text:#171715;--panel:#fff;--panel-2:#f4f3ef;--line:#ccc;--muted:#555;--accent:#b4420b}
 .finance-management-report{gap:14px!important}
 .finance-sales-hero{background:#f0f1ea!important;color:#171715!important;border:1px solid #bbb;padding:22px;break-inside:avoid}
