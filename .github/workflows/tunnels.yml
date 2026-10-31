@@ -1,0 +1,39 @@
+name: Modo túnel
+on:
+  pull_request:
+    paths:
+      - 'lib/tunnels/**'
+      - 'components/tunnel/**'
+      - 'app/tunnels/**'
+      - 'app/api/tunnels/**'
+      - 'app/tunnel.css'
+      - 'app/layout.tsx'
+      - 'components/app-shell.tsx'
+      - 'components/os-navigation.tsx'
+      - 'lib/navigation.ts'
+      - 'supabase/migrations/20261031120000_tunnels_engine.sql'
+      - 'tests/tunnels-*.test.ts'
+      - 'tests/navigation.test.ts'
+      - 'tests/order-extras.test.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/tunnels.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run tests/tunnels-engine.test.ts tests/tunnels-ai.test.ts tests/tunnels-database.test.ts tests/navigation.test.ts tests/order-extras.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
