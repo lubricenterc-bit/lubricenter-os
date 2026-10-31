@@ -9,6 +9,7 @@ import { OsIcon } from "@/components/os-icon";
 import { OsDock, OsHeader, OsSubnav, SHORTCUTS } from "@/components/os-navigation";
 import { BrandIcon, Gotin, useLive } from "@/components/gotin";
 import { AppSessionProvider } from "@/components/app-session-context";
+import { usePendingTunnelCount } from "@/lib/tunnels/client";
 import {
   NAV_MODULES, linksForModule, moduleForPath, navigationSearch,
   type NavigationRole,
@@ -36,6 +37,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const commandLive = useLive<HTMLDivElement>();
   const owner = role === "OWNER" || role === "ADMIN";
   const results = useMemo(() => navigationSearch(search, role), [search, role]);
+  // A tunnel runs full screen, outside the normal shell; its list and rules stay inside it.
+  const fullScreenTunnel = /^\/tunnels\/(?!rules(?:\/|$))[^/]+/.test(pathname);
+  const pendingTunnels = usePendingTunnelCount(supabase, !publicDesignLab && owner && roleLoaded && pathname !== "/login" && !fullScreenTunnel);
 
   useEffect(() => {
     let stored = false;
@@ -164,6 +168,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (pathname === "/login") return <>{children}</>;
+  if (fullScreenTunnel) return <AppSessionProvider value={{ role, roleLoaded, locationName }}>{children}</AppSessionProvider>;
 
   function linkActive(href: string) {
     if (href === "/") return pathname === "/";
@@ -179,7 +184,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div ref={workspaceRef} className="os-workspace">
           <a className="os-skip-link" href="#os-main">Ir al contenido</a>
           <OsHeader pathname={pathname} onSearch={() => setSearchOpen(true)} onMenu={() => setMobileMenu(true)}
-            role={role} roleLoaded={roleLoaded} unread={unread} menuOpen={mobileMenu}>
+            role={role} roleLoaded={roleLoaded} unread={unread} menuOpen={mobileMenu} badges={{ tunnels: pendingTunnels }}>
             <PricingStatus />
           </OsHeader>
           <OsSubnav pathname={pathname} role={role} />

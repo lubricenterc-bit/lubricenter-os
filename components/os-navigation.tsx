@@ -20,6 +20,8 @@ export type OsHeaderProps = NavigationProps & {
   role?: NavigationRole;
   roleLoaded?: boolean;
   unread?: number;
+  /** Small counters next to a module label (e.g. pending tunnel decisions). */
+  badges?: Record<string, number>;
   children?: ReactNode;
 };
 
@@ -32,7 +34,7 @@ function intercept(event: MouseEvent<HTMLAnchorElement>, href: string, onNavigat
 const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /** Cabecera de la aplicación: logo, módulos con la gota que marca dónde estás, buscador y quién atiende. */
-export function OsHeader({ pathname, onSearch, onMenu, onNavigate, menuOpen = false, role = "OPERATOR", roleLoaded = true, unread = 0, children }: OsHeaderProps) {
+export function OsHeader({ pathname, onSearch, onMenu, onNavigate, menuOpen = false, role = "OPERATOR", roleLoaded = true, unread = 0, badges, children }: OsHeaderProps) {
   const owner = role === "OWNER" || role === "ADMIN";
   const current = moduleForPath(pathname);
   const modules = NAV_MODULES.filter(module => linksForModule(module, role).length > 0);
@@ -69,7 +71,7 @@ export function OsHeader({ pathname, onSearch, onMenu, onNavigate, menuOpen = fa
           const active = module.id === current.id;
           return <Link key={module.id} href={module.defaultHref} data-current={active}
             aria-current={active ? "page" : undefined} className={active ? "is-active" : undefined}
-            onClick={event => intercept(event, module.defaultHref, onNavigate)}>{module.label}</Link>;
+            onClick={event => intercept(event, module.defaultHref, onNavigate)}>{module.label}{badges?.[module.id] ? <span className="os-nav-count" aria-label={`, ${badges[module.id]} pendientes`}>{badges[module.id] > 99 ? "99+" : badges[module.id]}</span> : null}</Link>;
         })}
         <span ref={dropRef} className="os-nav-drop" aria-hidden="true"><BrandIcon name="drop" /></span>
       </nav>

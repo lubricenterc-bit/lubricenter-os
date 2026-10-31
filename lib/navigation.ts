@@ -21,6 +21,10 @@ export const NAV_MODULES: readonly NavModule[] = [
   { id: "home", label: "Inicio", icon: "home", defaultHref: "/", links: [
     { href: "/", label: "Mi jornada", description: "Acciones de hoy y pendientes" }
   ] },
+  { id: "tunnels", label: "Túneles", icon: "layers", defaultHref: "/tunnels", links: [
+    { href: "/tunnels", label: "Túneles pendientes", description: "Resolver procesos una decisión a la vez", ownerOnly: true, keywords: "tunel modo tunel cuadrar conciliar pendientes decisiones" },
+    { href: "/tunnels/rules", label: "Reglas aprendidas", description: "Ver, editar, desactivar y borrar reglas aprendidas", ownerOnly: true, keywords: "tunel reglas ia aprendidas" }
+  ] },
   { id: "sales", label: "Ventas", icon: "sale", defaultHref: "/quick-sale", links: [
     { href: "/quick-sale", label: "Venta rápida", description: "Cotizar y cobrar al mostrador", keywords: "facturar cobrar" },
     { href: "/quote", label: "Cotizador general", description: "Cotizar productos, servicios y compartir; pasar directo a venta u orden", keywords: "cotizar presupuesto aceite filtro productos cliente whatsapp" },

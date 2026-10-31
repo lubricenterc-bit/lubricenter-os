@@ -19,6 +19,7 @@ import "./theme/sale.css";
 import "./theme/workshop.css";
 import "./theme/login.css";
 import "./theme/motion.css";
+import "./tunnel.css";
 import { AuthGuard } from "@/components/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { PwaRegister } from "@/components/pwa-register";

@@ -2,10 +2,17 @@ import { describe, expect, it } from "vitest";
 import { NAV_MODULES, linksForModule, moduleForPath, navigationSearch, pageLabelForPath } from "../lib/navigation";
 
 describe("Navegación de escritorio Lubricenter OS", () => {
-  it("conserva siete áreas principales claramente identificadas", () => {
+  it("conserva las áreas principales claramente identificadas, con Túneles pendientes tras Inicio", () => {
     expect(NAV_MODULES.map(m => m.id)).toEqual([
-      "home", "sales", "workshop", "customers", "inventory", "finance", "admin"
+      "home", "tunnels", "sales", "workshop", "customers", "inventory", "finance", "admin"
     ]);
+  });
+  it("muestra Túneles pendientes solo a administración", () => {
+    const tunnels = NAV_MODULES.find(m => m.id === "tunnels")!;
+    expect(linksForModule(tunnels, "OPERATOR")).toEqual([]);
+    expect(linksForModule(tunnels, "OWNER").map(l => l.href)).toEqual(["/tunnels", "/tunnels/rules"]);
+    expect(moduleForPath("/tunnels/cashea").id).toBe("tunnels");
+    expect(navigationSearch("cuadrar", "OWNER")[0].href).toBe("/tunnels");
   });
   it("preserva destinos de operación y finanzas", () => {
     const routes: Record<string, string> = {
