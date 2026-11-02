@@ -1,7 +1,7 @@
 name: Inventario único y modo estricto
 on:
   push:
-    branches: [feature/inventario-unico-conteo, feature/inventario-codigos-busqueda, feature/catalogo-unico-inventario, claude/master-junta-29oct, claude/inventario-catalogo-unico]
+    branches: [feature/inventario-unico-conteo, feature/inventario-codigos-busqueda, feature/catalogo-unico-inventario, claude/master-junta-29oct, claude/inventario-catalogo-unico, claude/inventario-costo-vacio]
   pull_request:
     paths:
       - 'lib/inventory-policy.ts'

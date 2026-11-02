@@ -32,7 +32,8 @@ function toRow(r: any): InventoryFullRow {
     price_usd: num(r.price_usd),
     current_price_ves: num(r.current_price_ves),
     current_ref_bcv: num(r.current_ref_bcv),
-    average_cost_ref: num(r.average_cost_ref),
+    // "Sin costo" se guarda como 0 con cost_missing = true: aquí se muestra vacío.
+    average_cost_ref: r.cost_missing || !(Number(r.average_cost_ref) > 0) ? null : num(r.average_cost_ref),
     last_purchase_cost_ref: num(r.last_purchase_cost_ref),
     source_cost_ref: num(r.source_cost_ref),
     alt_codes: Array.isArray(r.alt_codes) ? r.alt_codes : [],
