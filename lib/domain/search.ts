@@ -28,3 +28,11 @@ export function inventorySearchText(item: SearchableInventoryItem) {
     .filter(Boolean)
     .join(" ");
 }
+
+/**
+ * Texto seguro para filtros `ilike` dentro de `.or()` de PostgREST: comas,
+ * paréntesis, puntos y comodines romperían la sintaxis del filtro.
+ */
+export function postgrestSearchText(query: string) {
+  return query.trim().replace(/[,().%_*\\:"]/g, " ").replace(/\s+/g, " ").trim();
+}

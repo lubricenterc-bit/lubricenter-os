@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchesSearch } from "./search";
+import { matchesSearch, postgrestSearchText } from "./search";
 
 describe("búsqueda de mostrador", () => {
   it("encuentra aceite con palabras en diferente orden y viscosidad separada", () => {
@@ -11,3 +11,11 @@ describe("búsqueda de mostrador", () => {
   });
 });
 
+
+describe("postgrestSearchText", () => {
+  it("quita la sintaxis que rompe un filtro .or() de PostgREST", () => {
+    expect(postgrestSearchText(" Pérez, Juan (0414) ")).toBe("Pérez Juan 0414");
+    expect(postgrestSearchText("50%_off*")).toBe("50 off");
+    expect(postgrestSearchText("a.b:c\"d")).toBe("a b c d");
+  });
+});

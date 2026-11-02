@@ -95,7 +95,9 @@ export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const orderRates = items.length && items.every(i=>i.price_denomination==="USD") ? {...rates,operative:items.reduce((n,i)=>n+Number(i.charged_ves_amount),0)/items.reduce((n,i)=>n+Number(i.agreed_usd),0)} : rates;
+  const agreedUsd = items.reduce((n,i)=>n+Number(i.agreed_usd||0),0);
+  // Tasa implícita de una orden en USD; si no hay montos acordados (0) se usa la vigente para no mostrar Infinity/NaN.
+  const orderRates = items.length && agreedUsd > 0 && items.every(i=>i.price_denomination==="USD") ? {...rates,operative:items.reduce((n,i)=>n+Number(i.charged_ves_amount||0),0)/agreedUsd} : rates;
   const totalVes = useMemo(() => items.reduce((a, i) => a + Number(i.charged_ves_amount || 0), 0), [items]);
   const totalRef = useMemo(() => items.reduce((a, i) => a + Number(i.charged_ref_amount || 0), 0), [items]);
   const listTotalRef = useMemo(() => items.reduce((a, i) => a + Number(i.list_ref_amount ?? i.charged_ref_amount ?? 0), 0), [items]);
