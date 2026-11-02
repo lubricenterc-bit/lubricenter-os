@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ExpenseSheet, type ExpenseAccount } from "@/components/expense-sheet";
 import { fmtRef, fmtVes } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
+import { canAdministerOrders } from "@/lib/session-cache";
 
 type Supplier = { id:string; name:string; legal_name:string|null; rif:string|null; phone:string|null; email:string|null; address:string|null; contact_name:string|null; bank_details:string|null; default_currency:"USD"|"VES"; payment_terms_days:number; notes:string|null; active:boolean; invoice_count:number; payable_ref:number };
 type Invoice = { id:string; supplier_id:string; supplier_name:string; invoice_number:string; invoice_date:string; due_date:string|null; currency:"USD"|"VES"; total_original:number; paid_original:number; outstanding_original:number; status:string; received_units:number; invoiced_units:number };
@@ -18,7 +19,7 @@ export default function ExpensesPage() {
   const [canManage,setCanManage]=useState(false); const [data,setData]=useState<Data|null>(null); const [inventory,setInventory]=useState<InventoryItem[]>([]);
   const [tab,setTab]=useState<Tab>("OVERVIEW"); const [supplierEdit,setSupplierEdit]=useState<Supplier|"NEW"|null>(null);
   const [showInvoice,setShowInvoice]=useState(false); const [showExpense,setShowExpense]=useState(false); const [error,setError]=useState(""); const [loading,setLoading]=useState(true);
-  async function load(){setLoading(true);setError(""); const [{data:d,error:e},{data:items,error:ie},{data:permission}]=await Promise.all([supabase.rpc("purchasing_dashboard",{p_from:from,p_to:to}),supabase.from("inventory_items").select("id,sku,brand,description,average_cost_ref").eq("active",true).order("description").limit(2000),supabase.rpc("can_administer_orders")]);setCanManage(permission===true); setLoading(false); if(e||ie){setData(null);return setError((e||ie)?.message??"No pude cargar egresos.");} setData(d as Data);setInventory((items??[]) as InventoryItem[])}
+  async function load(){setLoading(true);setError(""); const [{data:d,error:e},{data:items,error:ie},{data:permission}]=await Promise.all([supabase.rpc("purchasing_dashboard",{p_from:from,p_to:to}),supabase.from("inventory_items").select("id,sku,brand,description,average_cost_ref").eq("active",true).order("description").limit(2000),canAdministerOrders()]);setCanManage(permission===true); setLoading(false); if(e||ie){setData(null);return setError((e||ie)?.message??"No pude cargar egresos.");} setData(d as Data);setInventory((items??[]) as InventoryItem[])}
   useEffect(()=>{load()},[from,to]);
   useEffect(()=>{const requested=new URLSearchParams(window.location.search).get("tab");if(requested==="SUPPLIERS"||requested==="INVOICES")setTab(requested)},[]);
   const overdue=data?.invoices.filter(x=>x.status!=="PAID"&&x.status!=="VOID"&&x.due_date&&x.due_date<today)??[];

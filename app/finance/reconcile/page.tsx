@@ -88,12 +88,18 @@ export default function WeeklyReconciliationPage() {
 
   async function saveClosings() {
     if(!status) return;
-    for(const a of status.accounts) {
+    // 1) Validar TODAS las cuentas antes de escribir: antes, un saldo vacío en la
+    //    tercera cuenta dejaba guardadas las dos primeras (escritura a medias).
+    const rows=status.accounts.map(a=>{
       const raw=closings[a.account_id];
       if(raw===undefined || raw.trim()==='' || !Number.isFinite(Number(raw)) || Number(raw)<0) throw new Error(`Falta saldo final de ${a.name}`);
-      const r=await supabase.rpc('finance_week_set_closing',{p_start:week,p_account_id:a.account_id,p_closing:Number(raw)});
-      if(r.error) throw r.error;
-    }
+      return {account_id:a.account_id,closing:Number(raw)};
+    });
+    // 2) Cada RPC es independiente e idempotente por cuenta: van en paralelo
+    //    (N viajes simultáneos en vez de N viajes en fila).
+    const results=await Promise.all(rows.map(r=>supabase.rpc('finance_week_set_closing',{p_start:week,p_account_id:r.account_id,p_closing:r.closing})));
+    const failed=results.find(r=>r.error);
+    if(failed?.error) throw failed.error;
     setNotice('Saldos finales guardados.');
   }
 

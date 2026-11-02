@@ -4,6 +4,7 @@ import Link from "next/link";
 import Decimal from "decimal.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { financeRole } from "@/lib/session-cache";
 import { fmtRef } from "@/lib/format";
 
 type Statement = { id:string; period_from:string; period_to:string; invoice_number:string; ownership_status:string; ownership_reason:string; sales_ref:string; commission_percent:string; service_ref:string; vat_ref:string; withholding_ref:string; total_deduct_ref:string; evidence:string; voided_at:string|null; void_reason:string|null; cashea_balance_events:{id:string;reversed_at:string|null}[] };
@@ -48,7 +49,7 @@ export default function CasheaBalancePage() {
   const [statementId,setStatementId] = useState("");
 
   async function load() {
-    const r = await supabase.rpc("finance_role");
+    const r = await financeRole();
     if (r.error) { setError(r.error.message); return; }
     const currentRole = String(r.data ?? ""); setRole(currentRole);
     if (!['OWNER','ADMIN'].includes(currentRole)) return;

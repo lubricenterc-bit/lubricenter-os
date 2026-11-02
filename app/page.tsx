@@ -18,6 +18,8 @@ export default function HomePage() {
   const [data, setData] = useState<Dashboard>(INITIAL);
   const [board, setBoard] = useState<HomeBoardRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Tras la primera carga, los refrescos actualizan las cifras sin vaciarlas a «—».
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [error, setError] = useState("");
 
   async function load() {
@@ -55,10 +57,10 @@ export default function HomePage() {
       bcv: Number(row.bcv_rate ?? 0),
       operative: Number(row.operative_rate ?? 0),
     });
-    setLoading(false);
+    setLoading(false); setLoadedOnce(true);
   }
   useEffect(() => { void load(); }, []);
 
-  return <OsHome data={data} board={board} owner={owner} locationName={locationName} loading={loading} error={error}
+  return <OsHome data={data} board={board} owner={owner} locationName={locationName} loading={loading && !loadedOnce} error={error}
     onRefresh={() => void load()} />;
 }

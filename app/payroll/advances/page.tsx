@@ -2,6 +2,7 @@
 import Link from "next/link";
 import {useEffect,useMemo,useState} from "react";
 import {supabase} from "@/lib/supabase";
+import { canAdministerOrders } from "@/lib/session-cache";
 type Employee={id:string;name:string};
 type Account={id:string;code:string;name:string;currency:string;account_type:string};
 type Advance={id:string;employee_id:string;employee_name:string;paid_on:string;intended_period_end:string;currency:string;
@@ -32,7 +33,7 @@ export default function PayrollAdvances(){
    setAccountId(current=>current||a.data?.[0]?.id||"");
    setEmployeeId(current=>current||e.data?.[0]?.id||"");
  }
- useEffect(()=>{let alive=true;void (async()=>{try{const auth=await supabase.rpc("can_administer_orders");
+ useEffect(()=>{let alive=true;void (async()=>{try{const auth=await canAdministerOrders();
    if(auth.error||auth.data!==true)throw new Error("Solo administración puede registrar anticipos de nómina.");
    await load();
  }catch(e){if(alive)setError((e as Error).message);}finally{if(alive)setLoading(false);}})();return()=>{alive=false;};},[]);

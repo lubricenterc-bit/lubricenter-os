@@ -149,7 +149,7 @@ export default function ReceivablesPage() {
       </div>
     </section>
 
-    {loading ? <div className="card muted">Cargando cuentas por cobrar…</div> : <section className="stack">
+    {loading && !receivables.length ? <div className="card muted">Cargando cuentas por cobrar…</div> : <section className="stack">
       {visible.map(r => {
         const c = r.customer_id ? customerMap.get(r.customer_id) : undefined;
         const o = orderMap.get(r.order_id);

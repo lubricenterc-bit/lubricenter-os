@@ -6,6 +6,7 @@ import { FinanceCashAlerts } from "@/components/finance-cash-alerts";
 import { ExpenseSheet, type ExpenseAccount } from "@/components/expense-sheet";
 import { fmtRef, fmtVes } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
+import { financeRole as fetchFinanceRole } from "@/lib/session-cache";
 import { FinanceManagementReportView } from "@/components/finance-management-report";
 import { financeToday, financeDateStep, validFinancePeriod, type FinanceManagementReport } from "@/lib/finance/management-report";
 import "./report.css";
@@ -142,7 +143,7 @@ export default function FinancePage() {
       setLoading(true);
       const [summary, financeRole, management] = await Promise.all([
         supabase.rpc("finance_currency_summary", { p_from: from, p_to: to }),
-        supabase.rpc("finance_role"),
+        fetchFinanceRole(),
         supabase.rpc("finance_management_report", { p_from: from, p_to: to }),
       ]);
       if (!live) return;

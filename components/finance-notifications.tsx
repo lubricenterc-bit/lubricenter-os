@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useState} from 'react';
 import {supabase} from '@/lib/supabase';
+import { SERVICE_WORKER_URL } from '@/lib/sw-url';
 export function FinanceNotifications(){
  const [configured,setConfigured]=useState(false),[key,setKey]=useState(''),[supported,setSupported]=useState(false),[active,setActive]=useState(false),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[job,setJob]=useState<{status:string;started_at:string;finished_at:string|null}|null>(null);
  async function api(method='GET',body?:unknown){const s=await supabase.auth.getSession();const r=await fetch('/api/notifications',{method,headers:{Authorization:`Bearer ${s.data.session?.access_token||''}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const d=await r.json();if(!r.ok)throw new Error(d.error);return d;}
@@ -12,7 +13,7 @@ export function FinanceNotifications(){
  },[]);
  async function enable(){setBusy(true);setMessage('');try{
   const permission=await Notification.requestPermission();if(permission!=='granted')throw new Error('El teléfono no autorizó los avisos. Actívalos desde su configuración.');
-  const reg=await navigator.serviceWorker.register('/sw.js');await navigator.serviceWorker.ready;
+  const reg=(await navigator.serviceWorker.getRegistration('/'))??await navigator.serviceWorker.register(SERVICE_WORKER_URL,{updateViaCache:'none'});await navigator.serviceWorker.ready;
   const raw=atob(key.replace(/-/g,'+').replace(/_/g,'/'));const bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
   const sub=await reg.pushManager.getSubscription()||await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes});
   const json=sub.toJSON();const user=await supabase.auth.getUser();if(!user.data.user)throw new Error('Inicia sesión');

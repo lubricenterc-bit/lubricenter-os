@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { InventoryHistory } from "@/components/inventory-history";
 import { supabase } from "@/lib/supabase";
+import { canAdministerOrders } from "@/lib/session-cache";
 import { fmtRef, fmtVes } from "@/lib/format";
 import { inventorySearchText, matchesSearch } from "@/lib/domain/search";
 import {
@@ -62,7 +63,7 @@ export default function InventoryPage() {
       supabase.rpc("get_inventory_full", { p_location_code: "CABUDARE" }),
       supabase.rpc("get_current_rates"),
       supabase.from("locations").select("id,code,name").eq("code", "CABUDARE").maybeSingle(),
-      supabase.rpc("can_administer_orders"),
+      canAdministerOrders(),
     ]);
     setCanManage(permissionRes.data === true);
     if (invRes.error || locationRes.error) {
@@ -240,7 +241,7 @@ export default function InventoryPage() {
 
     <div className="muted small">{visible.length} de {rows.length} artículos</div>
 
-    {loading ? <div className="card muted">Cargando inventario…</div> : <div className="inv-table-wrap">
+    {loading && !rows.length ? <div className="card muted">Cargando inventario…</div> : <div className="inv-table-wrap">
       <table className="inv-table">
         <thead><tr>
           {canManage && <th className="inv-check"><input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} aria-label="Seleccionar los visibles" /></th>}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { financeRole as fetchFinanceRole } from "@/lib/session-cache";
 import { FinanceNotifications } from '@/components/finance-notifications';
 import { DailyRateHistory } from '@/components/daily-rate-history';
 import { BillingSettings } from '@/components/billing-settings';
@@ -72,7 +73,7 @@ export default function SettingsPage() {
       supabase.rpc("get_pricing_sync_status"),
       supabase.from("app_settings").select("key,value").in("key", ["price_rounding_step", "price_rounding_mode", "crm_post_service_template","catalog_authority"]),
       supabase.from("compensation_rules").select("id,employee_id,rule_type,value,valid_from,valid_to,employees(name,code)").order("valid_from", { ascending: false }),
-      supabase.rpc("finance_role"),
+      fetchFinanceRole(),
       supabase.rpc("get_exchange_rate_control_status"),
       supabase.rpc("get_bcv_official_status"),
     ]);

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect } from "react";
+import { SERVICE_WORKER_URL } from "@/lib/sw-url";
 
 export function PwaRegister() {
   useEffect(() => {
@@ -15,7 +16,7 @@ export function PwaRegister() {
     navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
 
     navigator.serviceWorker
-      .register("/sw.js?v=20261008-approved-brand", { updateViaCache: "none" })
+      .register(SERVICE_WORKER_URL, { updateViaCache: "none" })
       .then(registration => registration.update())
       .catch(console.error);
 
