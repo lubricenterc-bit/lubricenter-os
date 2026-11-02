@@ -41,3 +41,13 @@ describe("inventario completo", () => {
     expect(INVENTORY_FILTERS[0].id).toBe("all");
   });
 });
+
+describe("migración de costo vacío", () => {
+  it("guarda «sin costo» como 0 y no como nulo", async () => {
+    const { readFileSync } = await import("node:fs");
+    const sql = readFileSync("supabase/migrations/20261102130000_inventory_save_item_cost_fix.sql", "utf8");
+    expect(sql).toContain("average_cost_ref=coalesce(v_cost, 0), cost_missing=(v_cost is null)");
+    expect(sql).toContain("coalesce(v_cost, 0), v_cost is null, v_photo");
+    expect(sql).not.toMatch(/average_cost_ref=v_cost\b/);
+  });
+});
