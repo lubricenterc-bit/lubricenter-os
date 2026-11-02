@@ -37,13 +37,21 @@ async function setup(){
 async function installment(db:PGlite){
  await db.exec("INSERT INTO payments(order_id,currency,amount_original,value_ref,value_ves,paid_at) VALUES('22222222-2222-4222-8222-222222222222','VES',30769.29,35,30769.29,'2026-10-29 15:41+00')");
 }
+// La RPC exige un sábado de nómina que no haya pasado (hora de Caracas). Una fecha
+// fija en el test lo rompe en cuanto esa fecha queda atrás, así que se calcula.
+function openSaturday(){
+ const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Caracas"}).format(new Date());
+ const d=new Date(today+"T12:00:00Z");
+ d.setUTCDate(d.getUTCDate()+((6-d.getUTCDay()+7)%7));
+ return d.toISOString().slice(0,10);
+}
 describe("Cashea 4% is exclusively a business cost",()=>{
  it("Cheo earns the full 64 USD and an advance prevents later duplicate commissions",async()=>{
    const db=await setup();try{
     await db.exec("SELECT lubricenter_private.payroll_sync()");
     const first=await db.query<{obligation_usd:number}>("SELECT obligation_usd FROM payroll_work_items WHERE decision='PAY'");
     expect(Number(first.rows[0].obligation_usd)).toBe(25.6);
-    const result=await db.query<{result:{full_ref:number;advance_ref:number}}>("SELECT public.payroll_cashea_set_policy($1,'FULL_UPFRONT','2026-10-17','Cheo acepta adelanto completo de la comisión') result",[accrual]);
+    const result=await db.query<{result:{full_ref:number;advance_ref:number}}>("SELECT public.payroll_cashea_set_policy($1,'FULL_UPFRONT',$2,'Cheo acepta adelanto completo de la comisión') result",[accrual,openSaturday()]);
     expect(Number(result.rows[0].result.full_ref)).toBe(64);
     expect(Number(result.rows[0].result.advance_ref)).toBe(38.4);
     const fee=await db.query<{commission_ref:number}>("SELECT commission_ref FROM cashea_sales");
@@ -61,7 +69,7 @@ describe("Cashea 4% is exclusively a business cost",()=>{
  it("Pay-as-collected has no advance and does not apply the 4% fee to wages",async()=>{
    const db=await setup();try{
     await db.exec("SELECT lubricenter_private.payroll_sync()");
-    await db.query("SELECT public.payroll_cashea_set_policy($1,'AS_COLLECTED','2026-10-17','Cheo recibe comisión al ingresar cada cuota')",[accrual]);
+    await db.query("SELECT public.payroll_cashea_set_policy($1,'AS_COLLECTED',$2,'Cheo recibe comisión al ingresar cada cuota')",[accrual,openSaturday()]);
     await installment(db);await db.exec("SELECT lubricenter_private.payroll_sync()");
     const result=await db.query<{amount:number}>("SELECT sum(obligation_usd) amount FROM payroll_work_items WHERE decision='PAY'");
     expect(Number(result.rows[0].amount)).toBe(38.4);
