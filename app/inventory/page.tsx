@@ -115,7 +115,7 @@ export default function InventoryPage() {
     setForm(r ? {
       id: r.id, sku: r.sku, name: nameOf(r), description: r.description ?? "", brand: r.brand ?? "", category: r.category ?? "",
       unit: r.unit || "UND", price: r.price_usd != null ? String(r.price_usd) : "",
-      cost: r.average_cost_ref != null ? String(Number(r.average_cost_ref.toFixed(4))) : "", image: r.image_url ?? "",
+      cost: !r.cost_missing && (r.average_cost_ref ?? 0) > 0 ? String(Number((r.average_cost_ref as number).toFixed(4))) : "", image: r.image_url ?? "",
       codes: r.alt_codes.join(", "), active: r.active, needsReview: r.needs_review, inCatalog: r.in_catalog,
       quantity: String(r.quantity_on_hand), originalQuantity: r.quantity_on_hand, countNote: "", updatedAt: r.updated_at,
     } : {
@@ -270,7 +270,7 @@ export default function InventoryPage() {
                 <span className={"inv-tag " + state.tone}>{state.label}</span>
               </td>
               <td className="num">{r.price_usd ? <><div>{usd(r.price_usd)}</div><div className="muted small">{r.current_ref_bcv != null ? fmtRef(r.current_ref_bcv) : ""}</div></> : <span className="muted small">Sin precio</span>}</td>
-              <td className="num small">{r.average_cost_ref != null ? fmtRef(r.average_cost_ref) : <span className="muted">Sin costo</span>}</td>
+              <td className="num small">{!r.cost_missing && (r.average_cost_ref ?? 0) > 0 ? fmtRef(r.average_cost_ref as number) : <span className="muted">Sin costo</span>}</td>
               <td>{r.merged_into ? <span className="muted small">—</span> : <label className="inv-switch">
                 <input type="checkbox" checked={r.in_catalog} disabled={!canManage || busy || (!r.in_catalog && !((r.price_usd ?? 0) > 0 && r.active))}
                   onChange={() => setCatalog([r.id], !r.in_catalog)}

@@ -22,6 +22,7 @@ on:
       - 'lib/inventory-full.ts'
       - 'lib/navigation.ts'
       - 'supabase/migrations/20261029210000_inventory_two_views.sql'
+      - 'supabase/migrations/20261102170000_inventory_save_item_cost_zero.sql'
       - 'supabase/migrations/20261029040000_inventory_is_catalog.sql'
       - 'app/inventory/**'
       - 'components/order-bonus-product.tsx'
