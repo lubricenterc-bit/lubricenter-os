@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {useEffect,useMemo,useState} from "react";
 import {supabase} from "@/lib/supabase";
+import { canAdministerOrders } from "@/lib/session-cache";
 
 type Change={occurred_at:string;reason:string|null;before_decision:string|null;after_decision:string|null;before_amount:string|null;after_amount:string|null;before_reason:string|null;after_reason:string|null};
 type Work={id:string;order_id:string;order_number:string;description:string;earned_at:string;source_type:string;payout_mode:string|null;decision_at_settlement:string;reason_at_settlement:string|null;amount_at_settlement:number;late_posting:boolean;carried_from_prior_week:boolean;settled_in_this_run:boolean;timeline:Change[]};
@@ -34,7 +35,7 @@ export default function PayrollHistory(){
  const [weeks,setWeeks]=useState<string[]>([]),[week,setWeek]=useState(""),[report,setReport]=useState<WeekReport|null>(null);
  const [error,setError]=useState(""),[loading,setLoading]=useState(true),[authorized,setAuthorized]=useState(false),[employee,setEmployee]=useState("ALL");
  useEffect(()=>{let active=true;(async()=>{try{
-  const auth=await supabase.rpc("can_administer_orders");
+  const auth=await canAdministerOrders();
   if(auth.error||auth.data!==true)throw new Error("Solo administración puede consultar el historial interno de nómina.");
   const r=await supabase.from("payroll_runs").select("period_end,employee_id").eq("status","SETTLED").order("period_end",{ascending:false}).limit(150);
   if(r.error)throw r.error;

@@ -5,6 +5,7 @@ import { FinanceTaskList } from '@/components/finance-task-list';
 import { FinanceNotifications } from '@/components/finance-notifications';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { financeRole } from "@/lib/session-cache";
 import { parseBdv, parseCashea, type Preview, type Provider } from '@/lib/finance/importers';
 import { D, natures, type Nature } from '@/lib/finance/money';
 
@@ -34,9 +35,10 @@ export default function FinanceInbox() {
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [tab, setTab] = useState<'inbox' | 'import' | 'setup'>('inbox');
   const [selected, setSelected] = useState<Case | null>(null), [review, setReview] = useState<Review | null>(null), [batch, setBatch] = useState<Batch | null>(null);
   async function load() {
-    const r = await supabase.rpc('finance_role'); if (r.error) throw new Error('Finance Core está pendiente de activar en esta base. No se modificaron los datos.');
-    setRole(r.data);
-    const cash = await supabase.rpc('finance_cash_due', { p_offset: cashOffset });
+    // Rol (en caché de sesión) y caja pendiente salen en paralelo: antes eran dos viajes seguidos.
+    const [r, cash] = await Promise.all([financeRole(), supabase.rpc('finance_cash_due', { p_offset: cashOffset })]);
+    if (r.error) throw new Error('Finance Core está pendiente de activar en esta base. No se modificaron los datos.');
+    setRole(r.data ?? '');
     if (cash.error) throw cash.error;
     setCashDue(cash.data as CashDue);
     if (r.data === 'OPERATOR') { setReportCoverage(null); return; }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import Decimal from "decimal.js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { financeRole } from "@/lib/session-cache";
 import { fmtRef } from "@/lib/format";
 import { parseBdv, parseCashea, type Preview } from "@/lib/finance/importers";
 import { isXlsBinary, readXlsFirstSheet } from "@/lib/xls-biff";
@@ -50,7 +51,7 @@ export default function CasheaConciliationPage() {
   const [proposal, setProposal] = useState<{ title: string; lines: string[]; apply: () => Promise<string> } | null>(null);
 
   const load = useCallback(async () => {
-    const r = await supabase.rpc("finance_role");
+    const r = await financeRole();
     if (r.error) { setError(r.error.message); return; }
     const current = String(r.data ?? ""); setRole(current);
     if (!["OWNER", "ADMIN"].includes(current)) return;

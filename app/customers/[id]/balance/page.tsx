@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { financeRole } from "@/lib/session-cache";
 import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
 import { referenceError } from "@/lib/finance/money";
 
@@ -58,7 +59,7 @@ export default function CustomerBalanceDetailPage() {
       supabase.from("customer_balance_accounts").select("pocket,balance_usd").eq("customer_id",id),
       supabase.from("customer_balance_movements").select("id,pocket,movement_type,origin,delta_usd,amount_original,currency,value_ves,bcv_rate_snapshot,operative_rate_snapshot,method,reference,note,order_id,created_at").eq("customer_id",id).order("created_at",{ascending:false}).limit(100),
       supabase.rpc("get_current_rates"),
-      supabase.rpc("finance_role"),
+      financeRole(),
     ]);
     const firstError = [c.error,a.error,h.error,r.error,userRole.error].find(Boolean);
     if (firstError) { setError(firstError.message); setLoading(false); return; }

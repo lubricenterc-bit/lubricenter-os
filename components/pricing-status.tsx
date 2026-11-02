@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { catalogIsFresh, normalizeCatalogSync } from "@/lib/catalog";
 import { supabase } from "@/lib/supabase";
+import { useVisiblePolling } from "@/lib/use-visible-polling";
 
 export function PricingStatus() {
   const [fresh, setFresh] = useState<boolean | null>(null);
@@ -21,19 +22,8 @@ export function PricingStatus() {
     lastVersion.current = version;
   }, []);
 
-  useEffect(() => {
-    check();
-    const timer = window.setInterval(check, 60_000);
-    const onFocus = () => check();
-    const onVisible = () => { if (document.visibilityState === "visible") check(); };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [check]);
+  // Una consulta por minuto solo con la app visible; al volver a primer plano, una sola vez.
+  useVisiblePolling(check, 60_000);
 
   return <Link href="/settings" className={`pill os-pricing ${fresh === false ? "warn" : "ok"}`} title="Estado del catálogo y tasas">
     <span className="os-pricing-dot" aria-hidden="true" />{fresh === null ? "Precios…" : fresh ? "Precios al día" : "Revisar precios"}

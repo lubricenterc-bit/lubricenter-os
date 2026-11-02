@@ -38,6 +38,7 @@ const switzer = localFont({
 
 export const metadata: Metadata = {
   title: "Lubricenter OS",
+  robots: { index: false, follow: false },
   description: "Operación, caja y nómina de Lubricenter",
   manifest: "/manifest.webmanifest",
   applicationName: "Lubricenter OS",

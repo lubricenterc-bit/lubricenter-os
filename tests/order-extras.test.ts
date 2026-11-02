@@ -64,7 +64,12 @@ describe("Servicios adicionales de cambio de aceite",()=>{
     const component=readFileSync("components/order-additional-services.tsx","utf8");
     expect(oil).toContain("<OrderExtrasChecklist value={extras}");
     expect(oil).toContain("setExtras(normalizeOrderExtras(orderRes.data))");
-    expect(oil.indexOf('"set_order_crm_extras"')).toBeLessThan(oil.indexOf('"add_oil_change_package_for_vehicle"'));
+    // #79 renombró la RPC del paquete a add_oil_change_service; ambas deben existir
+    // y las cortesías se guardan ANTES de agregar el cambio de aceite.
+    const extrasAt=oil.indexOf('"set_order_crm_extras"'), serviceAt=oil.indexOf('"add_oil_change_service"');
+    expect(extrasAt).toBeGreaterThan(-1);
+    expect(serviceAt).toBeGreaterThan(-1);
+    expect(extrasAt).toBeLessThan(serviceAt);
     expect(order).toContain("<OrderAdditionalServices key={orderId} orderId={orderId}/>");
     expect(order).not.toContain("<OrderCrmExtras orderId={orderId} />");
     expect(component).toContain('supabase.rpc("set_order_crm_extras"');

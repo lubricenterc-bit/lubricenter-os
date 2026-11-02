@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { canAdministerOrders } from "@/lib/session-cache";
 import { fmtRef, fmtVes, fmtRate } from "@/lib/format";
 type PaymentDetail = {method:string;currency:"VES"|"USD";amount_original:number;equivalent_bcv:number|null;reference_tail:string|null;paid_at:string|null};
 type CasheaInfo = {initial_percent:number;initial_bcv_usd:number;initial_ves:number;financed_bcv_usd:number;total_bcv_usd:number;bcv_rate:number;reference:string|null;initial_method:string|null;ownership_status:string;status:string};
@@ -22,7 +23,7 @@ export default function OrdersPage() {
  const [query,setQuery]=useState(""),[status,setStatus]=useState("CLOSED"),[from,setFrom]=useState(caracasToday()),[to,setTo]=useState(caracasToday());
  const [admin,setAdmin]=useState(false),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[revision,setRevision]=useState(0);
  const [cancel,setCancel]=useState<Sale|null>(null),[reason,setReason]=useState(""),[keepAsBalance,setKeepAsBalance]=useState(false);
- useEffect(()=>{supabase.rpc("can_administer_orders").then(({data})=>setAdmin(data===true));},[]);
+ useEffect(()=>{canAdministerOrders().then(({data})=>setAdmin(data===true));},[]);
  useEffect(()=>{let active=true;setLoading(true);const timer=setTimeout(async()=>{
   const r=await supabase.rpc("search_order_collection_v2",{p_query:query,p_status:status,p_from:from||null,p_to:to||null,p_page:page,p_payment_filter:paymentFilter});
   if(!active)return;setLoading(false);if(r.error){setRows([]);setSummary(BLANK);return setError(r.error.message);}setRows(r.data?.rows??[]);setSummary(r.data?.summary??BLANK);setCount(Number(r.data?.count??0));setError("");

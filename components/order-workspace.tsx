@@ -17,6 +17,7 @@ import { OrderAdditionalServices } from "@/components/order-additional-services"
 import { useRouter } from "next/navigation";
 import { referenceError } from "@/lib/finance/money";
 import { supabase } from "@/lib/supabase";
+import { canAdministerOrders } from "@/lib/session-cache";
 import { allowsManualSale, useInventorySalePolicy } from "@/lib/inventory-policy";
 import { fmtRef, fmtVes } from "@/lib/format";
 import { electroautoAllocation, workshopAllocation } from "@/lib/domain/allocations";
@@ -110,13 +111,17 @@ export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) 
   const status = order?.status ?? "OPEN";
   const locked = status !== "OPEN";
 
+  // Carga en 2 viajes en vez de 4: todo lo que solo depende del id sale junto
+  // (incluidas las tasas congeladas de la orden); lo que depende del cliente,
+  // vehículo o estado sale en una segunda ronda paralela.
   async function loadOrder(id: string) {
-    const [{ data: o, error: oe }, { data: its, error: ie }, { data: pays, error: pe }, { data: rec, error: re }, { data: cs, error: cse }] = await Promise.all([
+    const [{ data: o, error: oe }, { data: its, error: ie }, { data: pays, error: pe }, { data: rec, error: re }, { data: cs, error: cse }, rateResult] = await Promise.all([
       supabase.from("orders").select("id,order_number,status,customer_id,vehicle_id,is_walk_in,opened_at,closed_at,total_ves,total_ref,adjust_discount_percent,adjust_discount_reason,adjust_rounding_mode").eq("id", id).single(),
       supabase.from("order_items").select("id,line_role,list_ref_amount,pass_through_cost_ref,price_denomination,agreed_usd,item_type,business_area,description,quantity,charged_ves_amount,charged_ref_amount,cash_usd_special_total,cash_price_revealed,worker_share_ref_snapshot,assistant_bonus_ref_snapshot").eq("order_id", id).order("created_at"),
       supabase.from("payments").select("id,method,currency,amount_original,value_ves,value_ref,reference,order_tenders(id)").eq("order_id", id).order("paid_at"),
       supabase.from("receivables").select("id,status,outstanding_ves,principal_ref,principal_usd,outstanding_fraction,due_date").eq("order_id", id).maybeSingle(),
       supabase.from("cashea_sales").select("financed_ref,initial_ref,status").eq("order_id", id).maybeSingle(),
+      supabase.rpc("get_order_rates", { p_order_id: id }),
     ]);
     if (oe) throw oe;
     if (ie) throw ie;
@@ -125,7 +130,6 @@ export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) 
     if (cse) throw cse;
     setCashea(cs);
     const row = o as OrderRecord;
-    const rateResult=await supabase.rpc("get_order_rates",{p_order_id:id});
     if(rateResult.error)throw rateResult.error;
     const rr=Array.isArray(rateResult.data)?rateResult.data[0]:rateResult.data;
     setRates({bcv:Number(rr.bcv_rate),operative:Number(rr.operative_rate)});
@@ -134,23 +138,33 @@ export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) 
     setItems((its ?? []) as Item[]);
     setPayments((pays ?? []) as Payment[]);
     setReceivable((rec ?? null) as Receivable | null);
-    const [c, v, balance] = await Promise.all([
+    const open = row.status === "OPEN";
+    const none = Promise.resolve({ data: null, error: null });
+    const [c, v, balance, readiness, cand] = await Promise.all([
       row.customer_id ? supabase.from("customers").select("id,name,phone,document_id").eq("id", row.customer_id).single() : Promise.resolve({ data: null, error: null }),
       row.vehicle_id ? supabase.from("vehicles").select("id,customer_id,plate,make,model,year,engine,current_odometer").eq("id", row.vehicle_id).single() : Promise.resolve({ data: null, error: null }),
       row.customer_id ? supabase.from("customer_balance_accounts").select("pocket,balance_usd").eq("customer_id", row.customer_id) : Promise.resolve({ data: [], error: null }),
+      open ? supabase.rpc("validate_order_ready_to_close", { p_order_id: id }) : none,
+      open ? supabase.rpc("order_oil_change_candidates", { p_order_id: id }) : none,
     ]);
     if (c.error || v.error || balance.error) throw c.error || v.error || balance.error;
     setCustomer(c.data); setVehicle(v.data);
     const nextBalance: Record<BalancePocket,number> = { USD: 0, VES_BCV: 0 };
     for (const account of balance.data ?? []) nextBalance[account.pocket as BalancePocket] = Number(account.balance_usd);
     setCustomerBalance(nextBalance);
-    if (row.status === "OPEN") { const [readiness, cand] = await Promise.all([supabase.rpc("validate_order_ready_to_close", { p_order_id: id }), supabase.rpc("order_oil_change_candidates", { p_order_id: id })]); setReadinessError(readiness.error?.message ?? ""); setOilCandidates(cand.error ? 0 : (cand.data ?? []).length); } else { setReadinessError(""); setOilCandidates(0); }
+    if (open) { setReadinessError(readiness.error?.message ?? ""); setOilCandidates(cand.error ? 0 : ((cand.data as unknown[] | null) ?? []).length); } else { setReadinessError(""); setOilCandidates(0); }
   }
 
+  // Solo la primera carga muestra «Cargando orden…». Las recargas (cambio de
+  // precios, después de guardar) mantienen la pantalla y sus datos visibles.
+  const firstLoad = useRef(true);
   async function bootstrap() {
-    setLoading(true);
+    if (firstLoad.current) setLoading(true);
     setError("");
     try {
+      // Catálogo y orden en paralelo: la orden no depende del inventario.
+      const orderLoad = initialOrderId ? loadOrder(initialOrderId) : Promise.resolve();
+      orderLoad.catch(() => undefined); // el error se recoge en el await de abajo
       const [{ data: inv, error: invError }, { data: r, error: re }] = await Promise.all([
         supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,needs_review,alt_codes").eq("location_code", "CABUDARE").gt("quantity_on_hand", 0).eq("needs_review", false).order("category").order("brand").order("sku").limit(1000),
         supabase.rpc("get_current_rates"),
@@ -158,15 +172,16 @@ export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) 
       if (invError) throw invError;
       if (re) throw re;
       setInventoryProducts((inv ?? []).map((x: any) => ({ ...x, quantity_on_hand: Number(x.quantity_on_hand ?? 0), current_price_ves: x.current_price_ves == null ? null : Number(x.current_price_ves), current_ref_bcv: x.current_ref_bcv == null ? null : Number(x.current_ref_bcv) })) as InventoryProduct[]);
+      // Con una orden abierta mandan sus tasas congeladas (las fija loadOrder).
       const rateRow = Array.isArray(r) ? r[0] : r;
-      setRates({ bcv: Number(rateRow?.bcv_rate ?? 0), operative: Number(rateRow?.operative_rate ?? 0) });
-      if (initialOrderId) await loadOrder(initialOrderId);
+      if (!initialOrderId) setRates({ bcv: Number(rateRow?.bcv_rate ?? 0), operative: Number(rateRow?.operative_rate ?? 0) });
+      await orderLoad;
     } catch (e: any) { setError(e.message ?? String(e)); }
-    finally { setLoading(false); }
+    finally { firstLoad.current = false; setLoading(false); }
   }
 
   useEffect(() => {
-    supabase.rpc("can_administer_orders").then(({data}) => setAdmin(data === true));
+    canAdministerOrders().then(({data}) => setAdmin(data === true));
     bootstrap();
     const refreshPricing = () => bootstrap();
     window.addEventListener("lubricenter:pricing-updated", refreshPricing);

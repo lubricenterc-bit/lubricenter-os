@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { canAdministerOrders } from "@/lib/session-cache";
 import { casheaSurchargePercent } from "@/lib/domain/economics";
 
 const KEYS = ["discount_free_limit_percent", "cashea_opportunity_monthly_percent", "cashea_financing_days", "store_markup_percent", "cashea_commission_percent"] as const;
@@ -18,7 +19,7 @@ export function BillingSettings() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    supabase.rpc("can_administer_orders").then(({ data }) => setOwner(data === true));
+    canAdministerOrders().then(({ data }) => setOwner(data === true));
     supabase.from("app_settings").select("key,value").in("key", [...KEYS]).then(({ data }) => {
       if (!data) return;
       setValues(v => { const next = { ...v }; for (const row of data) next[row.key as keyof Values] = String(row.value); return next; });

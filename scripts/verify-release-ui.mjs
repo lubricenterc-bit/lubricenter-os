@@ -38,6 +38,18 @@ async function session(admin=true){
    if(name==='get_pricing_sync_status')return respond(data.pricing);
    if(name==='get_exchange_rate_control_status')return respond(data.control);
    if(name==='get_catalog_snapshot')return respond(data.catalog);
+   // Desde #83 /catalog/manage redirige a /inventory, que lee get_inventory_full.
+   // La base desechable del fixture no carga esas migraciones, así que la fila se
+   // arma con los mismos datos reales que ya exporta: inventory_items + catálogo.
+   if(name==='get_inventory_full')return respond(data.inventory.map(i=>{
+    const p=data.catalog.find(c=>c.id===i.product_id)||{};
+    return {id:i.id,sku:i.sku,display_name:p.name??i.description,description:i.description,brand:i.brand,category:i.category,unit:i.unit,
+     quantity_on_hand:0,movement_count:0,last_movement_at:null,last_counted_at:null,
+     price_usd:p.cash_usd_base_price??null,current_price_ves:p.current_price_ves??null,current_ref_bcv:p.current_ref_bcv??null,price_updated_at:null,
+     average_cost_ref:i.average_cost_ref,last_purchase_cost_ref:i.last_purchase_cost_ref??null,last_purchased_at:null,source_cost_ref:i.source_cost_ref,
+     cost_missing:i.cost_missing,needs_review:i.needs_review,active:i.active,in_catalog:!!i.product_id,
+     merged_into:null,merged_into_sku:null,alt_codes:[],image_url:p.image_url??null,product_id:i.product_id,updated_at:i.updated_at};
+   }));
    if(name==='get_bcv_official_status')return respond({mode:'OBSERVER',state:{last_success_at:null,last_error:null},current:null,next:null});
    if(name==='upsert_supplier'){state.supplierWrites.push(args);return respond(data.supplierId);}
    if(name==='create_supplier_invoice'){state.invoiceWrites.push(args);return respond(data.invoiceId);}
@@ -58,6 +70,8 @@ async function session(admin=true){
   const table=url.pathname.split('/').at(-1);
   let rows=({products:data.products,inventory_items:data.inventory,locations:data.locations,app_settings:data.settings})[table]||[];
   if(table==='app_settings'&&url.searchParams.get('key')?.startsWith('eq.'))rows=rows.filter(r=>r.key===url.searchParams.get('key').slice(3));
+  // Inventario pide su sucursal con .maybeSingle(): sin este filtro llegan las dos y falla.
+  if(table==='locations'&&url.searchParams.get('code')?.startsWith('eq.'))rows=rows.filter(r=>r.code===url.searchParams.get('code').slice(3));
   if(request.headers().accept?.includes('vnd.pgrst.object'))return respond(rows[0]||null);
   return respond(rows);
  });

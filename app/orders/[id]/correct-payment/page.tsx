@@ -4,6 +4,7 @@ import Link from "next/link";
 import {useEffect,useMemo,useState} from "react";
 import {useParams,useRouter} from "next/navigation";
 import {supabase} from "@/lib/supabase";
+import { canAdministerOrders } from "@/lib/session-cache";
 import {fmtRef,fmtVes} from "@/lib/format";
 import {CASHEA_INITIAL_METHODS,casheaCurrency,type CasheaInitialMethod} from "@/lib/cashea-split";
 
@@ -24,7 +25,7 @@ export default function CorrectInitialPage(){
  const [error,setError]=useState(""),[notice,setNotice]=useState(""),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false);
  const [duplicateReference,setDuplicateReference]=useState(false);
  useEffect(()=>{let alive=true;(async()=>{try{
-   const rights=await supabase.rpc("can_administer_orders");
+   const rights=await canAdministerOrders();
    if(rights.error||rights.data!==true)throw new Error("Solo el administrador puede rectificar cobros cerrados.");
    const [o,c,p,history]=await Promise.all([
      supabase.from("orders").select("id,order_number,status").eq("id",id).single(),

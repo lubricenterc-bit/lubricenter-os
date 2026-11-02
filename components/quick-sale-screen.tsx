@@ -437,7 +437,7 @@ export function QuickSaleScreen() {
         <span className="os-search-hint"><kbd>Enter</kbd> agrega el primero</span>
       </label>
       <div className="os-plist-head"><span>{query ? (results.length === 1 ? "1 resultado" : `${results.length} resultados`) : "Sugerencias"}</span><span>{inventory.length} artículos con existencia</span></div>
-      {loading ? <div className="os-plist os-plist-empty"><span className="os-loading-dot" />Cargando precios…</div>
+      {loading && !inventory.length ? <div className="os-plist os-plist-empty"><span className="os-loading-dot" />Cargando precios…</div>
         : results.length ? <div className="os-plist">
           {results.map((r, index) => {
             const visc = viscosity(r.title + " " + r.subtitle);

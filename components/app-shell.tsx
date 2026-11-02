@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { canAdministerOrders, financeRole } from "@/lib/session-cache";
+import { useVisiblePolling } from "@/lib/use-visible-polling";
 import { PricingStatus } from "@/components/pricing-status";
 import { OsIcon } from "@/components/os-icon";
 import { OsDock, OsHeader, OsSubnav, SHORTCUTS } from "@/components/os-navigation";
 import { BrandIcon, Gotin, useLive } from "@/components/gotin";
 import { AppSessionProvider } from "@/components/app-session-context";
 import {
-  NAV_MODULES, linksForModule, moduleForPath, navigationSearch,
+  NAV_MODULES, linksForModule, moduleForPath, navigationSearch, pageLabelForPath,
   type NavigationRole,
 } from "@/lib/navigation";
 
@@ -54,9 +56,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (publicDesignLab) return;
     let active = true;
     async function loadIdentity() {
+      // Calienta la caché de sesión: las páginas que piden rol/permiso lo
+      // reciben de memoria en vez de hacer otro viaje antes de cargar datos.
       const [member, locations] = await Promise.all([
-        supabase.rpc("finance_role"),
+        financeRole(),
         supabase.from("locations").select("id,name").eq("active", true).order("created_at").limit(2),
+        canAdministerOrders(),
       ]);
       if (!active) return;
       const value = member.data;
@@ -79,18 +84,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setSearch("");
   }, [pathname, publicDesignLab]);
 
+  const alertsEnabled = !publicDesignLab && owner && pathname !== "/login";
+  const refreshUnread = useCallback(async () => {
+    const { count, error } = await supabase.from("finance_cash_close_alerts")
+      .select("id", { count: "exact", head: true }).is("read_at", null);
+    if (!error) setUnread(count || 0);
+  }, []);
+  // Sondeo de alertas: solo con la app visible y sin rehacer el temporizador en cada navegación.
+  useVisiblePolling(refreshUnread, 60_000, { enabled: alertsEnabled, immediate: false });
+  // Al cambiar de pantalla (p. ej. después de leer alertas) basta con un recuento puntual.
+  useEffect(() => { if (alertsEnabled) void refreshUnread(); }, [pathname, alertsEnabled, refreshUnread]);
+
   useEffect(() => {
-    if (publicDesignLab || !owner || pathname === "/login") return;
-    let active = true;
-    async function refresh() {
-      const { count, error } = await supabase.from("finance_cash_close_alerts")
-        .select("id", { count: "exact", head: true }).is("read_at", null);
-      if (active && !error) setUnread(count || 0);
-    }
-    void refresh();
-    const timer = window.setInterval(refresh, 60000);
-    return () => { active = false; window.clearInterval(timer); };
-  }, [owner, pathname, publicDesignLab]);
+    if (publicDesignLab || pathname === "/login") return;
+    const label = pageLabelForPath(pathname);
+    document.title = label && label !== "Lubricenter OS" ? `${label} · Lubricenter OS` : "Lubricenter OS";
+  }, [pathname, publicDesignLab]);
 
   useEffect(() => {
     if (publicDesignLab) return;

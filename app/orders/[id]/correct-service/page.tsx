@@ -4,6 +4,7 @@ import Link from "next/link";
 import {useParams,useRouter} from "next/navigation";
 import {useEffect,useMemo,useState} from "react";
 import {supabase} from "@/lib/supabase";
+import { canAdministerOrders } from "@/lib/session-cache";
 import {fmtRef,fmtVes} from "@/lib/format";
 
 type Car={id:string;customer_id:string|null;plate:string|null;make:string|null;model:string|null;current_odometer:number|null};
@@ -37,7 +38,7 @@ export default function CorrectServicePage(){
  const [casheaRef,setCasheaRef]=useState<string|null>(null);
 
  useEffect(()=>{let active=true;(async()=>{
-  const permission=await supabase.rpc("can_administer_orders");
+  const permission=await canAdministerOrders();
   if(permission.error||permission.data!==true)throw Error("Solo el administrador puede corregir servicios de ventas cerradas.");
   const [o,i,v,c,p,cs]=await Promise.all([
    supabase.from("orders").select("id,order_number,status,customer_id,vehicle_id,total_ref,total_ves").eq("id",id).single(),
