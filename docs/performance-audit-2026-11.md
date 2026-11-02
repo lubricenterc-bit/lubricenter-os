@@ -68,8 +68,10 @@ traer su DDL a una migración para que el repo vuelva a describir la base real.
 
 ## Aplicación en producción (2026-11-02)
 
-- Proyecto: `ysvcbbnwandoizczehtk` (producción: 243 órdenes; la conexión
-  `yfkotqmccrmlhxmybhps` es un proyecto de desarrollo vacío).
+- Proyecto: `ysvcbbnwandoizczehtk` (producción de Cabudare: 243 órdenes).
+  **Ojo:** `yfkotqmccrmlhxmybhps` NO es un proyecto de desarrollo: es la
+  **producción de Lubricenter Norte** (rama `norte`). Nunca aplicar ahí
+  migraciones de `main` ni resetearlo.
 - Antes de aplicar se comprobó que las 9 políticas de producción eran idénticas
   a las que reescribe la migración.
 - Resultado: 16 índices `*_fk_idx` creados, 9 de 9 políticas reescritas con

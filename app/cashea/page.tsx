@@ -34,18 +34,20 @@ export default function CasheaPage() {
 
   async function load() {
     setLoading(true); setError("");
-    const [s, i, o, r] = await Promise.all([
-      supabase.from("cashea_sales").select("id,order_id,status,initial_percent,commission_percent,gross_ref,gross_ves_snapshot,initial_ref,initial_ves_snapshot,financed_ref,commission_ref,commission_ves_snapshot,bcv_rate_snapshot,initial_payment_method,cashea_reference,created_at,settled_at").order("created_at", { ascending: false }).limit(1000),
-      supabase.from("cashea_installments").select("id,cashea_sale_id,installment_no,due_date,amount_ref,amount_ves_snapshot,paid_ref,paid_ves_actual,status,paid_at").order("due_date").limit(3000),
-      supabase.from("orders").select("id,order_number,total_ref,total_ves").limit(2000),
+    const [s, r] = await Promise.all([
+      supabase.from("cashea_sales").select("id,order_id,status,initial_percent,commission_percent,gross_ref,gross_ves_snapshot,initial_ref,initial_ves_snapshot,financed_ref,commission_ref,commission_ves_snapshot,bcv_rate_snapshot,initial_payment_method,cashea_reference,created_at,settled_at,"
+        // Cuotas y orden vienen con cada venta: antes se bajaban todas las cuotas
+        // (limit 3000) y todas las órdenes (limit 2000, cortado en 1000 por PostgREST).
+        + "ord:orders(id,order_number,total_ref,total_ves),"
+        + "cashea_installments(id,cashea_sale_id,installment_no,due_date,amount_ref,amount_ves_snapshot,paid_ref,paid_ves_actual,status,paid_at)").order("created_at", { ascending: false }).limit(1000),
       supabase.rpc("get_current_rates"),
     ]);
-    const anyError = s.error || i.error || o.error || r.error;
+    const anyError = s.error || r.error;
     if (anyError) setError(anyError.message);
     else {
-      setSales((s.data ?? []).map((x:any) => ({ ...x, initial_percent:Number(x.initial_percent), commission_percent:Number(x.commission_percent), gross_ref:Number(x.gross_ref), gross_ves_snapshot:Number(x.gross_ves_snapshot), initial_ref:Number(x.initial_ref), initial_ves_snapshot:Number(x.initial_ves_snapshot), financed_ref:Number(x.financed_ref), commission_ref:Number(x.commission_ref), commission_ves_snapshot:Number(x.commission_ves_snapshot), bcv_rate_snapshot:Number(x.bcv_rate_snapshot) })) as Sale[]);
-      setInstallments((i.data ?? []).map((x:any) => ({ ...x, amount_ref:Number(x.amount_ref), amount_ves_snapshot:Number(x.amount_ves_snapshot), paid_ref:Number(x.paid_ref), paid_ves_actual:Number(x.paid_ves_actual) })) as Installment[]);
-      setOrders((o.data ?? []).map((x:any) => ({ ...x, total_ref:Number(x.total_ref), total_ves:Number(x.total_ves) })) as Order[]);
+      setSales((s.data ?? []).map(({ ord: _ord, cashea_installments: _inst, ...x }:any) => ({ ...x, initial_percent:Number(x.initial_percent), commission_percent:Number(x.commission_percent), gross_ref:Number(x.gross_ref), gross_ves_snapshot:Number(x.gross_ves_snapshot), initial_ref:Number(x.initial_ref), initial_ves_snapshot:Number(x.initial_ves_snapshot), financed_ref:Number(x.financed_ref), commission_ref:Number(x.commission_ref), commission_ves_snapshot:Number(x.commission_ves_snapshot), bcv_rate_snapshot:Number(x.bcv_rate_snapshot) })) as Sale[]);
+      setInstallments((s.data ?? []).flatMap((x:any) => x.cashea_installments ?? []).sort((a:any,b:any) => String(a.due_date).localeCompare(String(b.due_date))).map((x:any) => ({ ...x, amount_ref:Number(x.amount_ref), amount_ves_snapshot:Number(x.amount_ves_snapshot), paid_ref:Number(x.paid_ref), paid_ves_actual:Number(x.paid_ves_actual) })) as Installment[]);
+      setOrders((s.data ?? []).map((x:any) => x.ord).filter(Boolean).map((x:any) => ({ ...x, total_ref:Number(x.total_ref), total_ves:Number(x.total_ves) })) as Order[]);
       const row = Array.isArray(r.data) ? r.data[0] : r.data; setRates({ bcv:Number(row?.bcv_rate ?? 0), operative:Number(row?.operative_rate ?? 0) });
     }
     setLoading(false);

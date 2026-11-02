@@ -59,22 +59,34 @@ export default function ReceivablesPage() {
 
   async function load() {
     setLoading(true); setError("");
-    const [r, c, o, v, p, xr] = await Promise.all([
-      supabase.from("receivables").select("id,order_id,customer_id,principal_ves,principal_ref,principal_usd,outstanding_ves,outstanding_fraction,status,due_date,created_at,closed_at").order("created_at", { ascending: false }).limit(1000),
-      supabase.from("customers").select("id,name,phone,document_id").limit(2000),
-      supabase.from("orders").select("id,order_number,vehicle_id").limit(2000),
-      supabase.from("vehicles").select("id,plate,make,model").limit(2000),
-      supabase.from("payments").select("id,receivable_id,method,currency,amount_original,applied_ref,applied_usd,reference,paid_at").not("receivable_id", "is", null).order("paid_at", { ascending: false }).limit(2000),
+    // Una sola consulta con relaciones: trae solo los clientes, órdenes,
+    // vehículos y pagos de estas deudas. Antes se bajaban las tablas completas
+    // (limit 2000, que PostgREST corta en 1000) y se unían en el navegador.
+    const [r, xr] = await Promise.all([
+      supabase.from("receivables")
+        .select("id,order_id,customer_id,principal_ves,principal_ref,principal_usd,outstanding_ves,outstanding_fraction,status,due_date,created_at,closed_at,"
+          + "customer:customers(id,name,phone,document_id),"
+          + "ord:orders(id,order_number,vehicle_id,vehicle:vehicles(id,plate,make,model)),"
+          + "payments(id,receivable_id,method,currency,amount_original,applied_ref,applied_usd,reference,paid_at)")
+        .order("created_at", { ascending: false }).limit(1000),
       supabase.rpc("get_current_rates"),
     ]);
-    const anyError = r.error || c.error || o.error || v.error || p.error || xr.error;
+    const anyError = r.error || xr.error;
     if (anyError) setError(anyError.message);
     else {
-      setReceivables((r.data ?? []) as Receivable[]);
-      setCustomers((c.data ?? []) as Customer[]);
-      setOrders((o.data ?? []) as Order[]);
-      setVehicles((v.data ?? []) as Vehicle[]);
-      setPayments((p.data ?? []) as CreditPayment[]);
+      type Row = Receivable & {
+        customer: Customer | null;
+        ord: (Order & { vehicle: Vehicle | null }) | null;
+        payments: CreditPayment[] | null;
+      };
+      const rows = (r.data ?? []) as unknown as Row[];
+      const byId = <T extends { id: string }>(list: (T | null | undefined)[]) =>
+        [...new Map(list.filter((x): x is T => !!x).map(x => [x.id, x])).values()];
+      setReceivables(rows.map(({ customer: _c, ord: _o, payments: _p, ...rest }) => rest));
+      setCustomers(byId(rows.map(x => x.customer)));
+      setOrders(byId(rows.map(x => x.ord && { id: x.ord.id, order_number: x.ord.order_number, vehicle_id: x.ord.vehicle_id })));
+      setVehicles(byId(rows.map(x => x.ord?.vehicle)));
+      setPayments(rows.flatMap(x => x.payments ?? []).sort((a, b) => b.paid_at.localeCompare(a.paid_at)));
       const row = Array.isArray(xr.data) ? xr.data[0] : xr.data;
       setBcv(Number(row?.bcv_rate ?? 0));
     }

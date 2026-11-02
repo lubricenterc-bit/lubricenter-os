@@ -1,5 +1,5 @@
 "use client";
-import { inventorySearchText, matchesSearch } from "@/lib/domain/search";
+import { inventorySearchText, matchesSearch, postgrestSearchText } from "@/lib/domain/search";
 import { isOilCandidate, isOilFilter, saleSource } from "@/lib/domain/oil-change";
 
 import { useParams, useRouter } from "next/navigation";
@@ -13,6 +13,8 @@ import { EMPTY_ORDER_EXTRAS, normalizeOrderExtras, orderExtrasRpcParams,
 
 type Order = { id: string; order_number: string; status: string; customer_id: string | null; vehicle_id: string | null };
 type Vehicle = { id: string; customer_id: string | null; plate: string | null; make: string | null; model: string | null; year: number | null; current_odometer: number | null };
+type VehicleWithOwner = Vehicle & { owner: { name: string | null } | null };
+const VEHICLE_FIELDS = "id,customer_id,plate,make,model,year,current_odometer";
 type Customer = { id: string; name: string | null; phone: string | null };
 type Rates = { bcv: number; operative: number };
 type PricingSync = { catalogSyncedAt: string | null; bcvEffectiveAt: string | null; operativeEffectiveAt: string | null };
@@ -112,13 +114,11 @@ export default function OilChangePage() {
     setLoading(true);
     setError("");
     setWarning("");
-    const [orderRes, ratesRes, invRes, syncRes, allVehiclesRes, ownerRes] = await Promise.all([
+    const [orderRes, ratesRes, invRes, syncRes] = await Promise.all([
       supabase.from("orders").select("id,order_number,status,customer_id,vehicle_id,crm_additional_services,crm_bonuses,crm_observations").eq("id", orderId).single(),
       supabase.rpc("get_order_rates",{p_order_id:orderId}),
       supabase.from("inventory_current").select("id,sku,brand,description,category,quantity_on_hand,product_id,catalog_product_name,current_price_ves,current_ref_bcv,needs_review,alt_codes").eq("location_code", "CABUDARE").order("sku").limit(1000),
       supabase.rpc("get_pricing_sync_status"),
-      supabase.from("vehicles").select("id,customer_id,plate,make,model,year,current_odometer").order("plate").limit(2000),
-      supabase.from("customers").select("id,name").order("name").limit(2000),
     ]);
 
     if (orderRes.error || ratesRes.error) {
@@ -126,9 +126,6 @@ export default function OilChangePage() {
       setLoading(false);
       return;
     }
-    if (allVehiclesRes.error || ownerRes.error) setWarning("No se pudo cargar la lista de vehículos. Verifica el vehículo antes de continuar.");
-    setVehicles((allVehiclesRes.data??[]) as Vehicle[]);
-    setVehicleOwners(Object.fromEntries((ownerRes.data??[]).map(x=>[x.id,x.name||"Sin nombre"])));
     if (invRes.error || syncRes.error) setWarning("No cargó alguna fuente de precios o productos. Puedes registrar el aceite usado manualmente y continuar; revisa el precio antes de guardar.");
 
     const ord = orderRes.data as Order;
@@ -193,10 +190,18 @@ export default function OilChangePage() {
       }
     }
 
-    const [vehicleRes, customerRes] = await Promise.all([
-      supabase.from("vehicles").select("id,customer_id,plate,make,model,year,current_odometer").eq("id", ord.vehicle_id).single(),
+    // Solo los vehículos del cliente de la orden; los de otros propietarios se
+    // buscan en el servidor al escribir (antes se bajaban todos los vehículos y
+    // todos los clientes en cada apertura, con corte silencioso en 1000).
+    const [vehicleRes, customerRes, ownVehiclesRes] = await Promise.all([
+      supabase.from("vehicles").select(`${VEHICLE_FIELDS},owner:customers(name)`).eq("id", ord.vehicle_id).single(),
       ord.customer_id ? supabase.from("customers").select("id,name,phone").eq("id", ord.customer_id).maybeSingle() : Promise.resolve({ data: null, error: null } as any),
+      ord.customer_id
+        ? supabase.from("vehicles").select(`${VEHICLE_FIELDS},owner:customers(name)`).eq("customer_id", ord.customer_id).order("plate").limit(100)
+        : Promise.resolve({ data: [], error: null } as any),
     ]);
+    if (ownVehiclesRes.error) setWarning("No se pudo cargar la lista de vehículos. Verifica el vehículo antes de continuar.");
+    mergeVehicles([...(ownVehiclesRes.data ?? []), ...(vehicleRes.data ? [vehicleRes.data] : [])] as unknown as VehicleWithOwner[]);
 
     if (vehicleRes.error || customerRes.error) {
       setError((vehicleRes.error || customerRes.error)?.message ?? "No pude cargar el vehículo.");
@@ -204,7 +209,7 @@ export default function OilChangePage() {
       return;
     }
 
-    const vr = vehicleRes.data as Vehicle;
+    const { owner: _owner, ...vr } = vehicleRes.data as unknown as VehicleWithOwner;
     setVehicle(vr);
     setCustomer((customerRes.data ?? null) as Customer | null);
     if (vr.current_odometer != null) setOdometer(String(vr.current_odometer));
@@ -212,6 +217,42 @@ export default function OilChangePage() {
   }
 
   useEffect(() => { if (orderId) load(); }, [orderId]);
+
+  function mergeVehicles(rows: VehicleWithOwner[]) {
+    if (!rows.length) return;
+    setVehicles(current => {
+      const map = new Map(current.map(v => [v.id, v]));
+      for (const { owner: _o, ...v } of rows) map.set(v.id, v);
+      return [...map.values()];
+    });
+    setVehicleOwners(current => {
+      const next = { ...current };
+      for (const v of rows) if (v.customer_id) next[v.customer_id] = v.owner?.name || "Sin nombre";
+      return next;
+    });
+  }
+
+  // Búsqueda de vehículos de otros propietarios en el servidor (placa, marca,
+  // modelo o nombre del propietario), con espera corta mientras se escribe.
+  useEffect(() => {
+    const text = postgrestSearchText(vehicleSearch);
+    if (!showOtherOwners || text.length < 2) return;
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      const pattern = `%${text}%`;
+      const [byVehicle, byOwner] = await Promise.all([
+        supabase.from("vehicles").select(`${VEHICLE_FIELDS},owner:customers(name)`)
+          .not("customer_id", "is", null)
+          .or(`plate.ilike.${pattern},make.ilike.${pattern},model.ilike.${pattern}`).order("plate").limit(50),
+        supabase.from("vehicles").select(`${VEHICLE_FIELDS},owner:customers!inner(name)`)
+          .ilike("owner.name", pattern).order("plate").limit(50),
+      ]);
+      if (!active) return;
+      if (byVehicle.error || byOwner.error) { setWarning("No se pudo buscar vehículos. Intenta de nuevo."); return; }
+      mergeVehicles([...(byVehicle.data ?? []), ...(byOwner.data ?? [])] as unknown as VehicleWithOwner[]);
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [vehicleSearch, showOtherOwners]);
 
   const visibleVehicles=useMemo(()=>vehicles.filter(v=>{
     if (!v.customer_id) return false;
