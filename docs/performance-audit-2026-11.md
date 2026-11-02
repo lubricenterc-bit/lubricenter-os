@@ -26,7 +26,7 @@ reglas de negocio, montos ni permisos.
 | Service worker que se reinstalaba | `finance-notifications` registraba `/sw.js` sin `?v=` | URL única en `lib/sw-url.ts`. |
 | Cabeceras HTTP | `next.config.ts` | `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, `noindex`, sin `X-Powered-By`, `sw.js` sin caché, logos con caché de un día. |
 | Sin 404 / mismo título | `app/not-found.tsx`, `app/robots.ts`, `AppShell` | Página 404 en español, `robots.txt` que bloquea todo (sistema interno), título por pantalla en la pestaña. |
-| BD | `supabase/migrations/20261102120000_performance_fk_indexes_rls_initplan.sql` | 16 índices para FK de lectura frecuente y 9 políticas con `(select auth.uid())`. Aditiva e idempotente. **Pendiente de aplicar en producción.** |
+| BD | `supabase/migrations/20261102120000_performance_fk_indexes_rls_initplan.sql` | 16 índices para FK de lectura frecuente y 9 políticas con `(select auth.uid())`. Aditiva e idempotente. **Aplicada en producción el 2026-11-02** (ver abajo). |
 
 ## Lo que se decidió NO hacer, y por qué
 
@@ -40,8 +40,9 @@ reglas de negocio, montos ni permisos.
 - **SEO de la lista de TikTok** (sitemap, llms.txt, OG image, datos
   estructurados): es para sitios públicos. Aquí lo correcto es lo contrario:
   `noindex` y `robots.txt` bloqueando todo.
-- **Borrar los 97 índices "sin uso"**: las estadísticas del proyecto conectado
-  muestran 0 filas, así que "sin uso" no significa nada todavía.
+- **Borrar los índices "sin uso"**: con pocos cientos de filas Postgres prefiere
+  leer la tabla completa, así que "sin uso" no significa que sobren. Se revisa
+  cuando haya más volumen.
 - **Paralelizar las importaciones de Cashea/BDV**: deduplican entre archivos;
   el orden importa. Se quedan en secuencia a propósito.
 - **Reformatear archivos de una sola línea**: mejora la lectura, pero en un
@@ -64,3 +65,17 @@ reglas de negocio, montos ni permisos.
 `staff_users`, `staff_permissions` y `staff_tasks` existen en producción pero
 no aparecen en ninguna migración del repo (se crearon por fuera). Conviene
 traer su DDL a una migración para que el repo vuelva a describir la base real.
+
+## Aplicación en producción (2026-11-02)
+
+- Proyecto: `ysvcbbnwandoizczehtk` (producción: 243 órdenes; la conexión
+  `yfkotqmccrmlhxmybhps` es un proyecto de desarrollo vacío).
+- Antes de aplicar se comprobó que las 9 políticas de producción eran idénticas
+  a las que reescribe la migración.
+- Resultado: 16 índices `*_fk_idx` creados, 9 de 9 políticas reescritas con
+  `(SELECT auth.uid())`, 219 políticas en total (sin cambio).
+- Conteos antes y después, iguales: orders 243, order_tenders 77, payments 225,
+  inventory_items 545.
+- Advisors: desaparece la advertencia `auth_rls_initplan`; FK sin índice bajan
+  a 31 (quedan las de auditoría, a propósito). Seguridad: sin advertencias nuevas.
+- Los índices nuevos aparecen como "sin uso" porque acaban de crearse.
