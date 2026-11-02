@@ -201,7 +201,7 @@ export default function OilChangePage() {
         : Promise.resolve({ data: [], error: null } as any),
     ]);
     if (ownVehiclesRes.error) setWarning("No se pudo cargar la lista de vehículos. Verifica el vehículo antes de continuar.");
-    mergeVehicles([...(ownVehiclesRes.data ?? []), ...(vehicleRes.data ? [vehicleRes.data] : [])] as VehicleWithOwner[]);
+    mergeVehicles([...(ownVehiclesRes.data ?? []), ...(vehicleRes.data ? [vehicleRes.data] : [])] as unknown as VehicleWithOwner[]);
 
     if (vehicleRes.error || customerRes.error) {
       setError((vehicleRes.error || customerRes.error)?.message ?? "No pude cargar el vehículo.");
@@ -209,7 +209,7 @@ export default function OilChangePage() {
       return;
     }
 
-    const { owner: _owner, ...vr } = vehicleRes.data as VehicleWithOwner;
+    const { owner: _owner, ...vr } = vehicleRes.data as unknown as VehicleWithOwner;
     setVehicle(vr);
     setCustomer((customerRes.data ?? null) as Customer | null);
     if (vr.current_odometer != null) setOdometer(String(vr.current_odometer));
@@ -249,7 +249,7 @@ export default function OilChangePage() {
       ]);
       if (!active) return;
       if (byVehicle.error || byOwner.error) { setWarning("No se pudo buscar vehículos. Intenta de nuevo."); return; }
-      mergeVehicles([...(byVehicle.data ?? []), ...(byOwner.data ?? [])] as VehicleWithOwner[]);
+      mergeVehicles([...(byVehicle.data ?? []), ...(byOwner.data ?? [])] as unknown as VehicleWithOwner[]);
     }, 250);
     return () => { active = false; window.clearTimeout(timer); };
   }, [vehicleSearch, showOtherOwners]);
