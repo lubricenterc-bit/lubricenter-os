@@ -9,6 +9,7 @@ const INITIAL: Dashboard = {
   localDate: "", closedOrdersToday: 0, salesRefToday: 0, collectedRefToday: 0,
   openOrders: 0, activeVehicles: 0, received: 0, diagnosis: 0, inProgress: 0,
   waitingParts: 0, ready: 0, postService: 0, maintenanceDue: 0, maintenanceSoon: 0,
+  crmToSend: 0, crmBookedToday: 0,
   receivablesOpen: 0, receivablesOutstandingVes: 0, payrollPendingRef: 0,
   inventoryReview: 0, inventoryNegative: 0, bcv: 0, operative: 0,
 };
@@ -24,12 +25,15 @@ export default function HomePage() {
 
   async function load() {
     setLoading(true); setError("");
-    const [result, boardResult] = await Promise.all([
+    const [result, boardResult, crmResult] = await Promise.all([
       supabase.rpc("dashboard_overview"),
       supabase.from("workshop_board_current")
         .select("id,order_number,workflow_status,workflow_updated_at,plate,make,model,is_walk_in,customer_name,service_areas")
         .order("workflow_updated_at", { ascending: true }).limit(80),
+      supabase.rpc("crm_today_count"),
     ]);
+    // El contador de Seguimiento es secundario: si falla, Inicio sigue.
+    const crm = (crmResult.error ? null : crmResult.data) as { to_send?: number; booked_today?: number } | null;
     // Las placas del tablero son un adorno del inicio: si fallan, el resumen sigue.
     if (!boardResult.error) setBoard((boardResult.data ?? []) as HomeBoardRow[]);
     if (result.error) { setError(result.error.message); setLoading(false); return; }
@@ -56,6 +60,8 @@ export default function HomePage() {
       inventoryNegative: Number(row.inventory_negative ?? 0),
       bcv: Number(row.bcv_rate ?? 0),
       operative: Number(row.operative_rate ?? 0),
+      crmToSend: Number(crm?.to_send ?? 0),
+      crmBookedToday: Number(crm?.booked_today ?? 0),
     });
     setLoading(false); setLoadedOnce(true);
   }

@@ -64,7 +64,7 @@ export default function CampaignsPage(){
         {campaign.description&&<p>{campaign.description}</p>}
         <div className="muted small">Esta primera versión conserva el envío manual por WhatsApp. Los estados ya se guardan en Supabase y se ven desde cualquier dispositivo.</div>
       </article>
-      <Link href="/reminders" className="btn btn-ghost">← Volver a Seguimiento</Link>
+      <Link href="/crm" className="btn btn-ghost">Volver a Seguimiento</Link>
     </>}
   </main>;
 }

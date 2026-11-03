@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase";
 import { allowsManualSale, useInventorySalePolicy } from "@/lib/inventory-policy";
 import { fmtRef, fmtVes } from "@/lib/format";
 import { OsIcon } from "@/components/os-icon";
+import { OilCaptureCard } from "@/components/crm/oil-capture-card";
 import { QUOTE_HANDOFF_KEY, takeQuoteLines } from "@/lib/sales-quote";
 import { AdjustmentControls, NO_ADJUSTMENT, useDiscountLimit, type AdjustmentState } from "@/components/checkout-adjustments";
 import { distributeCartAdjustment, previewAdjustments } from "@/lib/domain/economics";
@@ -46,6 +47,7 @@ const CASHEA_MIN_REF = 25;
 function normalize(value: string | null | undefined) { return (value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
 
 export function QuickSaleScreen() {
+  const [captureBlocking, setCaptureBlocking] = useState(false);
   const manualAllowed = allowsManualSale(useInventorySalePolicy());
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -421,7 +423,8 @@ export function QuickSaleScreen() {
           <p className="os-done-total"><b>{fmtRef(completed.total_ref)}</b><span>{fmtVes(completed.total_ves)}</span></p>
           {completed.cashea && <dl className="os-done-split"><div><dt>Inicial</dt><dd>{fmtRef(completed.cashea.initial_ref)}</dd></div><div><dt>Por recibir</dt><dd>{fmtRef(completed.cashea.financed_ref)}</dd></div><div><dt>Comisión 4%</dt><dd>{fmtRef(completed.cashea.commission_ref)}</dd></div></dl>}
           {completed.credit && <dl className="os-done-split"><div><dt>Saldo en Crédito LC</dt><dd>{fmtVes(completed.credit.outstanding_ves)}</dd></div><div><dt>Equivale a</dt><dd>{fmtRef(completed.credit.outstanding_ref)}</dd></div><div><dt>Dónde</dt><dd>Disponible en Cobros</dd></div></dl>}
-          <div className="os-done-actions"><Link className="btn" href={`/orders/${completed.order_id}/receipt`}>Ver recibo</Link>{completed.cashea ? <Link className="btn btn-primary" href="/cashea">Ver Cashea</Link> : <button className="btn btn-primary" onClick={() => { setCompleted(null); searchRef.current?.focus(); }}>Nueva venta</button>}</div>
+          <OilCaptureCard key={completed.order_id} orderId={completed.order_id} onBlockingChange={setCaptureBlocking} />
+          <div className="os-done-actions"><Link className="btn" href={`/orders/${completed.order_id}/receipt`}>Ver recibo</Link>{completed.cashea ? <Link className={"btn btn-primary" + (captureBlocking ? " is-disabled" : "")} aria-disabled={captureBlocking} onClick={e => { if (captureBlocking) e.preventDefault(); }} href="/cashea">Ver Cashea</Link> : <button className="btn btn-primary" disabled={captureBlocking} title={captureBlocking ? "Primero anota la placa o marca que el cliente no quiso dar datos" : undefined} onClick={() => { setCompleted(null); setCaptureBlocking(false); searchRef.current?.focus(); }}>Nueva venta</button>}</div>
         </div>
       </section>}
 

@@ -11,6 +11,7 @@ const PREVIEW: HomeDashboard = {
   localDate: "2026-10-28", closedOrdersToday: 6, salesRefToday: 1284.5, collectedRefToday: 1098,
   openOrders: 8, activeVehicles: 11, received: 3, diagnosis: 2, inProgress: 4,
   waitingParts: 1, ready: 1, postService: 3, maintenanceDue: 5, maintenanceSoon: 8,
+  crmToSend: 12, crmBookedToday: 1,
   receivablesOpen: 4, receivablesOutstandingVes: 43820, payrollPendingRef: 0,
   inventoryReview: 2, inventoryNegative: 0, bcv: 218.45, operative: 262,
 };
@@ -33,7 +34,7 @@ const LABELS: Record<string, string> = {
   "/": "Inicio", "/quote": "Cotizar", "/quote/oil": "Comparar aceites", "/quick-sale": "Venta rápida",
   "/orders/new": "Recibir vehículo", "/orders": "Órdenes", "/workshop": "Taller", "/catalog": "Catálogo",
   "/customers": "Clientes", "/cash-close": "Cerrar caja", "/finance": "Finanzas", "/settings": "Tasas y precios",
-  "/receivables": "Crédito LC", "/reminders": "Recordatorios", "/expenses": "Compras",
+  "/receivables": "Crédito LC", "/crm": "Seguimiento", "/expenses": "Compras",
   "/finance/reconcile": "Conciliación", "/finance/inbox": "Casos financieros", "/inventory": "Inventario",
 };
 

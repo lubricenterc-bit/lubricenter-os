@@ -12,6 +12,7 @@ export type HomeDashboard = {
   localDate: string; closedOrdersToday: number; salesRefToday: number; collectedRefToday: number;
   openOrders: number; activeVehicles: number; received: number; diagnosis: number; inProgress: number;
   waitingParts: number; ready: number; postService: number; maintenanceDue: number; maintenanceSoon: number;
+  crmToSend: number; crmBookedToday: number;
   receivablesOpen: number; receivablesOutstandingVes: number; payrollPendingRef: number;
   inventoryReview: number; inventoryNegative: number; bcv: number; operative: number;
 };
@@ -78,9 +79,9 @@ export function OsHome({ data, board, owner, locationName, loading, error, onRef
       "Ctrl K busca cualquier sección: cierre, Cashea, clientes o proveedores.",
     ];
     if (!loading && data.ready > 0) list.splice(1, 0, `Hay ${plural(data.ready, "vehículo listo", "vehículos listos")} para entregar. ¡Avísale al cliente!`);
-    if (!loading && data.maintenanceDue > 0) list.splice(2, 0, `${plural(data.maintenanceDue, "cliente tiene", "clientes tienen")} el mantenimiento vencido. Un recordatorio hoy es una venta mañana.`);
+    if (!loading && data.crmToSend > 0) list.splice(2, 0, `Hay ${plural(data.crmToSend, "mensaje", "mensajes")} de seguimiento para hoy. Un recordatorio hoy es una venta mañana.`);
     return list;
-  }, [now, who, loading, data.ready, data.maintenanceDue]);
+  }, [now, who, loading, data.ready, data.crmToSend]);
   const bubble = tips[tip % tips.length];
   function nextTip() {
     setTip(value => value + 1);
@@ -93,7 +94,7 @@ export function OsHome({ data, board, owner, locationName, loading, error, onRef
     : `Hay ${plural(data.activeVehicles, "vehículo", "vehículos")} en el taller: ${data.inProgress} en trabajo y ${data.ready} ${data.ready === 1 ? "listo" : "listos"} para entregar.`;
   const alert = loading ? "" : data.waitingParts > 0
     ? `${plural(data.waitingParts, "vehículo espera", "vehículos esperan")} repuesto.`
-    : data.maintenanceDue > 0 ? `${plural(data.maintenanceDue, "cliente tiene", "clientes tienen")} el mantenimiento vencido.` : "";
+    : data.crmToSend > 0 ? `Hay ${plural(data.crmToSend, "mensaje", "mensajes")} de seguimiento para hoy.` : "";
 
   const actions: { href: string; key: string; title: string; note: string; icon: BrandIconName; main?: boolean }[] = [
     { href: "/quick-sale", key: "F2", title: "Vender", note: "Productos y servicios al ticket", icon: "can", main: true },
@@ -117,12 +118,11 @@ export function OsHome({ data, board, owner, locationName, loading, error, onRef
   ];
 
   const pending: { href: string; icon: BrandIconName; level: "Urgente" | "Hoy" | "Esta semana"; title: string; note: string; count: number; on?: boolean }[] = [];
-  if (data.maintenanceDue > 0) pending.push({ href: "/reminders", icon: "clock", level: "Urgente", title: "Mantenimiento vencido", note: "Clientes que necesitan un recordatorio", count: data.maintenanceDue, on: true });
+  if (data.crmToSend > 0) pending.push({ href: "/crm", icon: "clock", level: "Hoy", title: "Mensajes de seguimiento", note: "Postservicio y recordatorios listos para enviar", count: data.crmToSend, on: true });
+  if (data.crmBookedToday > 0) pending.push({ href: "/crm", icon: "cal", level: "Hoy", title: "Citas de hoy", note: "Clientes que agendaron su cambio", count: data.crmBookedToday });
   if (data.inventoryNegative > 0) pending.push({ href: "/inventory", icon: "tag", level: "Urgente", title: "Existencias negativas", note: "Productos vendidos sin stock registrado", count: data.inventoryNegative, on: true });
   if (data.openOrders > 0) pending.push({ href: "/orders", icon: "clip", level: "Hoy", title: "Órdenes sin finalizar", note: "Revisar avances y pagos", count: data.openOrders });
-  if (data.postService > 0) pending.push({ href: "/reminders", icon: "car", level: "Hoy", title: "Seguimiento después del servicio", note: "Clientes por contactar tras su visita", count: data.postService });
   if (data.inventoryReview > 0) pending.push({ href: "/inventory", icon: "tag", level: "Hoy", title: "Inventario por revisar", note: "Códigos o conteos pendientes", count: data.inventoryReview });
-  if (data.maintenanceSoon > 0) pending.push({ href: "/reminders", icon: "cal", level: "Esta semana", title: "Mantenimiento próximo", note: "Clientes a los que les toca pronto", count: data.maintenanceSoon });
   if (owner && data.payrollPendingRef > 0) pending.push({ href: "/payroll", icon: "cal", level: "Esta semana", title: "Nómina por liquidar", note: fmtRef(data.payrollPendingRef) + " pendientes", count: 1 });
 
   const tools: { href: string; icon: OsIconName; title: string; note: string }[] = owner ? [
