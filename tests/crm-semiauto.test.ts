@@ -14,7 +14,7 @@ describe("CRM semiautomático", () => {
     expect(sql).toContain("::date + 14");
     expect(sql).toContain("('crm_legacy_bulk_date', '\"2026-09-10\"'::jsonb)");
     // Ninguna llamada a servicios externos desde la base.
-    expect(sql).not.toMatch(/net\.http|http_post|wa\.me/i);
+    expect(sql).not.toMatch(/net\.http|http_post|pg_net/i);
   });
 
   it("las tablas nuevas tienen RLS y nada queda abierto a anon", () => {
