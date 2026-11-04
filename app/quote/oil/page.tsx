@@ -16,6 +16,7 @@ import {
   quoteWhatsAppText, validQuoteRequest, DEFAULT_QUOTE_SHARE_CURRENCIES,
   type OilQuote, type OilTechnology, type QuoteRequest, type QuoteMoney, type QuoteShareCurrencies,
 } from "@/lib/oil-quote";
+import { NumberInput } from "@/components/number-field";
 
 function currency(value: number | null, kind: "usd" | "ves") {
   return value === null ? "—" : kind === "ves" ? fmtVes(value) : fmtRef(value);
@@ -243,7 +244,7 @@ export default function OilQuotePage() {
         </fieldset>
         <label className="oq-field">
           <span>Cantidad necesaria · litros</span>
-          <input type="number" min="0.5" max="30" step="0.5" inputMode="decimal" value={liters}
+          <NumberInput kind="qty" min="0.5" max="30" step="0.5" value={liters}
             onChange={e=>{setLiters(e.target.value);updateQuoteOptions();}}/>
           <small>Un galón se calcula como 4 litros; los demás aceites por litro.</small>
         </label>
@@ -259,16 +260,14 @@ export default function OilQuotePage() {
         </label>
         {filterChoice.mode === "manual" && <label className="oq-field">
           <span>Importe estimado del filtro · divisas</span>
-          <div className="oq-money-input"><span>$</span><input type="number" min="0" max="1000" step="0.5"
-            inputMode="decimal" value={manualFilterUsd} onChange={e=>{setManualFilterUsd(e.target.value);updateQuoteOptions();}} /></div>
+          <div className="oq-money-input"><span>$</span><NumberInput kind="money" min="0" max="1000" step="0.5" value={manualFilterUsd} onChange={e=>{setManualFilterUsd(e.target.value);updateQuoteOptions();}} /></div>
           <small>Ajusta el precio según el filtro compatible con el vehículo; $5 es solo un valor inicial editable.</small>
         </label>}
         <div className="oq-field-divider"/>
         <div className="oq-form-subtitle"><OsIcon name="cash" size={17}/> Mano de obra</div>
         <label className="oq-field">
           <span>Costo de mano de obra · divisas</span>
-          <div className="oq-money-input"><span>$</span><input type="number" min="0" max="1000" step="0.5"
-            inputMode="decimal" value={laborUsd} onChange={e=>{setLaborUsd(e.target.value);updateQuoteOptions();}} /></div>
+          <div className="oq-money-input"><span>$</span><NumberInput kind="money" min="0" max="1000" step="0.5" value={laborUsd} onChange={e=>{setLaborUsd(e.target.value);updateQuoteOptions();}} /></div>
           <small>Sin cargo por defecto. Se cotiza por separado cuando corresponda.</small>
         </label>
         <label className="oq-promo">

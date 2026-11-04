@@ -10,6 +10,7 @@ import { inventorySearchText, matchesSearch } from "@/lib/domain/search";
 import {
   inventoryState, INVENTORY_FILTERS, matchesInventoryFilter, type InventoryFilter, type InventoryFullRow
 } from "@/lib/inventory-full";
+import { NumberInput } from "@/components/number-field";
 
 type Rates = { bcv: number; operative: number };
 type ItemForm = {
@@ -318,7 +319,7 @@ export default function InventoryPage() {
 
       <fieldset className="inv-group"><legend>Existencia</legend>
         <div className="grid grid-2">
-          <label><span className="label">Cantidad en {location?.name ?? "Cabudare"}</span><input className="input" type="number" min="0" step="0.01" value={form.quantity} disabled={!form.active} onChange={e => setForm({ ...form, quantity: e.target.value })} /></label>
+          <label><span className="label">Cantidad en {location?.name ?? "Cabudare"}</span><NumberInput className="input" kind="qty" min="0" step="0.01" value={form.quantity} disabled={!form.active} onChange={e => setForm({ ...form, quantity: e.target.value })} /></label>
           <div className="muted small inv-hint">Hoy el sistema tiene {qtyText(form.originalQuantity)}. Al cambiarla se guarda un ajuste con tu motivo en los movimientos.</div>
         </div>
         {parseDecimal(form.quantity) !== form.originalQuantity && <label><span className="label">Motivo del cambio</span><input className="input" value={form.countNote} onChange={e => setForm({ ...form, countNote: e.target.value })} placeholder="Ej. Recuento del estante" /></label>}

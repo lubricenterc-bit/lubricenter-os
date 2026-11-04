@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { NumberInput } from "@/components/number-field";
 
 type Account = {
   id: string;
@@ -126,7 +127,7 @@ export function CashCloseCorrections({ day, status, legacy, accounts, onChanged 
       </label>
       <div className="muted small">Conteo anterior: {formatMoney(account?.actual_native ?? null, account?.currency ?? 'USD')}</div>
       <label>Conteo corregido · {account?.currency}
-        <input className="input" type="number" min="0" step="0.01"
+        <NumberInput className="input" kind="money" min="0" step="0.01"
           value={actual} onChange={e => setActual(e.target.value)} />
       </label>
       <label>Motivo obligatorio

@@ -7,6 +7,7 @@ import {supabase} from "@/lib/supabase";
 import { canAdministerOrders } from "@/lib/session-cache";
 import {fmtRef,fmtVes} from "@/lib/format";
 import {CASHEA_INITIAL_METHODS,casheaCurrency,type CasheaInitialMethod} from "@/lib/cashea-split";
+import { NumberInput } from "@/components/number-field";
 
 type InitialLine = {id:string;source_id:string|null;method:CasheaInitialMethod;amount:string;reference:string};
 type Sale = {id:string;initial_percent:number;gross_ref:number;initial_ref:number;financed_ref:number;bcv_rate_snapshot:number;cashea_reference:string;status:string};
@@ -98,9 +99,9 @@ export default function CorrectInitialPage(){
        <div className="row-between"><span>Inicial registrada</span><strong>{fmtRef(sale.initial_ref)} · {sale.initial_percent}%</strong></div>
        {duplicateReference&&<div className="muted small">Hay otro registro con este mismo número Cashea (posiblemente una orden anulada). No se creará ninguna operación nueva.</div>}
        <div className="grid grid-2"><label><span className="label">Nueva inicial (%)</span>
-          <input className="input" type="number" min="0.000001" max="99.999999" step="any" value={percent} onChange={e=>{setPercent(e.target.value);const v=Number(e.target.value);setInitialUsdInput(v>0?(Number(sale.gross_ref)*v/100).toFixed(2):"");setConfirmed(false);}}/>
+          <NumberInput decimals={6} className="input" kind="percent" min="0.000001" max="99.999999" step="any" value={percent} onChange={e=>{setPercent(e.target.value);const v=Number(e.target.value);setInitialUsdInput(v>0?(Number(sale.gross_ref)*v/100).toFixed(2):"");setConfirmed(false);}}/>
        </label><label><span className="label">Inicial USD · importe acordado en Cashea</span>
-          <input className="input" type="number" min="0.01" step="0.01" value={initialUsdInput}
+          <NumberInput className="input" kind="money" min="0.01" step="0.01" value={initialUsdInput}
           onChange={e=>{setInitialUsdInput(e.target.value);const v=Number(e.target.value);setPercent(v>0?(v/Number(sale.gross_ref)*100).toFixed(8):"0");setConfirmed(false);}}/>
        </label></div>
        <div className="row-between"><span>Inicial calculada</span><strong>{fmtRef(quote?.initialRef||0)} · {fmtVes(quote?.initialVes||0)}</strong></div>

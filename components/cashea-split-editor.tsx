@@ -7,6 +7,7 @@ import {
   casheaPaymentPreview, isCasheaBank, isCasheaElectronic,
   newCasheaSplitLine, type CasheaSplitLine, type CasheaInitialMethod
 } from "@/lib/cashea-split";
+import { NumberInput } from "@/components/number-field";
 
 export function CasheaSplitEditor({
   lines,onChange,requiredVes,bcv,previouslyPaidVes=0,disabled=false
@@ -74,7 +75,7 @@ export function CasheaSplitEditor({
         </label>
         <div className="grid grid-2">
           <label><span className="label">Importe recibido · {usd?"USD":"Bs"}</span>
-            <input className="input" type="number" inputMode="decimal" min="0.01" step="0.01"
+            <NumberInput className="input" kind="money" min="0.01" step="0.01"
               value={row.amount} disabled={disabled}
               onChange={e=>update(row.id,{amount:e.target.value,autoFill:false})}
               placeholder={usd?"Ej. 10.00":"Ej. 3500.00"}/>

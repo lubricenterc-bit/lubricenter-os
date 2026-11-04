@@ -10,6 +10,7 @@ import { fmtRef, fmtVes } from "@/lib/format";
 import { OrderExtrasChecklist } from "@/components/order-extras-checklist";
 import { EMPTY_ORDER_EXTRAS, normalizeOrderExtras, orderExtrasRpcParams,
   validateOrderExtras, type OrderExtras } from "@/lib/order-extras";
+import { NumberInput } from "@/components/number-field";
 
 type Order = { id: string; order_number: string; status: string; customer_id: string | null; vehicle_id: string | null };
 type Vehicle = { id: string; customer_id: string | null; plate: string | null; make: string | null; model: string | null; year: number | null; current_odometer: number | null };
@@ -418,7 +419,7 @@ export default function OilChangePage() {
         <div><div className="muted small">VEHÍCULO SELECCIONADO</div><strong>{vehicle ? [vehicle.plate, vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" · ") : "Cargando…"}</strong></div>
         <button className="btn btn-ghost" onClick={() => router.push(`/orders/${orderId}`)}>Volver a orden</button>
       </div>
-      <label><span className="label">Kilometraje actual *</span><input className="input" type="number" min="0" value={odometer} onChange={e => setOdometer(e.target.value)} placeholder="Ej. 84500" /></label>
+      <label><span className="label">Kilometraje actual *</span><NumberInput className="input" kind="qty" min="0" value={odometer} onChange={e => setOdometer(e.target.value)} placeholder="Ej. 84500" /></label>
     </section>
 
     {convertNotice && <div className="success" role="status">{convertNotice}</div>}
@@ -460,15 +461,15 @@ export default function OilChangePage() {
       {oil?.source === "INVENTORY" && oilSaleSource !== "INVENTORY" && <div className="card brand-card">La cantidad supera el stock registrado. Se añadirá el aceite real a esta orden sin descontar inventario ni crear existencia ficticia.</div>}
 
       <div className="grid grid-2">
-        <label><span className="label">Unidades usadas *</span><input className="input" type="number" min="0.01" step="0.01" value={oilUnits} onChange={e => setOilUnits(e.target.value)} /></label>
-        <label><span className="label">Precio a cobrar REF *</span><input className="input" type="number" min="0.01" step="0.01" value={oilPriceRef} onChange={e => setOilPriceRef(e.target.value)} placeholder={pricingFresh ? "Precio sugerido del catálogo" : "Ingresa precio manual"} /></label>
-        <label><span className="label">Litros reales en el motor</span><input className="input" type="number" min="0" step="0.1" value={liters} onChange={e => setLiters(e.target.value)} placeholder="Ej. 4.5" /></label>
+        <label><span className="label">Unidades usadas *</span><NumberInput className="input" kind="qty" min="0.01" step="0.01" value={oilUnits} onChange={e => setOilUnits(e.target.value)} /></label>
+        <label><span className="label">Precio a cobrar REF *</span><NumberInput className="input" kind="money" min="0.01" step="0.01" value={oilPriceRef} onChange={e => setOilPriceRef(e.target.value)} placeholder={pricingFresh ? "Precio sugerido del catálogo" : "Ingresa precio manual"} /></label>
+        <label><span className="label">Litros reales en el motor</span><NumberInput className="input" kind="qty" min="0" step="0.1" value={liters} onChange={e => setLiters(e.target.value)} placeholder="Ej. 4.5" /></label>
         <label><span className="label">Viscosidad</span><input className="input" value={viscosity} onChange={e => setViscosity(e.target.value)} placeholder="Ej. 15W-40" /></label>
       </div>
     </section>}
 
     {customerOil && <section className="card stack"><div className="grid grid-2">
-      <label><span className="label">Litros reales en el motor</span><input className="input" type="number" min="0" step="0.1" value={liters} onChange={e => setLiters(e.target.value)} placeholder="Ej. 4.5" /></label>
+      <label><span className="label">Litros reales en el motor</span><NumberInput className="input" kind="qty" min="0" step="0.1" value={liters} onChange={e => setLiters(e.target.value)} placeholder="Ej. 4.5" /></label>
       <label><span className="label">Viscosidad</span><input className="input" value={viscosity} onChange={e => setViscosity(e.target.value)} placeholder="Ej. 15W-40" /></label>
     </div></section>}
 
@@ -488,8 +489,8 @@ export default function OilChangePage() {
       {filter?.source === "INVENTORY" && filterSaleSource !== "INVENTORY" && <div className="card brand-card">La cantidad supera el stock registrado. El filtro quedará en la orden sin descontar inventario.</div>}
 
       {filter && <div className="grid grid-2">
-        <label><span className="label">Cantidad</span><input className="input" type="number" min="0.01" step="0.01" value={filterUnits} onChange={e => setFilterUnits(e.target.value)} /></label>
-        <label><span className="label">Precio a cobrar REF *</span><input className="input" type="number" min="0.01" step="0.01" value={filterPriceRef} onChange={e => setFilterPriceRef(e.target.value)} placeholder={pricingFresh ? "Precio sugerido del catálogo" : "Ingresa precio manual"} /></label>
+        <label><span className="label">Cantidad</span><NumberInput className="input" kind="qty" min="0.01" step="0.01" value={filterUnits} onChange={e => setFilterUnits(e.target.value)} /></label>
+        <label><span className="label">Precio a cobrar REF *</span><NumberInput className="input" kind="money" min="0.01" step="0.01" value={filterPriceRef} onChange={e => setFilterPriceRef(e.target.value)} placeholder={pricingFresh ? "Precio sugerido del catálogo" : "Ingresa precio manual"} /></label>
       </div>}
     </section>}
 
@@ -497,9 +498,9 @@ export default function OilChangePage() {
       <h2 className="section-title">3. Servicio y próximo mantenimiento</h2>
       <label><span className="label">Descripción</span><input className="input" value={description} onChange={e => setDescription(e.target.value)} /></label>
       <div className="grid grid-2">
-        <label><span className="label">Mano de obra REF{laborRequired ? " *" : " (gratis)"}</span><input className="input" type="number" min="0" step="0.01" value={serviceCustomerRef} onChange={e => { setServiceCustomerRef(e.target.value); setServiceBaseRef(e.target.value); }} placeholder={laborRequired ? "Precio de la mano de obra" : "0"} /><span className="muted small">{laborRequired ? "Es 100% de Lubricenter; no lleva comisión." : "Gratis porque compra aquí al menos el 85% del cambio."}</span></label>
-        <label><span className="label">Próximo cambio · km</span><input className="input" type="number" min="0" step="500" value={nextKm} onChange={e => setNextKm(e.target.value)} /></label>
-        <label><span className="label">Próximo cambio · meses</span><input className="input" type="number" min="0" step="1" value={nextMonths} onChange={e => setNextMonths(e.target.value)} /></label>
+        <label><span className="label">Mano de obra REF{laborRequired ? " *" : " (gratis)"}</span><NumberInput className="input" kind="money" min="0" step="0.01" value={serviceCustomerRef} onChange={e => { setServiceCustomerRef(e.target.value); setServiceBaseRef(e.target.value); }} placeholder={laborRequired ? "Precio de la mano de obra" : "0"} /><span className="muted small">{laborRequired ? "Es 100% de Lubricenter; no lleva comisión." : "Gratis porque compra aquí al menos el 85% del cambio."}</span></label>
+        <label><span className="label">Próximo cambio · km</span><NumberInput className="input" kind="qty" min="0" step="500" value={nextKm} onChange={e => setNextKm(e.target.value)} /></label>
+        <label><span className="label">Próximo cambio · meses</span><NumberInput className="input" kind="qty" min="0" step="1" value={nextMonths} onChange={e => setNextMonths(e.target.value)} /></label>
       </div>
       {nextOdometer != null && <div className="muted small">Próximo kilometraje estimado: {nextOdometer.toLocaleString("es-VE")} km</div>}
     </section>

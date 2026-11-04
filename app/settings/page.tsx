@@ -7,6 +7,7 @@ import { financeRole as fetchFinanceRole } from "@/lib/session-cache";
 import { FinanceNotifications } from '@/components/finance-notifications';
 import { DailyRateHistory } from '@/components/daily-rate-history';
 import { BillingSettings } from '@/components/billing-settings';
+import { NumberInput } from "@/components/number-field";
 
 const DEFAULT_POST_SERVICE_TEMPLATE = `Hola *{{nombre}}*! 👋
 
@@ -236,7 +237,7 @@ export default function SettingsPage() {
     <section className="card stack">
       <h2 className="section-title">Redondeo catálogo</h2>
       <div className="grid grid-2">
-        <label><span className="label">Paso Bs</span><input className="input" type="number" min="0.01" step="0.01" value={step} onChange={e => setStep(Number(e.target.value))} /></label>
+        <label><span className="label">Paso Bs</span><NumberInput className="input" kind="money" min="0.01" step="0.01" value={step} onChange={e => setStep(Number(e.target.value))} /></label>
         <label><span className="label">Modo</span><select className="select" value={mode} onChange={e => setMode(e.target.value)}><option value="nearest">Más cercano</option><option value="down">Hacia abajo</option><option value="up">Hacia arriba</option></select></label>
       </div>
       <button className="btn" onClick={saveRounding}>Guardar redondeo</button>
