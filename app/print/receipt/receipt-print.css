@@ -1,0 +1,85 @@
+/* Recibo térmico de 58 mm (48 mm imprimibles). Solo #000 y #fff: en térmica
+   los grises salen tramados. Todo bajo .lc-receipt / .lc-print. */
+
+.lc-print { min-height: 100vh; background: #fff; }
+
+.lc-receipt {
+  box-sizing: border-box;
+  width: 48mm;
+  margin: 0 auto;
+  padding: 3mm 0 6mm;
+  background: #fff;
+  color: #000;
+  font-family: var(--font-switzer), "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 8pt;
+  font-weight: 500;
+  line-height: 1.32;
+  font-variant-numeric: tabular-nums;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  overflow-wrap: anywhere;
+}
+.lc-receipt * { box-sizing: border-box; }
+.lc-receipt strong, .lc-receipt .lc-r-strong { font-weight: 700; }
+
+.lc-r-band { margin: 0 0 2.5mm; padding: 1.2mm 1mm; border: 0.6mm solid #000; font-size: 7.5pt; font-weight: 800; text-align: center; text-transform: uppercase; letter-spacing: .04em; }
+
+.lc-r-head { text-align: center; }
+.lc-r-logo { display: block; width: 15mm; height: 15mm; margin: 0 auto 1.4mm; }
+.lc-r-brand { font-size: 12.5pt; font-weight: 800; letter-spacing: .06em; line-height: 1.1; }
+.lc-r-branch { margin-top: .6mm; font-size: 8pt; font-weight: 700; }
+.lc-r-contact { font-size: 7pt; }
+
+.lc-r-rule { height: 0; margin: 2.2mm 0; border: 0; border-top: 0.25mm solid #000; color: #000; }
+.lc-r-rule-thick { border-top-width: 0.8mm; }
+
+.lc-r-row { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; }
+.lc-r-row > :last-child { flex: 0 0 auto; text-align: right; white-space: nowrap; }
+.lc-r-row > :first-child { min-width: 0; }
+
+.lc-r-doc-row > :first-child { flex: 0 0 auto; white-space: nowrap; }
+.lc-r-doc-row > :last-child { flex: 1 1 auto; white-space: normal; text-align: right; }
+.lc-r-sub { display: block; font-size: 7pt; }
+.lc-r-inst { font-size: 7.5pt; }
+.lc-r-keep { white-space: nowrap; overflow-wrap: normal; }
+.lc-r-doc-title { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.lc-r-party { margin-top: 1.6mm; }
+
+.lc-r-line { padding: 1mm 0; }
+.lc-r-line + .lc-r-line { border-top: 0.15mm dotted #000; }
+.lc-r-line-name { font-weight: 700; }
+.lc-r-line-detail { font-size: 7.5pt; }
+.lc-r-adj { padding-top: 1mm; border-top: 0.15mm dotted #000; }
+
+.lc-r-total { margin: 2.4mm 0 0; padding: 1.8mm 2mm; }
+.lc-r-total-main { font-size: 13pt; font-weight: 800; line-height: 1.15; }
+.lc-r-total-main strong { font-weight: 800; }
+.lc-r-total-ves { font-size: 7.5pt; font-weight: 700; }
+.lc-receipt[data-total-style="BLOCK"] .lc-r-total { background: #000; color: #fff; }
+.lc-receipt[data-total-style="BORDER"] .lc-r-total { border: 0.6mm solid #000; }
+
+.lc-r-block { margin-top: 2.4mm; padding-top: 1.6mm; border-top: 0.25mm solid #000; }
+.lc-r-label { margin-bottom: .6mm; font-size: 7pt; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+
+.lc-r-next { margin-top: 2.6mm; padding: 1.8mm 2mm; border: 0.5mm solid #000; }
+.lc-r-next-main { font-size: 10pt; font-weight: 800; }
+
+.lc-r-foot { margin-top: 3mm; padding-top: 2mm; border-top: 0.8mm solid #000; text-align: center; }
+.lc-r-legend { margin-top: 1.4mm; font-size: 7pt; }
+
+/* Pantalla: el rollo centrado sobre gris, con botones. */
+@media screen {
+  .lc-print { padding: 16px 16px 48px; background: #e9e7e3; }
+  .lc-print-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 420px; margin: 0 auto 16px; }
+  .lc-print-actions button, .lc-print-actions a { min-height: 44px; padding: 0 18px; border: 1px solid #161616; border-radius: 999px; background: #fff; color: #161616; font: 600 15px/1 var(--font-switzer), sans-serif; text-decoration: none; display: inline-flex; align-items: center; cursor: pointer; }
+  .lc-print-actions .lc-print-primary { background: #FF5D15; border-color: #FF5D15; color: #fff; }
+  .lc-print-msg { max-width: 420px; margin: 0 auto 12px; text-align: center; font: 500 14px/1.4 var(--font-switzer), sans-serif; color: #161616; }
+  .lc-print-roll { width: 58mm; margin: 0 auto; background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.14); }
+}
+
+@media print {
+  .lc-print { padding: 0; background: #fff; }
+  .lc-print .no-print { display: none; }
+  .lc-print-roll { width: 58mm; margin: 0; box-shadow: none; }
+  .lc-receipt { break-inside: auto; }
+}

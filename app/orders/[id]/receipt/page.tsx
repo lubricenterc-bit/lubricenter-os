@@ -1,10 +1,11 @@
 "use client";
 
-import { ReceiptPrintButton } from "@/components/receipt-print-button";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
+import { receiptShareText, type ReceiptData } from "@/lib/receipt";
 
 type Order = {
   id: string;
@@ -101,12 +102,15 @@ export default function ReceiptPage() {
   }, [order, customer, vehicle, items, receivable, oilServices, serviceVehicles, cashea,tenders]);
 
   async function share() {
-    if (!shareText) return;
+    // El texto sale de order_receipt: mismo orden del recibo y sin líneas internas.
+    const { data: receipt } = await supabase.rpc("order_receipt", { p_order_id: orderId });
+    const text = receipt ? receiptShareText(receipt as ReceiptData) : shareText;
+    if (!text) return;
     try {
       if (navigator.share) {
-        await navigator.share({ title: order?.order_number ?? "Lubricenter", text: shareText });
+        await navigator.share({ title: order?.order_number ?? "Lubricenter", text });
       } else {
-        await navigator.clipboard.writeText(shareText);
+        await navigator.clipboard.writeText(text);
         setCopied(true);
         setTimeout(() => setCopied(false), 2500);
       }
@@ -122,7 +126,7 @@ export default function ReceiptPage() {
       <button className="btn btn-ghost" onClick={() => router.push(`/orders/${orderId}`)}>← Volver</button>
       <div className="row">
         <button className="btn" onClick={share}>{copied ? "Copiado ✓" : "Compartir"}</button>
-        <ReceiptPrintButton />
+        <Link className="btn btn-primary" href={`/print/receipt/${orderId}?auto=1`}>Imprimir 58 mm</Link>
       </div>
     </div>
 
