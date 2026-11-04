@@ -4,6 +4,8 @@ import Link from "next/link";
 import Decimal from "decimal.js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { syncNotice, type SyncResult, type UnverifiedInstallment } from "@/lib/cashea-sync";
+import { PendingConfirmation } from "@/components/cashea/pending-confirmation";
 import { financeRole } from "@/lib/session-cache";
 import { fmtRef } from "@/lib/format";
 import { parseBdv, parseCashea, type Preview } from "@/lib/finance/importers";
@@ -39,6 +41,7 @@ export default function CasheaConciliationPage() {
   const [data, setData] = useState<Dataset | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [pending, setPending] = useState<UnverifiedInstallment[]>([]);
   const [busy, setBusy] = useState(false);
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [bdvText, setBdvText] = useState("");
@@ -58,6 +61,9 @@ export default function CasheaConciliationPage() {
     const d = await supabase.rpc("cashea_conc_dataset", { p_from: null });
     if (d.error) { setError(d.error.message); return; }
     setData(d.data as Dataset);
+    // Lista de cuotas por confirmar sin escribir nada (modo prueba).
+    const dry = await supabase.rpc("cashea_conc_sync_installments_v2", { p_dry_run: true });
+    if (!dry.error) setPending((dry.data as SyncResult).unverified ?? []);
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -138,8 +144,13 @@ export default function CasheaConciliationPage() {
       steps.push(`${KIND_LABEL[u.kind]}: ${p.rows.length + p.orders.length} filas`);
     }
     setUploads([]); setBdvText("");
+    // Tras cargar, las cuotas verificadas (Cashea o BNC) se marcan pagadas solas.
+    const sync = await supabase.rpc("cashea_conc_sync_installments_v2", { p_dry_run: false });
+    if (sync.error) throw sync.error;
+    const synced = sync.data as SyncResult;
+    setPending(synced.unverified ?? []);
     await load();
-    setNotice(steps.join(" · ") + ". Revisa el corte y presiona «Actualizar el OS».");
+    setNotice(steps.join(" · ") + ". " + syncNotice(synced) + " Para marcar cobros de otras sucursales, presiona «Actualizar el OS».");
   }
 
   async function updateOs() {
@@ -147,12 +158,14 @@ export default function CasheaConciliationPage() {
     const items = [...result.ownership.entries()].map(([external_order, o]) => ({ external_order, branch: o.branch }));
     const own = await supabase.rpc("cashea_conc_apply_ownership", { p_items: items });
     if (own.error) throw own.error;
-    const sync = await supabase.rpc("cashea_conc_sync_installments");
+    const sync = await supabase.rpc("cashea_conc_sync_installments_v2", { p_dry_run: false });
     if (sync.error) throw sync.error;
+    const synced = sync.data as SyncResult;
+    setPending(synced.unverified ?? []);
     const rec = await supabase.rpc("finance_reconcile");
     if (rec.error) throw rec.error;
     await load();
-    setNotice(`OS actualizado: ${own.data.other_location} cobros marcados de otra sucursal, ${own.data.returned} devueltos a revisión · cuotas pagadas ${sync.data.paid}, parciales ${sync.data.partial}, ventas Cashea saldadas ${sync.data.settled} · casos abiertos en finanzas: ${rec.data?.open_cases ?? "—"}.`);
+    setNotice(`OS actualizado: ${own.data.other_location} cobros marcados de otra sucursal, ${own.data.returned} devueltos a revisión. ${syncNotice(synced)} Casos abiertos en finanzas: ${rec.data?.open_cases ?? "—"}.`);
   }
 
   async function saveAssign() {
@@ -236,6 +249,7 @@ export default function CasheaConciliationPage() {
       <div className="row"><Link className="btn" href="/cashea">Volver a Cashea</Link>{result && <button className="btn" onClick={() => run(exportExcel)} disabled={busy}>Exportar Excel</button>}</div></div>
     {error && <div className="error">{error}</div>}
     {notice && <div className="success">{notice}</div>}
+    <PendingConfirmation items={pending} />
 
     <section className="card stack">
       <h2 className="section-title">Cargar reportes</h2>

@@ -6,6 +6,8 @@ import { referenceError } from "@/lib/finance/money";
 import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
 import { NumberInput } from "@/components/number-field";
+import { PendingConfirmation } from "@/components/cashea/pending-confirmation";
+import { freshnessLine, paidSourceLabel, trackingWarnings, type SyncResult, type TrackingStatus, type UnverifiedInstallment } from "@/lib/cashea-sync";
 
 type PaymentMethod = "TRANSFER_BDV" | "TRANSFER_BNC" | "CASH_VES" | "CASH_USD";
 type Sale = {
@@ -32,6 +34,8 @@ export default function CasheaPage() {
   const [filter, setFilter] = useState<"ACTIVE" | "SETTLED" | "ALL">("ACTIVE");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [tracking, setTracking] = useState<TrackingStatus | null>(null);
+  const [pending, setPending] = useState<UnverifiedInstallment[]>([]);
 
   async function load() {
     setLoading(true); setError("");
@@ -52,6 +56,14 @@ export default function CasheaPage() {
       const row = Array.isArray(r.data) ? r.data[0] : r.data; setRates({ bcv:Number(row?.bcv_rate ?? 0), operative:Number(row?.operative_rate ?? 0) });
     }
     setLoading(false);
+    // Frescura de los reportes y cuotas por confirmar. Si el usuario no es de
+    // finanzas, la consulta en modo prueba falla y la sección no se muestra.
+    const [t, dry] = await Promise.all([
+      supabase.rpc("cashea_tracking_status"),
+      supabase.rpc("cashea_conc_sync_installments_v2", { p_dry_run: true }),
+    ]);
+    if (!t.error) setTracking(t.data as TrackingStatus);
+    setPending(dry.error ? [] : (dry.data as SyncResult).unverified ?? []);
   }
   useEffect(() => { load(); }, []);
 
@@ -66,6 +78,11 @@ export default function CasheaPage() {
   return <main className="container stack">
     <div className="row-between"><div><div className="eyebrow">FINANZAS · CASHEA TRADICIONAL</div><h1 style={{ marginBottom: 4 }}>Cashea</h1><div className="muted">Inicial recibida hoy, cuotas por recibir y costo de Cashea separado de Crédito LC.</div></div><div className="row"><Link href="/cashea/conciliacion" className="btn">Por sucursal</Link><Link href="/cashea/balance" className="btn">Balance y facturas</Link><Link href="/quick-sale" className="btn btn-primary">+ Venta Cashea</Link></div></div>
 
+    {tracking && <section className="card stack" aria-label="Frescura de los reportes de Cashea">
+      <div className="muted small">{freshnessLine(tracking)}</div>
+      {trackingWarnings(tracking).map(w => <div className="small" key={w}>⚠ {w}</div>)}
+    </section>}
+
     <section className="grid grid-3">
       <div className="card"><div className="muted small">POR RECIBIR</div><div className="kpi">{fmtRef(outstandingRef)}</div><div className="muted small">saldo Cashea en REF / USD</div></div>
       <div className="card"><div className="muted small">VENTAS ACTIVAS</div><div className="kpi">{active.length}</div><div className="muted small">{dueCount} cuotas vencidas</div></div>
@@ -78,6 +95,7 @@ export default function CasheaPage() {
     </section>
 
     {error && <div className="error">{error}</div>}
+    <PendingConfirmation items={pending} />
     {loading ? <div className="card muted">Cargando Cashea…</div> : <section className="stack">
       {visible.map(s => {
         const order = orderMap.get(s.order_id); const parts = bySale.get(s.id) ?? [];
@@ -86,7 +104,7 @@ export default function CasheaPage() {
           <div className="row-between"><div><div className="muted small">{fmtDate(s.created_at)} · {order?.order_number ?? "Orden"}</div><div className="money-lg">{fmtRef(s.gross_ref)}</div><div className="muted small">Ref. Cashea: {s.cashea_reference || "sin registrar"}</div></div><span className={`pill ${s.status === "SETTLED" ? "ok" : "warn"}`}>{s.status === "SETTLED" ? "LIQUIDADA" : "ACTIVA"}</span></div>
           <div className="grid grid-3"><div><div className="muted small">INICIAL · {s.initial_percent}%</div><strong>{fmtRef(s.initial_ref)}</strong><div className="muted small">{paymentLabel(s.initial_payment_method)}</div></div><div><div className="muted small">SALDO CASHEA</div><strong>{fmtRef(remain)}</strong></div><div><div className="muted small">COMISIÓN · {s.commission_percent}%</div><strong>{fmtRef(s.commission_ref)}</strong><div className="muted small">no aumenta precio</div></div></div>
           <div className="divider" />
-          <div className="stack"><div className="label">Cuotas</div>{parts.map(x => { const remaining = Math.max(x.amount_ref-x.paid_ref,0); const overdue = x.status !== "PAID" && new Date(`${x.due_date}T23:59:59`) < new Date(); return <div className="card" key={x.id} style={{ padding: 12 }}><div className="row-between"><div><strong>Cuota {x.installment_no} · {fmtRef(x.amount_ref)}</strong><div className="muted small">Vence {x.due_date}{x.paid_ref > 0 ? ` · recibido ${fmtRef(x.paid_ref)}` : ""}</div></div><span className={`pill ${x.status === "PAID" ? "ok" : "warn"}`}>{x.status === "PAID" ? "PAGADA" : overdue ? "VENCIDA" : x.status === "PARTIAL" ? "PARCIAL" : "PENDIENTE"}</span></div>{x.status !== "PAID" && <div className="row-between" style={{ marginTop: 10 }}><span className="muted small">Por recibir {fmtRef(remaining)}</span><button className="btn btn-primary" onClick={() => setSelected(x)}>Registrar llegada</button></div>}</div>; })}</div>
+          <div className="stack"><div className="label">Cuotas</div>{parts.map(x => { const remaining = Math.max(x.amount_ref-x.paid_ref,0); const overdue = x.status !== "PAID" && new Date(`${x.due_date}T23:59:59`) < new Date(); return <div className="card" key={x.id} style={{ padding: 12 }}><div className="row-between"><div><strong>Cuota {x.installment_no} · {fmtRef(x.amount_ref)}</strong><div className="muted small">Vence {x.due_date}{x.paid_ref > 0 ? ` · recibido ${fmtRef(x.paid_ref)}` : ""}</div></div><span className={`pill ${x.status === "PAID" ? "ok" : "warn"}`}>{x.status === "PAID" ? paidSourceLabel(tracking?.paid_sources[x.id]) : overdue ? "Vencida" : x.status === "PARTIAL" ? "Parcial" : "Pendiente"}</span></div>{x.status !== "PAID" && <div className="row-between" style={{ marginTop: 10 }}><span className="muted small">Por recibir {fmtRef(remaining)}</span><button className="btn btn-primary" onClick={() => setSelected(x)}>Registrar llegada</button></div>}</div>; })}</div>
           <div className="row-between"><Link className="btn btn-ghost" href={`/orders/${s.order_id}`}>Ver orden</Link><span className="muted small">Venta íntegra: {fmtRef(s.gross_ref)} · comisión estimada, sin IVA: {fmtRef(s.commission_ref)}</span></div>
         </article>;
       })}
