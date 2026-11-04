@@ -18,6 +18,7 @@ describe("Navegación de escritorio Lubricenter OS", () => {
       "/customers": "customers",
       "/vehicles/123": "customers",
       "/reminders": "customers",
+      "/crm": "customers",
       "/campaigns": "customers",
       "/inventory": "inventory",
       "/expenses": "inventory",

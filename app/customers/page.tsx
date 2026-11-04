@@ -72,7 +72,7 @@ export default function CustomersPage() {
     <section className="card stack">
       <div className="row-between">
         <div><h2 className="section-title">Directorio central</h2><div className="muted small">La búsqueda también revisa placas, marcas y modelos.</div></div>
-        <div className="row"><Link className="btn btn-ghost" href="/service-history">Historial de servicios</Link><Link className="btn btn-ghost" href="/reminders">Seguimientos</Link><button className="btn btn-primary" onClick={() => setShowCustomerForm(true)}>+ Cliente</button></div>
+        <div className="row"><Link className="btn btn-ghost" href="/service-history">Historial de servicios</Link><Link className="btn btn-ghost" href="/crm">Seguimiento</Link><button className="btn btn-primary" onClick={() => setShowCustomerForm(true)}>+ Cliente</button></div>
       </div>
       <input className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar nombre, teléfono, cédula, RIF, placa, marca o modelo…" autoFocus />
     </section>

@@ -1,0 +1,110 @@
+// CRM semiautomático: tipos y textos de la pantalla Seguimiento.
+// Las reglas (a quién, cuándo y qué mensaje) viven en la base: crm_board() y
+// crm_vehicle_journeys. Aquí solo se presentan.
+
+export type CrmKind = "POST_SERVICE" | "PRE" | "DUE" | "FINAL" | "RECOVERY" | "RECONNECT";
+export type CrmTemplateKind = Exclude<CrmKind, "POST_SERVICE">;
+
+export type CrmQueueItem = {
+  type: "POST_SERVICE" | "REMINDER";
+  id: string;
+  order_id?: string;
+  order_number?: string;
+  vehicle_id?: string;
+  customer_id: string | null;
+  customer_name: string | null;
+  phone: string | null;
+  wa_phone: string;
+  vehicle: string | null;
+  plate: string | null;
+  kind: CrmKind;
+  step: number | null;
+  max_steps: number | null;
+  why: string;
+  warning: string | null;
+  message: string;
+};
+
+export type CrmWaiting = {
+  id: string; customer_id: string; customer_name: string | null; phone: string | null; wa_phone: string | null;
+  vehicle: string | null; plate: string | null; sent_count: number; last_sent_at: string; eligible_on: string | null; status: string;
+};
+export type CrmBooked = {
+  id: string; customer_name: string | null; phone: string | null; wa_phone: string | null;
+  vehicle: string | null; plate: string | null; date: string;
+};
+export type CrmFix = {
+  customer_id: string; customer_name: string | null; phone: string | null; vehicles: string | null; flagged: boolean;
+};
+export type CrmBoard = {
+  today: string; cap: number; sent_today: number; remaining: number; ready_total: number;
+  queue: CrmQueueItem[]; waiting: CrmWaiting[]; booked: CrmBooked[]; fix: CrmFix[];
+};
+export type CrmResults = {
+  days: number; reminders_sent: number; post_service_sent: number; answered: number; booked: number;
+  opted_out: number; returned: number; returned_ref: number; oil_orders: number;
+  oil_orders_with_vehicle: number; oil_orders_skipped: number;
+};
+
+export type CrmOutcome = "BOOKED" | "POSTPONED" | "OTHER_SHOP" | "DECLINED" | "SOLD_VEHICLE" | "WRONG_NUMBER" | "OPT_OUT";
+
+export const KIND_LABEL: Record<CrmKind, string> = {
+  POST_SERVICE: "Postservicio",
+  PRE: "Se acerca su cambio",
+  DUE: "Ya le toca",
+  FINAL: "Último mensaje",
+  RECOVERY: "Recuperar cliente",
+  RECONNECT: "Reconectar",
+};
+
+export const TEMPLATE_HELP: Record<CrmTemplateKind, string> = {
+  PRE: "Primer aviso, 7 días antes de la fecha recomendada.",
+  DUE: "Cuando ya le toca, o 10 días después del primer aviso.",
+  FINAL: "Tercer mensaje y último. Sin insistir.",
+  RECOVERY: "Primer mensaje a quien se le pasó la fecha hace más de un mes.",
+  RECONNECT: "Un solo mensaje a quien no viene hace más de un año.",
+};
+
+export const OUTCOMES: { id: CrmOutcome; label: string; hint: string; needsDate?: boolean; danger?: boolean }[] = [
+  { id: "BOOKED", label: "Agendó", hint: "Pon el día. Aparece en Citas.", needsDate: true },
+  { id: "POSTPONED", label: "Más adelante", hint: "Se le vuelve a escribir en 30 días." },
+  { id: "OTHER_SHOP", label: "Ya lo hizo en otro lado", hint: "Empieza un ciclo nuevo desde hoy." },
+  { id: "DECLINED", label: "No le interesa", hint: "Se cierra este ciclo." },
+  { id: "SOLD_VEHICLE", label: "Vendió el carro", hint: "No se le escribe más por este carro." },
+  { id: "WRONG_NUMBER", label: "Número equivocado", hint: "Pasa a Corregir datos." },
+  { id: "OPT_OUT", label: "No quiere mensajes", hint: "No se le vuelve a escribir nunca.", danger: true },
+];
+
+export function waLink(waPhone: string, message: string) {
+  return `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
+}
+
+export function caracasToday(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
+export function addDays(day: string, days: number) {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+export function shortDate(value: string | null | undefined) {
+  if (!value) return "sin fecha";
+  const d = new Date(value.length <= 10 ? `${value}T12:00:00` : value);
+  return d.toLocaleDateString("es-VE", { day: "numeric", month: "short", timeZone: "America/Caracas" });
+}
+
+export function estimateMinutes(count: number) {
+  return Math.max(1, Math.round(count * 0.6));
+}
+
+export function displayName(name: string | null | undefined) {
+  const n = (name ?? "").trim();
+  return n || "Cliente sin nombre";
+}
+
+/** Solo bloquea la venta cuando hubo cambio de aceite; la captura opcional nunca bloquea. */
+export function captureBlocks(status: { needs?: boolean | null; optional?: boolean | null } | null | undefined): boolean {
+  return !!status?.needs;
+}

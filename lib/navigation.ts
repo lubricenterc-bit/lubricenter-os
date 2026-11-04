@@ -35,7 +35,7 @@ export const NAV_MODULES: readonly NavModule[] = [
     { href: "/customers", label: "Directorio", description: "Clientes y vehículos" },
     { href: "/crm/manual", label: "CRM manual", description: "Pendientes, servicios prepagados y mantenimiento sin orden obligatoria", keywords: "prepago cashea diferido agenda recordatorio servicio manual" },
     { href: "/service-history", label: "Historial de mantenimiento", description: "Cambios de aceite y servicios antiguos de Sheets y del OS", keywords: "servicio anterior histórico aceite placa factura mantenimiento" },
-    { href: "/reminders", label: "Recordatorios", description: "Cambios de aceite y seguimiento", keywords: "mantenimiento" },
+    { href: "/crm", label: "Seguimiento", description: "Mensajes de hoy: postservicio y recordatorios de cambio de aceite", keywords: "recordatorios mantenimiento whatsapp crm postservicio clientes citas" },
     { href: "/campaigns", label: "Campañas", description: "Promociones y contacto con clientes" }
   ] },
   { id: "inventory", label: "Inventario", icon: "inventory", defaultHref: "/inventory", links: [
@@ -75,7 +75,7 @@ export function linksForModule(module: NavModule, role: NavigationRole) {
 const exceptions: readonly [string, string][] = [
   ["/orders", "sales"], ["/vehicles", "customers"],
   ["/suppliers", "inventory"], ["/purchases", "inventory"],
-  ["/promociones", "customers"]
+  ["/promociones", "customers"], ["/reminders", "customers"]
 ];
 
 export function moduleForPath(path: string): NavModule {

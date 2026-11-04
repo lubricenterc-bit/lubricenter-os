@@ -8,7 +8,7 @@ const groups = [
       ["/orders", "▤", "Órdenes", "Abiertas, cerradas y Crédito LC"],
       ["/customers", "◉", "CRM central", "Clientes, vehículos e historial"],
       ["/customer-balances", "$", "Saldos a favor", "Anticipos, usos y devoluciones por cliente"],
-      ["/reminders", "♡", "Seguimientos", "Post-servicio y mantenimiento"],
+      ["/crm", "♡", "Seguimiento", "Postservicio y recordatorios"],
       ["/finance", "▣", "Finanzas", "Ventas, cobros, gastos y saldos"],
     ],
   },
