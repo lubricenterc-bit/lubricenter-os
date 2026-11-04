@@ -8,6 +8,7 @@ import { FinanceNotifications } from '@/components/finance-notifications';
 import { DailyRateHistory } from '@/components/daily-rate-history';
 import { BillingSettings } from '@/components/billing-settings';
 import { NumberInput } from "@/components/number-field";
+import { ReceiptSettings } from '@/components/receipt-settings';
 
 const DEFAULT_POST_SERVICE_TEMPLATE = `Hola *{{nombre}}*! 👋
 
@@ -153,6 +154,7 @@ export default function SettingsPage() {
     {error && <div className="error">{error}</div>}{message && <div className="success">{message}</div>}
 
     <BillingSettings />
+    <ReceiptSettings />
     <FinanceNotifications />
     <DailyRateHistory />
     <section className="card stack">

@@ -173,6 +173,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (pathname === "/login") return <>{children}</>;
+  // Páginas de impresión (recibo 58 mm): sin menú; AuthGuard sigue protegiéndolas.
+  if (pathname.startsWith("/print/")) return <>{children}</>;
 
   function linkActive(href: string) {
     if (href === "/") return pathname === "/";
