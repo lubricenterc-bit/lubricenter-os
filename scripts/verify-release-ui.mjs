@@ -100,8 +100,8 @@ try{
  sheet=page.locator('.sheet').last();
  await sheet.getByLabel('Número de factura').fill('SIM-01');
  await sheet.locator(`select:has(option[value="${fixtures[0].skuId}"])`).selectOption(fixtures[0].skuId);
- await sheet.locator('input[type="number"]').nth(0).fill('12');
- await sheet.locator('input[type="number"]').nth(1).fill('3516');
+ await sheet.locator('input[inputmode="decimal"]').nth(0).fill('12');
+ await sheet.locator('input[inputmode="decimal"]').nth(1).fill('3516');
  await sheet.getByRole('button',{name:/(Guardar|Registrar) factura/}).click();
  await page.waitForURL(`**/purchases/${fixtures[0].invoiceId}`);
  assert.equal(state.invoiceWrites[0].p_currency,'VES');
