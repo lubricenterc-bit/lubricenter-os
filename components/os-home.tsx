@@ -12,7 +12,7 @@ export type HomeDashboard = {
   localDate: string; closedOrdersToday: number; salesRefToday: number; collectedRefToday: number;
   openOrders: number; activeVehicles: number; received: number; diagnosis: number; inProgress: number;
   waitingParts: number; ready: number; postService: number; maintenanceDue: number; maintenanceSoon: number;
-  crmToSend: number; crmBookedToday: number;
+  crmToSend: number; crmBookedToday: number; crmToRecover?: number;
   receivablesOpen: number; receivablesOutstandingVes: number; payrollPendingRef: number;
   inventoryReview: number; inventoryNegative: number; bcv: number; operative: number;
 };
@@ -118,8 +118,9 @@ export function OsHome({ data, board, owner, locationName, loading, error, onRef
   ];
 
   const pending: { href: string; icon: BrandIconName; level: "Urgente" | "Hoy" | "Esta semana"; title: string; note: string; count: number; on?: boolean }[] = [];
-  if (data.crmToSend > 0) pending.push({ href: "/crm", icon: "clock", level: "Hoy", title: "Mensajes de seguimiento", note: "Postservicio y recordatorios listos para enviar", count: data.crmToSend, on: true });
-  if (data.crmBookedToday > 0) pending.push({ href: "/crm", icon: "cal", level: "Hoy", title: "Citas de hoy", note: "Clientes que agendaron su cambio", count: data.crmBookedToday });
+  if (data.crmToSend > 0) pending.push({ href: "/crm?tab=today", icon: "clock", level: "Hoy", title: "Mensajes de seguimiento", note: "Postservicio y recordatorios listos para enviar", count: data.crmToSend, on: true });
+  if ((data.crmToRecover ?? 0) > 0) pending.push({ href: "/crm?tab=recover", icon: "clock", level: "Esta semana", title: "Clientes por recuperar", note: "Les toca o ya se les pasó el cambio de aceite", count: data.crmToRecover ?? 0 });
+  if (data.crmBookedToday > 0) pending.push({ href: "/crm?tab=booked", icon: "cal", level: "Hoy", title: "Citas de hoy", note: "Clientes que agendaron su cambio", count: data.crmBookedToday });
   if (data.inventoryNegative > 0) pending.push({ href: "/inventory", icon: "tag", level: "Urgente", title: "Existencias negativas", note: "Productos vendidos sin stock registrado", count: data.inventoryNegative, on: true });
   if (data.openOrders > 0) pending.push({ href: "/orders", icon: "clip", level: "Hoy", title: "Órdenes sin finalizar", note: "Revisar avances y pagos", count: data.openOrders });
   if (data.inventoryReview > 0) pending.push({ href: "/inventory", icon: "tag", level: "Hoy", title: "Inventario por revisar", note: "Códigos o conteos pendientes", count: data.inventoryReview });
