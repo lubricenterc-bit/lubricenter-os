@@ -309,6 +309,18 @@
   .os-theme .order-item strong[style*="color:rgb(101, 211, 147)"] { color: var(--green) !important; }
 }
 
+/* Campo numérico (components/number-field.tsx) */
+@media screen {
+  .os-number { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .os-number > input { flex: 1 1 auto; min-width: 0; }
+  .os-number-btn { flex: 0 0 auto; width: 40px; height: 40px; border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); color: var(--ink); font-size: 18px; font-weight: 600; line-height: 1; cursor: pointer; }
+  .os-number-btn:hover:not(:disabled) { border-color: var(--ink); }
+  .os-number-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .os-number-affix { flex: 0 0 auto; color: var(--ink-2); font-weight: 600; }
+  .os-number-invalid, .os-theme .os-number-invalid { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
+  .os-number-error { display: block; margin-top: 4px; color: var(--red); font-size: 12.5px; font-weight: 500; line-height: 1.35; }
+}
+
 @keyframes os-fade { from { opacity: 0; } }
 @keyframes os-sheet { from { opacity: 0; transform: translateY(18px) scale(.97); } }
 

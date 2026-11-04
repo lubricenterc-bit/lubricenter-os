@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
 import { VehicleOilForecastCard } from "@/components/vehicle-oil-forecast-card";
 import type { VehicleOilForecast } from "@/lib/oil-forecast";
+import { NumberInput } from "@/components/number-field";
 
 type Vehicle = {
   id: string;
@@ -145,7 +146,7 @@ export default function VehiclePage() {
         <div className="card stack">
           <div className="muted small">KILOMETRAJE ACTUAL</div>
           <div className="kpi">{vehicle.current_odometer != null ? `${vehicle.current_odometer.toLocaleString("es-VE")} km` : "Sin km"}</div>
-          <div className="row"><input className="input" type="number" min="0" value={odometer} onChange={e => setOdometer(e.target.value)} placeholder="Kilometraje" /><button className="btn" disabled={busy || !odometer} onClick={updateOdometer}>Actualizar</button></div>
+          <div className="row"><NumberInput className="input" kind="qty" min="0" value={odometer} onChange={e => setOdometer(e.target.value)} placeholder="Kilometraje" /><button className="btn" disabled={busy || !odometer} onClick={updateOdometer}>Actualizar</button></div>
         </div>
       </section>
 

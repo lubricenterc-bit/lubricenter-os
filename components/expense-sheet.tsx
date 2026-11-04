@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from 'next/link';
 import { natures, type Nature } from '@/lib/finance/money';
+import { NumberInput } from "@/components/number-field";
 
 export type ExpenseAccount = { id: string; name: string; currency: "VES" | "USD"; account_type: string };
 
@@ -47,7 +48,7 @@ export function ExpenseSheet({ accounts, onCancel, onDone }: { accounts: Expense
     <div className="grid grid-2">
       <label><span className="label">Cuenta que paga</span><select className="select" value={accountId} onChange={e => setAccountId(e.target.value)}>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></label>
       <label><span className="label">Fecha del gasto</span><input className="input" type="date" max={localDate()} value={occurredOn} onChange={e => setOccurredOn(e.target.value)} /></label>
-      <label><span className="label">Monto {account?.currency ?? ""}</span><input className="input" type="number" min="0" step="0.01" value={amount || ""} onChange={e => setAmount(Number(e.target.value))} autoFocus /></label>
+      <label><span className="label">Monto {account?.currency ?? ""}</span><NumberInput className="input" kind="money" min="0" step="0.01" value={amount || ""} onChange={e => setAmount(Number(e.target.value))} autoFocus /></label>
       {needsCategory && <label><span className="label">Categoría</span><input className="input" list="expense-categories" value={category} onChange={e => setCategory(e.target.value)} placeholder="Selecciona o escribe otra" /><datalist id="expense-categories">{categories.map(c => <option key={c} value={c} />)}</datalist></label>}
       <label><span className="label">Proveedor / beneficiario</span><input className="input" value={payee} onChange={e => setPayee(e.target.value)} placeholder="A quién se pagó" /></label>
       <label><span className="label">Referencia</span><input className="input" value={reference} onChange={e => setReference(e.target.value)} placeholder="Factura, pago móvil…" /></label>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { inventorySearchText, matchesSearch } from "@/lib/domain/search";
+import { NumberInput } from "@/components/number-field";
 
 type InventoryRow = {
   id: string;
@@ -78,7 +79,7 @@ export function OrderBonusProduct({ orderId }: { orderId: string }) {
       {selected && <div className="card stack">
         <strong>{selected.sku} · {selected.description}</strong>
         <div className="grid grid-2">
-          <label><span className="label">Cantidad</span><input className="input" type="number" min="0.01" step="0.01" value={qty} onChange={e => setQty(Number(e.target.value))} /></label>
+          <label><span className="label">Cantidad</span><NumberInput className="input" kind="qty" min="0.01" step="0.01" value={qty} onChange={e => setQty(Number(e.target.value))} /></label>
           <label><span className="label">Motivo / cortesía</span><input className="input" value={reason} onChange={e => setReason(e.target.value)} placeholder="Ej. Cortesía post-servicio" /></label>
         </div>
         <div className="row-between"><span>Cliente paga</span><strong>REF $0.00</strong></div>

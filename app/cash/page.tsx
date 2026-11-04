@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtVes } from "@/lib/format";
 import Link from "next/link";
+import { NumberInput } from "@/components/number-field";
 
 type Account = {
   id: string;
@@ -135,7 +136,7 @@ function ExpenseSheet({ accounts, onCancel, onDone }: { accounts: Account[]; onC
   return <div className="overlay"><div className="sheet stack">
     <div className="row-between"><h2 style={{ margin: 0 }}>Registrar gasto</h2><button className="btn btn-ghost" onClick={onCancel}>Cerrar</button></div>
     <label><span className="label">Cuenta que paga</span><select className="select" value={accountId} onChange={e => setAccountId(e.target.value)}>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></label>
-    <label><span className="label">Monto {account?.currency ?? ""}</span><input className="input" type="number" min="0" step="0.01" value={amount || ""} onChange={e => setAmount(Number(e.target.value))} /></label>
+    <label><span className="label">Monto {account?.currency ?? ""}</span><NumberInput className="input" kind="money" min="0" step="0.01" value={amount || ""} onChange={e => setAmount(Number(e.target.value))} /></label>
     <label><span className="label">Categoría</span><input className="input" value={category} onChange={e => setCategory(e.target.value)} placeholder="Ej. insumos, comida, repuesto, servicio" /></label>
     <label><span className="label">Nota</span><input className="input" value={note} onChange={e => setNote(e.target.value)} placeholder="Qué se pagó" /></label>
     <label><span className="label">Referencia opcional</span><input className="input" value={reference} onChange={e => setReference(e.target.value)} /></label>
@@ -179,9 +180,9 @@ function TransferSheet({ accounts, onCancel, onDone }: { accounts: Account[]; on
     <div className="row-between"><h2 style={{ margin: 0 }}>Transferencia interna</h2><button className="btn btn-ghost" onClick={onCancel}>Cerrar</button></div>
     <label><span className="label">Desde</span><select className="select" value={fromId} onChange={e => setFromId(e.target.value)}>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></label>
     <label><span className="label">Hacia</span><select className="select" value={toId} onChange={e => setToId(e.target.value)}>{compatible.map(a => <option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></label>
-    <label><span className="label">Monto que sale ({from?.currency ?? ""})</span><input className="input" type="number" min="0" step="0.01" value={amount || ""} onChange={e => setAmount(Number(e.target.value))} /></label>
+    <label><span className="label">Monto que sale ({from?.currency ?? ""})</span><NumberInput className="input" kind="money" min="0" step="0.01" value={amount || ""} onChange={e => setAmount(Number(e.target.value))} /></label>
     {isFx && <><label><span className="label">Monto recibido ({destination?.currency === "USD" && destination.code === "BINANCE" ? "USDT" : destination?.currency})</span>
-      <input className="input" type="number" min="0" step="0.01" value={toAmount || ""} onChange={e => setToAmount(Number(e.target.value))} /></label>
+      <NumberInput className="input" kind="money" min="0" step="0.01" value={toAmount || ""} onChange={e => setToAmount(Number(e.target.value))} /></label>
       <div className="muted small">Tasa ejecutada: {exchangeRate === null ? "indica ambos montos" : `${exchangeRate.toLocaleString("es-VE", { maximumFractionDigits: 6 })} Bs/USD`}. Se registran ambas cifras reales como una transferencia, sin crear ventas.</div></>}
     <label><span className="label">Nota</span><input className="input" value={note} onChange={e => setNote(e.target.value)} placeholder="Ej. transferencia a El Cuji" /></label>
     <label><span className="label">Referencia opcional</span><input className="input" value={reference} onChange={e => setReference(e.target.value)} /></label>

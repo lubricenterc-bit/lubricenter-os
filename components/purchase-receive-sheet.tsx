@@ -2,6 +2,7 @@
 import {useEffect,useRef,useState} from "react";
 import {supabase} from "@/lib/supabase";
 import {readPendingReceipt,receiptStorageKey,validateReceiptQuantities,type ReceiptRequest} from "@/lib/purchase-receipts";
+import { NumberInput } from "@/components/number-field";
 
 type Line={id:string;description:string;quantity:number;received_quantity:number};
 type Location={id:string;code:string;name:string};
@@ -58,7 +59,7 @@ export function PurchaseReceiveSheet({invoiceId,lines,locations,onCancel,onDone}
     <fieldset disabled={busy||!!pending||!ready} style={{border:0,padding:0}} className="stack">
       <div className="grid grid-2"><label><span className="label">Fecha de recepción</span><input className="input" type="date" max={today()} value={date} onChange={e=>setDate(e.target.value)}/></label>
       <label><span className="label">Sede de destino</span><select className="select" value={location} onChange={e=>setLocation(e.target.value)}><option value="">Selecciona sede…</option>{locations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select></label></div>
-      {lines.map(x=><label className="card row-between" key={x.id}><div><strong>{x.description}</strong><div className="muted small">Pendiente: {Number(x.quantity)-Number(x.received_quantity)}</div></div><input aria-label={`Cantidad recibida: ${x.description}`} className="input" style={{width:140}} type="number" min="0" max={Math.max(0,Number(x.quantity)-Number(x.received_quantity))} step="0.01" value={qty[x.id]??0} onChange={e=>setQty(q=>({...q,[x.id]:Number(e.target.value)}))}/></label>)}
+      {lines.map(x=><label className="card row-between" key={x.id}><div><strong>{x.description}</strong><div className="muted small">Pendiente: {Number(x.quantity)-Number(x.received_quantity)}</div></div><NumberInput aria-label={`Cantidad recibida: ${x.description}`} className="input" style={{width:140}} kind="qty" min="0" max={Math.max(0,Number(x.quantity)-Number(x.received_quantity))} step="0.01" value={qty[x.id]??0} onChange={e=>setQty(q=>({...q,[x.id]:Number(e.target.value)}))}/></label>)}
       <label><span className="label">Nota de recepción</span><input className="input" value={notes} onChange={e=>setNotes(e.target.value)}/></label>
     </fieldset>
     {error&&<div className="error" role="alert">{error}</div>}

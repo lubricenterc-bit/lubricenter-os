@@ -15,6 +15,7 @@ import {
   peekQuoteLines, mergeQuoteLines, resolvedQuote, quoteCustomerMessage, takeQuoteLines,
   storeQuoteLines, type SalesQuoteLine, type ShareCurrencies, type SalesQuoteMoney
 } from "@/lib/sales-quote";
+import { NumberInput } from "@/components/number-field";
 
 const money = (value:number|null, type:"ves"|"usd") =>
   value == null ? "—" : type === "ves" ? fmtVes(value) : fmtRef(value);
@@ -268,9 +269,9 @@ export default function GeneralQuotePage() {
           {manualOpen&&<div className="sq-manual-fields">
             <label>Descripción<input value={manualDescription} onChange={e=>setManualDescription(e.target.value)}
               placeholder="Ej. Servicio de mantenimiento"/></label>
-            <label>Precio unitario ($ BCV)<input type="number" min="0.01" step="0.01" value={manualPrice}
+            <label>Precio unitario ($ BCV)<NumberInput kind="money" min="0.01" step="0.01" value={manualPrice}
               onChange={e=>setManualPrice(e.target.value)} placeholder="0,00"/></label>
-            <label>Cantidad<input type="number" min="0.01" step="0.01" value={manualQuantity}
+            <label>Cantidad<NumberInput kind="qty" min="0.01" step="0.01" value={manualQuantity}
               onChange={e=>setManualQuantity(e.target.value)}/></label>
             <button className="sq-button is-primary" type="button" onClick={addManual}>Agregar concepto</button>
           </div>}
@@ -297,7 +298,7 @@ export default function GeneralQuotePage() {
                 <button onClick={()=>row.item.quantity<=1?removeLine(row.item.id):
                   updateQuantity(row.item.id,Number((row.item.quantity-1).toFixed(2)))}
                   aria-label={"Restar unidad de "+row.name}>−</button>
-                <input aria-label={"Cantidad de "+row.name} type="number" min="0.01" max="1000" step="0.01"
+                <NumberInput aria-label={"Cantidad de "+row.name} kind="qty" min="0.01" max="1000" step="0.01"
                   value={row.item.quantity} onChange={e=>updateQuantity(row.item.id,Number(e.target.value))}/>
                 <button onClick={()=>updateQuantity(row.item.id,Number((row.item.quantity+1).toFixed(2)))}
                   aria-label={"Agregar unidad de "+row.name}>+</button>

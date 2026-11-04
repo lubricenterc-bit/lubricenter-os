@@ -6,6 +6,7 @@ import {useEffect,useMemo,useState} from "react";
 import {supabase} from "@/lib/supabase";
 import { canAdministerOrders } from "@/lib/session-cache";
 import {fmtRef,fmtVes} from "@/lib/format";
+import { NumberInput } from "@/components/number-field";
 
 type Car={id:string;customer_id:string|null;plate:string|null;make:string|null;model:string|null;current_odometer:number|null};
 type OilService={id:string;service_vehicle_id:string|null;service_odometer:number|null;oil_brand:string|null;oil_viscosity:string|null;oil_quantity_liters:number|null;oil_filter_code:string|null;next_service_odometer:number|null;next_service_date:string|null};
@@ -153,14 +154,14 @@ export default function CorrectServicePage(){
    </label>
    {car&&car.customer_id!==order.customer_id&&<p className="muted small">El servicio y su mensaje CRM pertenecerán a {owners[car.customer_id||""]||"el dueño del vehículo"}, distinto de quien pagó la venta.</p>}
    <label><span className="label">Kilometraje al momento del servicio *</span>
-    <input className="input" type="number" min="0" value={odometer} onChange={e=>{setOdometer(e.target.value);setConfirmed(false);}}/></label>
+    <NumberInput className="input" kind="qty" min="0" value={odometer} onChange={e=>{setOdometer(e.target.value);setConfirmed(false);}}/></label>
    <h2 className="section-title">3. Aceite y próximo mantenimiento</h2>
    <div className="grid grid-2">
     <label><span className="label">Aceite utilizado *</span><input className="input" value={brand} onChange={e=>setBrand(e.target.value)}/></label>
     <label><span className="label">Viscosidad</span><input className="input" value={viscosity} onChange={e=>setViscosity(e.target.value)} placeholder="15W-40"/></label>
-    <label><span className="label">Litros colocados</span><input className="input" type="number" step=".1" min=".1" value={liters} onChange={e=>setLiters(e.target.value)}/></label>
+    <label><span className="label">Litros colocados</span><NumberInput className="input" kind="qty" step=".1" min=".1" value={liters} onChange={e=>setLiters(e.target.value)}/></label>
     <label><span className="label">Filtro de aceite</span><input className="input" value={filter} onChange={e=>setFilter(e.target.value)}/></label>
-    <label><span className="label">Próximo kilometraje</span><input className="input" type="number" min="0" value={nextKm} onChange={e=>setNextKm(e.target.value)}/></label>
+    <label><span className="label">Próximo kilometraje</span><NumberInput className="input" kind="qty" min="0" value={nextKm} onChange={e=>setNextKm(e.target.value)}/></label>
     <label><span className="label">Próxima fecha</span><input className="input" type="date" value={nextDate} onChange={e=>setNextDate(e.target.value)}/></label>
    </div>
    <label><span className="label">Motivo de la corrección *</span>

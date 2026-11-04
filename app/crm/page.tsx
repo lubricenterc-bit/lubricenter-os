@@ -9,6 +9,7 @@ import {
   KIND_LABEL, OUTCOMES, TEMPLATE_HELP, addDays, caracasToday, displayName, estimateMinutes, shortDate, waLink,
   type CrmBoard, type CrmOutcome, type CrmResults, type CrmTemplateKind,
 } from "@/lib/crm";
+import { NumberInput } from "@/components/number-field";
 
 type Tab = "TODAY" | "WAITING" | "BOOKED" | "FIX" | "RESULTS" | "ALL" | "MESSAGES";
 type Journey = {
@@ -338,7 +339,7 @@ function MessagesView({ cap, onChanged, onError }: { cap: number; onChanged: (m:
         <li>Si registra un cambio de aceite nuevo, el seguimiento se cierra solo.</li>
       </ul>
       <label className="crm-cap">Máximo de mensajes por día
-        <input className="input" type="number" min={1} max={60} value={capDraft} onChange={e => setCapDraft(e.target.value)} />
+        <NumberInput className="input" kind="qty" min={1} max={60} value={capDraft} onChange={e => setCapDraft(e.target.value)} />
         <button className="btn" disabled={busy === "cap" || Number(capDraft) === cap} onClick={() => void saveCap()}>Guardar</button>
       </label>
     </div>

@@ -3,6 +3,7 @@ import Link from "next/link";
 import {useEffect,useMemo,useState} from "react";
 import {supabase} from "@/lib/supabase";
 import { canAdministerOrders } from "@/lib/session-cache";
+import { NumberInput } from "@/components/number-field";
 type Employee={id:string;name:string};
 type Account={id:string;code:string;name:string;currency:string;account_type:string};
 type Advance={id:string;employee_id:string;employee_name:string;paid_on:string;intended_period_end:string;currency:string;
@@ -74,9 +75,9 @@ export default function PayrollAdvances(){
       <label><span className="label">Cuenta desde donde salió</span><select className="select" value={accountId} onChange={e=>setAccountId(e.target.value)}>
        {accounts.map(a=><option value={a.id} key={a.id}>{a.name} · {a.currency}</option>)}</select></label>
       <label><span className="label">Monto que salió de la cuenta ({selectedAccount?.currency||"USD/Bs"})</span>
-        <input className="input" type="number" min=".01" step=".01" value={amount} onChange={e=>{setAmount(e.target.value);setConfirm(false);}}/></label>
+        <NumberInput className="input" kind="money" min=".01" step=".01" value={amount} onChange={e=>{setAmount(e.target.value);setConfirm(false);}}/></label>
       <label><span className="label">Monto acordado como anticipo en USD (para verificación)</span>
-        <input className="input" type="number" min=".01" step=".01" value={claimedUsd} onChange={e=>{setClaimedUsd(e.target.value);setConfirm(false);}} placeholder="Ej. 32.00"/></label>
+        <NumberInput className="input" kind="money" min=".01" step=".01" value={claimedUsd} onChange={e=>{setClaimedUsd(e.target.value);setConfirm(false);}} placeholder="Ej. 32.00"/></label>
       <label><span className="label">Referencia de pago {selectedAccount?.account_type==="BANK"?"(obligatoria)":""}</span>
        <input className="input" value={reference} onChange={e=>{setReference(e.target.value);setConfirm(false);}} placeholder="Últimos 4 dígitos o referencia completa"/></label>
       <label><span className="label">Sábado de la nómina a la que se aplicará</span>

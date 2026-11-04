@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { NumberInput } from "@/components/number-field";
 
 type Customer = { id: string; name: string | null; phone: string | null; document_id: string | null };
 type Vehicle = { id: string; customer_id: string | null; plate: string | null; make: string | null; model: string | null; year: number | null; engine: string | null; current_odometer: number | null };
@@ -141,7 +142,7 @@ export function OrderPartySheet({ currentCustomer, currentVehicle, ensureOrder, 
       {newCustomer && <div className="card stack"><strong>Nuevo cliente</strong><label>Nombre *<input className="input" value={name} onChange={e => setName(e.target.value)} /></label><div className="grid grid-2"><label>Teléfono<input className="input" inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)} /></label><label>Cédula<input className="input" value={documentId} onChange={e => setDocumentId(e.target.value)} /></label></div></div>}
       {customer && !newVehicle && <div className="stack directory-list">{owned.map(v => <button key={v.id} className={`directory-option ${vehicle?.id === v.id ? "selected" : ""}`} onClick={() => chooseVehicle(v)}><strong>{v.plate || "Sin placa"}</strong><span>{[v.make, v.model].filter(Boolean).join(" · ")}</span></button>)}</div>}
       {vehicle && <div className="success">Vehículo seleccionado: <strong>{vehicle.plate || vehicle.model}</strong></div>}
-      {newVehicle && <div className="card stack"><div className="row-between"><strong>Nuevo vehículo</strong><button className="btn btn-ghost" onClick={() => setNewVehicle(false)}>Sin vehículo</button></div><div className="grid grid-2"><label>Placa *<input className="input" value={plate} onChange={e => setPlate(e.target.value.toUpperCase())} /></label><label>Kilometraje<input className="input" type="number" min="0" step="1" value={odometer} onChange={e => setOdometer(e.target.value)} /></label><label>Marca<input className="input" value={make} onChange={e => setMake(e.target.value)} /></label><label>Modelo<input className="input" value={model} onChange={e => setModel(e.target.value)} /></label></div></div>}
+      {newVehicle && <div className="card stack"><div className="row-between"><strong>Nuevo vehículo</strong><button className="btn btn-ghost" onClick={() => setNewVehicle(false)}>Sin vehículo</button></div><div className="grid grid-2"><label>Placa *<input className="input" value={plate} onChange={e => setPlate(e.target.value.toUpperCase())} /></label><label>Kilometraje<NumberInput className="input" kind="qty" min="0" step="1" value={odometer} onChange={e => setOdometer(e.target.value)} /></label><label>Marca<input className="input" value={make} onChange={e => setMake(e.target.value)} /></label><label>Modelo<input className="input" value={model} onChange={e => setModel(e.target.value)} /></label></div></div>}
     </fieldset>
     {error && <div className="error" role="alert">{error}</div>}
     <button className="btn btn-primary btn-block" disabled={busy} onClick={save}>{busy ? "Guardando…" : "Guardar y continuar en la orden"}</button>

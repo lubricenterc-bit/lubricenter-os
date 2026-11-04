@@ -4,6 +4,7 @@ import { CasheaSplitEditor } from "@/components/cashea-split-editor";
 import { casheaPaymentPreview, newCasheaSplitLine, type CasheaSplitLine } from "@/lib/cashea-split";
 import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
+import { NumberInput } from "@/components/number-field";
 
 export function OrderCasheaSheet({ orderId, totalRef: initialTotalRef, totalVes: initialTotalVes, paidVes, onDone, onCancel }: {
   orderId: string; totalRef: number; totalVes: number; paidVes: number;
@@ -103,7 +104,7 @@ export function OrderCasheaSheet({ orderId, totalRef: initialTotalRef, totalVes:
       {surcharge && <div className="card"><strong>Incluye recargo Cashea {surcharge.percent.toLocaleString("es-VE", { maximumFractionDigits: 2 })}% · {fmtRef(surcharge.ref)}</strong><div className="muted small">Solo sobre la mano de obra de taller. Cubre la comisión y el tiempo de espera de las cuotas; es de Lubricenter y no cambia lo de Cheo. Si vuelves atrás, el recargo se quita.</div></div>}
       <fieldset disabled={busy} className="form-fields stack">
         <div className="grid grid-3">{[40,50,60].map(n => <button key={n} className={`btn ${pct === n ? "btn-primary" : ""}`} onClick={() => { setPercent(String(n)); setConfirmed(false); setError(""); }}>{n}% inicial</button>)}</div>
-        <label>Inicial personalizada (%)<input className="input" type="number" min="0.01" max="100" step="0.01" value={percent} onChange={e => { setPercent(e.target.value); setConfirmed(false); setError(""); }} /></label>
+        <label>Inicial personalizada (%)<NumberInput className="input" kind="percent" min="0.01" max="100" step="0.01" value={percent} onChange={e => { setPercent(e.target.value); setConfirmed(false); setError(""); }} /></label>
         <div className="card stack"><div className="row-between"><span>Inicial total</span><strong>{fmtRef(initialRef)} · {fmtVes(initialVes)}</strong></div><div className="row-between"><span>Pagos ya registrados</span><strong>{fmtVes(paidVes)}</strong></div><div className="row-between"><strong>Recibir ahora</strong><strong>{fmtVes(extraVes)}</strong></div></div>
         <CasheaSplitEditor lines={splits} onChange={updateSplits} requiredVes={extraVes} bcv={bcv} previouslyPaidVes={paidVes} disabled={busy}/>
         <label>Número de orden Cashea · obligatorio<input className="input" value={casheaReference} onChange={e => {setCasheaReference(e.target.value);setError("");setConfirmed(false);}} /></label>
