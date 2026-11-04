@@ -103,3 +103,8 @@ export function displayName(name: string | null | undefined) {
   const n = (name ?? "").trim();
   return n || "Cliente sin nombre";
 }
+
+/** Solo bloquea la venta cuando hubo cambio de aceite; la captura opcional nunca bloquea. */
+export function captureBlocks(status: { needs?: boolean | null; optional?: boolean | null } | null | undefined): boolean {
+  return !!status?.needs;
+}

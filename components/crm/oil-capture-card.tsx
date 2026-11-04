@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { captureBlocks } from "@/lib/crm";
 
-type Status = { needs: boolean; oil: string | null };
+type Status = { needs: boolean; optional?: boolean; oil: string | null };
 type Known = { vehicle_id: string; plate: string; make: string | null; model: string | null; customer_name: string | null; phone: string | null } | null;
 
 /** Venta rápida con aceite: pide placa y teléfono para que el cliente entre a
- *  Seguimiento. Si no quiere dar datos, se registra y se sigue. */
+ *  Seguimiento. Si no quiere dar datos, se registra y se sigue.
+ *  - needs: hubo cambio de aceite → bloquea hasta anotar la placa o marcar que no quiso.
+ *  - optional: aceite sin cambio (litros sueltos) → tarjeta plegada que no bloquea. */
 export function OilCaptureCard({ orderId, onBlockingChange }: { orderId: string; onBlockingChange: (blocking: boolean) => void }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [plate, setPlate] = useState("");
@@ -19,15 +22,16 @@ export function OilCaptureCard({ orderId, onBlockingChange }: { orderId: string;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let alive = true;
     void supabase.rpc("crm_capture_status", { p_order_id: orderId }).then(({ data, error }) => {
       if (!alive) return;
       // Si la consulta falla no se bloquea la venta.
-      const s = error ? { needs: false, oil: null } : (data as Status);
+      const s = error ? { needs: false, optional: false, oil: null } : (data as Status);
       setStatus(s);
-      onBlockingChange(!!s.needs);
+      onBlockingChange(captureBlocks(s));
     });
     return () => { alive = false; };
   }, [orderId, onBlockingChange]);
@@ -63,12 +67,17 @@ export function OilCaptureCard({ orderId, onBlockingChange }: { orderId: string;
     onBlockingChange(false);
   }
 
-  if (!status?.needs) return null;
+  if (!status || (!status.needs && !status.optional)) return null;
   if (saved) return <div className="success" role="status">{saved}</div>;
+  if (!status.needs && !expanded) {
+    return <div className="crm-capture crm-capture-optional">
+      <button type="button" className="btn btn-ghost" aria-expanded={false} onClick={() => setExpanded(true)}>¿Fue para un cambio de aceite? Anotar placa</button>
+    </div>;
+  }
 
   return <div className="crm-capture" role="group" aria-labelledby={`capture-${orderId}`}>
     <strong id={`capture-${orderId}`}>¿De qué carro es el aceite?</strong>
-    <span className="crm-capture-note">Pide la placa y el WhatsApp para avisarle cuando le toque el próximo cambio.</span>
+    <span className="crm-capture-note">{status.needs ? "Pide la placa y el WhatsApp para avisarle cuando le toque el próximo cambio." : "Opcional: si fue para un cambio de aceite, anota la placa para avisarle del próximo."}</span>
     <div className="crm-capture-grid">
       <label><span className="label">Placa</span>
         <input className="input" autoFocus value={plate} maxLength={10} onChange={e => setPlate(e.target.value.toUpperCase())} onBlur={() => void lookup()} placeholder="AB123CD" /></label>
@@ -85,7 +94,9 @@ export function OilCaptureCard({ orderId, onBlockingChange }: { orderId: string;
     {error && <div className="error" role="alert">{error}</div>}
     <div className="crm-capture-actions">
       <button className="btn btn-primary" disabled={busy || plate.replace(/[^A-Za-z0-9]/g, "").length < 5 || phone.replace(/\D/g, "").length < 10} onClick={() => void save()}>{busy ? "Guardando…" : "Guardar datos del carro"}</button>
-      <button className="btn btn-ghost" disabled={busy} onClick={() => void skip()}>El cliente no quiso dar datos</button>
+      {status.needs
+        ? <button className="btn btn-ghost" disabled={busy} onClick={() => void skip()}>El cliente no quiso dar datos</button>
+        : <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setExpanded(false)}>Ahora no</button>}
     </div>
   </div>;
 }

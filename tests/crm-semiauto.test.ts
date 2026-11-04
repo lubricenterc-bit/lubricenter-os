@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { addDays, estimateMinutes, waLink } from "../lib/crm";
+import { addDays, captureBlocks, estimateMinutes, waLink } from "../lib/crm";
 import { moduleForPath, navigationSearch } from "../lib/navigation";
 
 const sql = readFileSync("supabase/migrations/20261103150000_crm_semiauto.sql", "utf8");
@@ -53,6 +53,30 @@ describe("CRM semiautomático", () => {
     const quick = readFileSync("components/quick-sale-screen.tsx", "utf8");
     expect(quick).toContain("<OilCaptureCard");
     expect(quick).toContain("disabled={captureBlocking}");
+  });
+
+  it("la placa solo se exige cuando hubo cambio de aceite", () => {
+    const capture = readFileSync("supabase/migrations/20261104120000_crm_capture_only_oil_change.sql", "utf8");
+    expect(capture).toContain("create or replace function lubricenter_private.crm_order_needs_capture(p_order_id uuid)");
+    // Servicio de cambio, o 4 L de aceite de motor (galón = 4) + filtro de aceite.
+    expect(capture).toContain("l.item_type = 'SERVICE' and l.business_area = 'OIL_CHANGE'");
+    expect(capture).toContain("when l.unit = 'GAL' then 4");
+    expect(capture).toContain("), 0) >= 4");
+    expect(capture).toContain("l.category = 'Filtro Aceite'");
+    expect(capture).toContain("coalesce(l.pricing_mode, '') <> 'BONUS'");
+    // La captura opcional existe y la métrica usa el mismo criterio.
+    expect(capture).toContain("'optional', v_oil is not null and not v_needs");
+    expect(capture).toContain("and lubricenter_private.crm_order_needs_capture(o.id)");
+    expect(capture).toMatch(/revoke all on function lubricenter_private\.crm_order_needs_capture\(uuid\) from public, anon/);
+  });
+
+  it("litros sueltos no bloquean; un cambio de aceite sí", () => {
+    expect(captureBlocks({ needs: false, optional: true })).toBe(false);
+    expect(captureBlocks({ needs: true, optional: false })).toBe(true);
+    expect(captureBlocks(null)).toBe(false);
+    const card = readFileSync("components/crm/oil-capture-card.tsx", "utf8");
+    expect(card).toContain("¿Fue para un cambio de aceite? Anotar placa");
+    expect(card).toContain("onBlockingChange(captureBlocks(s))");
   });
 
   it("utilidades", () => {
