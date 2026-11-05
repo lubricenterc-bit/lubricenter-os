@@ -430,3 +430,46 @@ summary { cursor: pointer; }
   .sales-table td > * { grid-column: 2; }
   .sales-actions { min-width: 0; }
 }
+
+/* Ingresar mercancía (components/purchasing) */
+@media screen {
+  .pp-sheet { max-width: 880px; }
+  .pp-step { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+  .pp-chosen { padding: 12px 14px; border: 1px solid var(--rule); border-radius: 14px; background: var(--surface); }
+  .pp-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .pp-chip { min-height: 34px; padding: 6px 12px; border: 1px solid var(--rule); border-radius: 999px; background: var(--surface); color: var(--ink); font: 600 13.5px/1.2 var(--font); cursor: pointer; }
+  .pp-chip small { color: var(--ink-2); font-weight: 500; }
+  .pp-chip.is-small { min-height: 30px; padding: 4px 10px; font-size: 12.5px; }
+  .pp-chip.is-on { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+  .pp-chip.is-on small { color: inherit; }
+  .pp-chip.is-add { border-style: dashed; }
+  .pp-chip:disabled { cursor: default; opacity: .7; }
+  .pp-brand-select { width: auto; min-width: 180px; }
+  .pp-picker { display: grid; gap: 8px; }
+  .pp-combo { position: relative; }
+  .pp-loading { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--ink-2); font-size: 12.5px; }
+  .pp-list { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); max-height: 360px; overflow-y: auto; margin: 0; padding: 4px; list-style: none; border: 1px solid var(--rule); border-radius: 14px; background: var(--surface); box-shadow: 0 12px 32px rgba(0, 0, 0, .12); }
+  .pp-option { display: grid; gap: 2px; padding: 10px 12px; border-radius: 10px; cursor: pointer; }
+  .pp-option.is-active { background: var(--sunk); }
+  .pp-option-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .pp-option-top code { color: var(--ink-2); font-size: 12.5px; white-space: nowrap; }
+  .pp-option-meta { color: var(--ink-2); font-size: 12.5px; }
+  .pp-badge { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--orange-tint); color: var(--orange-ink); font-weight: 600; }
+  .pp-empty { padding: 10px 12px; color: var(--ink-2); font-size: 14px; }
+  .pp-lines { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--rule); }
+  .pp-line { display: grid; grid-template-columns: minmax(0, 1fr) 120px 140px 120px 36px; gap: 10px; align-items: end; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+  .pp-line.is-bulk { grid-template-columns: minmax(0, 1fr) 120px 140px; }
+  .pp-line-name small { display: block; color: var(--ink-2); font-size: 12.5px; }
+  .pp-line-total { display: grid; gap: 2px; text-align: right; font-variant-numeric: tabular-nums; }
+  .pp-issue { color: var(--red); font-size: 12px; }
+  .pp-remove { min-height: 40px; padding: 0; font-size: 20px; }
+  .pp-total { padding: 12px 0; border-top: 2px solid var(--ink); font-size: 16px; font-variant-numeric: tabular-nums; }
+  .pp-summary { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; }
+  .pp-quick { border: 1px solid var(--ink); }
+  @media (max-width: 640px) {
+    .pp-line, .pp-line.is-bulk { grid-template-columns: 1fr 1fr; }
+    .pp-line-name { grid-column: 1 / -1; }
+    .pp-line-total { text-align: left; }
+    .pp-remove { justify-self: end; }
+  }
+}

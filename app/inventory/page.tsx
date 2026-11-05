@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { GoodsEntrySheet } from "@/components/purchasing/goods-entry-sheet";
 import Link from "next/link";
 import { InventoryHistory } from "@/components/inventory-history";
 import { supabase } from "@/lib/supabase";
@@ -42,6 +43,7 @@ function toRow(r: any): InventoryFullRow {
 }
 
 export default function InventoryPage() {
+  const [goodsEntry, setGoodsEntry] = useState(false);
   const [location, setLocation] = useState<{ id: string; code: string; name: string } | null>(null);
   const [canManage, setCanManage] = useState(false);
   const [rows, setRows] = useState<InventoryFullRow[]>([]);
@@ -209,7 +211,8 @@ export default function InventoryPage() {
         <p className="muted">Todos los artículos. Aquí cambias existencia, precio, costo y si aparecen en el catálogo.</p>
       </div>
       <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-        {canManage && <button className="btn btn-primary" onClick={() => beginEdit(null)}>Nuevo artículo</button>}
+        {canManage && <button className="btn btn-primary" onClick={() => setGoodsEntry(true)}>Ingresar mercancía</button>}
+        {canManage && <button className="btn" onClick={() => beginEdit(null)}>Nuevo artículo</button>}
         <Link href="/catalog" className="btn btn-ghost">Ver catálogo</Link>
         <button className="btn btn-ghost" onClick={load} disabled={loading}>{loading ? "Cargando…" : "Recargar"}</button>
       </div>
@@ -342,5 +345,6 @@ export default function InventoryPage() {
 
       <button className="btn btn-primary btn-block" disabled={busy || form.name.trim().length < 2 || form.sku.trim().length < 2} onClick={saveItem}>{busy ? "Guardando…" : "Guardar"}</button>
     </div></div>}
+    {goodsEntry && <GoodsEntrySheet onClose={changed => { setGoodsEntry(false); if (changed) void load(); }} />}
   </main>;
 }
