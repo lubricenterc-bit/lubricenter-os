@@ -1,5 +1,6 @@
 "use client";
 
+import { OrderPreviewButton, useOrderPreviewCache } from "@/components/orders/order-preview-panel";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -24,6 +25,7 @@ export default function CustomerDetailPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [history, setHistory] = useState<History[]>([]);
   const [tab, setTab] = useState<Tab>("RESUMEN");
+  const previewCache = useOrderPreviewCache();
   const [vehicleSearch, setVehicleSearch] = useState("");
   const [candidates, setCandidates] = useState<Vehicle[]>([]);
   const [showEdit, setShowEdit] = useState(false);
@@ -122,7 +124,7 @@ export default function CustomerDetailPage() {
         <section className="card stack"><div className="row-between"><h2 className="section-title">Últimos mantenimientos</h2><button className="btn btn-ghost" onClick={() => setTab("SERVICIOS")}>Ver historial</button></div>{services.slice(0, 5).map(item => <CustomerServiceRow key={item.id} record={item} vehicle={vehicleById.get(item.vehicle_id)}/>)}{!services.length && <div className="muted">No hay mantenimientos registrados.</div>}</section>
       </>}
 
-      {tab === "ORDENES" && <section className="card stack"><div><h2 className="section-title">Órdenes y ventas</h2><div className="muted small">Órdenes reales y facturación asociada a este cliente. Para mantenimientos antiguos usa la pestaña Historial de servicios.</div></div>{orders.map(o => <OrderRow key={o.id} order={o} />)}{!orders.length && <div className="muted">No hay órdenes asociadas.</div>}</section>}
+      {tab === "ORDENES" && <section className="card stack"><div><h2 className="section-title">Órdenes y ventas</h2><div className="muted small">Órdenes reales y facturación asociada a este cliente. Para mantenimientos antiguos usa la pestaña Historial de servicios.</div></div>{orders.map(o => <OrderRow key={o.id} order={o} cache={previewCache} />)}{!orders.length && <div className="muted">No hay órdenes asociadas.</div>}</section>}
 
       {tab === "SERVICIOS" && <section className="card stack">
         <div className="row-between">
@@ -175,5 +177,5 @@ function textValue(form: FormData, name: string) { return String(form.get(name) 
 function numberValue(form: FormData, name: string) { const value = form.get(name); return value ? Number(value) : null; }
 function vehicleLabel(v: Vehicle) { return [v.make, v.model, v.year, v.engine ? `Motor ${v.engine}` : null].filter(Boolean).join(" · ") || "Sin detalles"; }
 function serviceLabel(type: string) { return ({ OIL_CHANGE: "Cambio de aceite", WORKSHOP: "Taller", ELECTROAUTO: "Electroauto", OTHER: "Servicio" } as Record<string,string>)[type] ?? type; }
-function OrderRow({ order }: { order: Order }) { return <Link href={`/orders/${order.id}`} className="order-item row-between"><div><strong>{order.order_number}</strong><div className="muted small">{fmtDate(order.closed_at ?? order.opened_at)} · {order.status === "OPEN" ? "Abierta" : order.status === "CANCELLED" ? "Anulada" : "Cerrada"}</div></div><div style={{ textAlign: "right" }}><strong>{fmtRef(order.total_ref)}</strong><div className="muted small">{fmtVes(order.total_ves)}</div></div></Link>; }
+function OrderRow({ order, cache }: { order: Order; cache: ReturnType<typeof useOrderPreviewCache> }) { return <div className="row" style={{ gap: 8, alignItems: "stretch" }}><Link href={`/orders/${order.id}`} className="order-item row-between" style={{ flex: 1 }}><div><strong>{order.order_number}</strong><div className="muted small">{fmtDate(order.closed_at ?? order.opened_at)} · {order.status === "OPEN" ? "Abierta" : order.status === "CANCELLED" ? "Anulada" : "Cerrada"}</div></div><div style={{ textAlign: "right" }}><strong>{fmtRef(order.total_ref)}</strong><div className="muted small">{fmtVes(order.total_ves)}</div></div></Link><OrderPreviewButton orderId={order.id} cache={cache} /></div>; }
 

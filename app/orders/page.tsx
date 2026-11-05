@@ -1,7 +1,9 @@
 "use client";
 import Link from "next/link";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useUrlState } from "@/lib/use-url-state";
+import { OrderPreviewPanel, useOrderPreviewCache, usePreviewPrefetch } from "@/components/orders/order-preview-panel";
+import { neighbor } from "@/lib/order-preview";
 import { supabase } from "@/lib/supabase";
 import { canAdministerOrders } from "@/lib/session-cache";
 import { fmtRef, fmtVes, fmtRate } from "@/lib/format";
@@ -25,11 +27,17 @@ function OrdersScreen() {
  const [rows,setRows]=useState<Sale[]>([]),[count,setCount]=useState(0);
  const [summary,setSummary]=useState<Summary>(BLANK);
  // Filtros en la URL: sobreviven a «Volver» y a recargar la página.
- const [filters,setFilters]=useUrlState({q:"",status:"CLOSED",from:caracasToday(),to:caracasToday(),page:"0",pay:"ALL",preset:"TODAY"});
+ const [filters,setFilters]=useUrlState({q:"",status:"CLOSED",from:caracasToday(),to:caracasToday(),page:"0",pay:"ALL",preset:"TODAY",preview:""});
  const query=filters.q,status=filters.status,from=filters.from,to=filters.to,paymentFilter=filters.pay,preset=filters.preset as DatePreset,page=Math.max(0,Number(filters.page)||0);
  const setQuery=(q:string)=>setFilters({q}),setStatus=(value:string)=>setFilters({status:value}),setFrom=(value:string)=>setFilters({from:value}),setTo=(value:string)=>setFilters({to:value});
  const setPaymentFilter=(pay:string)=>setFilters({pay}),setPreset=(value:DatePreset)=>setFilters({preset:value});
  const setPage=(value:number|((current:number)=>number))=>setFilters({page:String(typeof value==="function"?value(page):value)});
+ // Vista previa: la orden abierta va en la URL (?preview=) y sobrevive a «Volver» y a recargar.
+ const previewId=filters.preview||null,previewCache=useOrderPreviewCache(),prefetch=usePreviewPrefetch(previewCache);
+ const openPreview=useCallback((id:string|null)=>{setFilters({preview:id||""});if(id)requestAnimationFrame(()=>document.getElementById("order-row-"+id)?.scrollIntoView({block:"nearest"}));},[setFilters]);
+ const ids=rows.map(r=>r.id),previewIndex=previewId?ids.indexOf(previewId):-1;
+ const stepPreview=useCallback((direction:1|-1)=>{const next=neighbor(ids,previewId,direction);if(next)openPreview(next);},[ids.join(","),previewId,openPreview]);
+ function rowClick(event:React.MouseEvent,id:string){const target=event.target as HTMLElement;if(target.closest("a,button,summary,details,input,select,textarea,label"))return;openPreview(id);}
  const [admin,setAdmin]=useState(false),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[revision,setRevision]=useState(0);
  const [cancel,setCancel]=useState<Sale|null>(null),[reason,setReason]=useState(""),[keepAsBalance,setKeepAsBalance]=useState(false);
  useEffect(()=>{canAdministerOrders().then(({data})=>setAdmin(data===true));},[]);
@@ -40,7 +48,7 @@ function OrdersScreen() {
  function selectPeriod(p:DatePreset){setPreset(p);setPage(0);const today=caracasToday();if(p==="TODAY"){setFrom(today);setTo(today);}if(p==="YESTERDAY"){const d=shiftDate(today,-1);setFrom(d);setTo(d);}if(p==="WEEK"){setFrom(monday(today));setTo(today);}if(p==="MONTH"){setFrom(today.slice(0,7)+"-01");setTo(today);}if(p==="ALL"){setFrom("");setTo("");}}
  async function annul(){if(!cancel||busy||reason.trim().length<5)return;setBusy(true);setError("");const r=await supabase.rpc(keepAsBalance?"cancel_order_to_customer_balance":"cancel_order",{p_order_id:cancel.id,p_reason:reason.trim()});setBusy(false);if(r.error)return setError(r.error.message);setCancel(null);setReason("");setKeepAsBalance(false);setRevision(x=>x+1);}
  return <main className="container stack">
-  <div className="row-between"><div><div className="eyebrow">VENTAS · CONTROL DIARIO</div><h1>Órdenes y cobranza</h1><p className="muted">Lo que se hizo, cuánto se vendió, cómo se cobró y qué quedó financiado. Sin duplicar la inicial de Cashea.</p></div><div className="row" style={{flexWrap:"wrap"}}><Link className="btn" href="/orders/audit">Auditoría e inventario</Link><Link className="btn" href="/service-history">Historial de mantenimiento</Link><Link className="btn" href="/quick-sale">Venta rápida</Link><Link className="btn btn-primary" href="/orders/new">+ Orden completa</Link></div></div>
+  <div className="row-between"><div><div className="eyebrow">VENTAS · CONTROL DIARIO</div><h1>Órdenes y cobranza</h1><p className="muted">Lo que se hizo, cuánto se vendió, cómo se cobró y qué quedó financiado. Sin duplicar la inicial de Cashea. Toca una orden para verla al instante; ↑/↓ pasa a la siguiente.</p></div><div className="row" style={{flexWrap:"wrap"}}><Link className="btn" href="/orders/audit">Auditoría e inventario</Link><Link className="btn" href="/service-history">Historial de mantenimiento</Link><Link className="btn" href="/quick-sale">Venta rápida</Link><Link className="btn btn-primary" href="/orders/new">+ Orden completa</Link></div></div>
   {error&&<div className="error" role="alert">{error}</div>}
   <section className="card stack">
     <div className="row-between" style={{flexWrap:"wrap",gap:10}}><strong>Consultar por día o período</strong><span className="muted small">Fechas del negocio: Venezuela (UTC−4)</span></div>
@@ -79,7 +87,9 @@ function OrdersScreen() {
   {cancel&&<section className="card stack" role="region" aria-label="Anular venta"><h2>Anular {cancel.order_number}</h2><p>El stock y las comisiones se revertirán. El original y el motivo seguirán visibles en el historial.</p>{cancel.status==='CLOSED'&&<div className="stack"><strong>¿Qué pasó con el dinero recibido?</strong><label className="row"><input type="radio" checked={!keepAsBalance} onChange={()=>setKeepAsBalance(false)}/><span>Se devolvió al cliente lo cobrado por la venta · registrar salida de caja</span></label>{cancel.customer_id&&!cancel.has_financed_sale?<label className="row"><input type="radio" checked={keepAsBalance} onChange={()=>setKeepAsBalance(true)}/><span>El cliente lo conserva como saldo a favor · no salió dinero de caja</span></label>:<div className="muted small">Para conservar el cobro como saldo, la venta debe tener cliente y no incluir Cashea ni Crédito LC.</div>}</div>}{keepAsBalance?<div className="card muted small">Los cobros en Bs se acreditarán con su BCV original; los cobros en USD quedarán en divisas. El saldo aparecerá en la ficha del cliente.</div>:<div className="muted small">Si un pago tuvo sobrante separado como saldo a favor, ese sobrante permanece. Devuélvelo aparte desde la ficha del cliente si también entregaste ese dinero.</div>}<label><span className="label">Motivo obligatorio</span><textarea className="input" autoFocus value={reason} onChange={e=>setReason(e.target.value)} placeholder="Ej. el cliente no compró; se cerró al preparar el recibo"/></label><div className="row"><button className="btn" disabled={busy} onClick={()=>setCancel(null)}>Volver</button><button className="btn btn-primary" disabled={busy||reason.trim().length<5} onClick={annul}>{busy?"Anulando…":keepAsBalance?"Anular y acreditar saldo":"Confirmar anulación y reversión"}</button></div></section>}
   <section className="stack" aria-busy={loading}>
     <div className="row-between" style={{gap:12,flexWrap:"wrap"}}><h2 className="section-title" style={{margin:0}}>Detalle de lo realizado</h2><span className="muted small">Mostrando {rows.length} de {count} órdenes</span></div>
-    {rows.map(r=><article className="card stack" key={r.id} style={{gap:14,padding:16}}>
+    {rows.map(r=><article id={"order-row-"+r.id} className={"card stack op-row"+(r.id===previewId?" is-previewed":"")} key={r.id} style={{gap:14,padding:16}} tabIndex={0} aria-label={"Vista previa de "+r.order_number}
+      onClick={e=>rowClick(e,r.id)} onKeyDown={e=>{if(e.key==="Enter"&&e.target===e.currentTarget){e.preventDefault();openPreview(r.id);}}}
+      onPointerEnter={()=>prefetch.onPointerEnter(r.id)} onPointerLeave={prefetch.onPointerLeave}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px,1fr))",gap:16}}>
         <div className="stack" style={{gap:5}}>
           <div className="row" style={{flexWrap:"wrap",gap:6}}>
@@ -154,6 +164,8 @@ function OrdersScreen() {
     {!loading&&!rows.length&&<div className="card muted">No hay órdenes con estos filtros. Cambia la fecha o el tipo de venta.</div>}
   </section>
   <div className="row-between"><button className="btn" disabled={page===0||loading} onClick={()=>setPage(x=>x-1)}>Anterior</button><span>Página {page+1} de {Math.max(1,Math.ceil(count/30))}</span><button className="btn" disabled={(page+1)*30>=count||loading} onClick={()=>setPage(x=>x+1)}>Siguiente</button></div>{!admin&&<p className="muted small">Las correcciones y anulaciones están disponibles en la cuenta propietaria.</p>}
+  {previewId&&<OrderPreviewPanel orderId={previewId} cache={previewCache} onClose={()=>openPreview(null)} onStep={stepPreview}
+    position={previewIndex>=0?{index:previewIndex,total:ids.length}:null}/>}
  </main>;
 }
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useUrlState } from "@/lib/use-url-state";
+import { OrderPreviewButton, useOrderPreviewCache } from "@/components/orders/order-preview-panel";
 import { referenceError } from "@/lib/finance/money";
 import {
   currencyOf, debtMessage, payAllAmount, previewPayment, remaining, type PayCurrency,
@@ -49,6 +50,7 @@ export default function ReceivablesPage() {
 }
 
 function ReceivablesScreen() {
+  const previewCache = useOrderPreviewCache();
   const [receivables, setReceivables] = useState<Receivable[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -214,6 +216,7 @@ function ReceivablesScreen() {
           </div>}
 
           <div className="row-between" style={{ flexWrap: "wrap", gap: 8 }}>
+            <OrderPreviewButton orderId={r.order_id} cache={previewCache} />
             <Link className="btn btn-ghost" href={`/orders/${r.order_id}`}>Ver orden</Link>
             {r.status === "OPEN" && <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
               {wa ? <a className="btn btn-ghost" href={wa} target="_blank" rel="noopener noreferrer">Recordar por WhatsApp</a>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useUrlState } from "@/lib/use-url-state";
+import { OrderPreviewButton, useOrderPreviewCache } from "@/components/orders/order-preview-panel";
 import { referenceError } from "@/lib/finance/money";
 import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
@@ -31,6 +32,7 @@ export default function CasheaPage() {
 }
 
 function CasheaScreen() {
+  const previewCache = useOrderPreviewCache();
   const [sales, setSales] = useState<Sale[]>([]);
   const [installments, setInstallments] = useState<Installment[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -113,7 +115,7 @@ function CasheaScreen() {
           <div className="grid grid-3"><div><div className="muted small">INICIAL · {s.initial_percent}%</div><strong>{fmtRef(s.initial_ref)}</strong><div className="muted small">{paymentLabel(s.initial_payment_method)}</div></div><div><div className="muted small">SALDO CASHEA</div><strong>{fmtRef(remain)}</strong></div><div><div className="muted small">COMISIÓN · {s.commission_percent}%</div><strong>{fmtRef(s.commission_ref)}</strong><div className="muted small">no aumenta precio</div></div></div>
           <div className="divider" />
           <div className="stack"><div className="label">Cuotas</div>{parts.map(x => { const remaining = Math.max(x.amount_ref-x.paid_ref,0); const overdue = x.status !== "PAID" && new Date(`${x.due_date}T23:59:59`) < new Date(); return <div className="card" key={x.id} style={{ padding: 12 }}><div className="row-between"><div><strong>Cuota {x.installment_no} · {fmtRef(x.amount_ref)}</strong><div className="muted small">Vence {x.due_date}{x.paid_ref > 0 ? ` · recibido ${fmtRef(x.paid_ref)}` : ""}</div></div><span className={`pill ${x.status === "PAID" ? "ok" : "warn"}`}>{x.status === "PAID" ? paidSourceLabel(tracking?.paid_sources[x.id]) : overdue ? "Vencida" : x.status === "PARTIAL" ? "Parcial" : "Pendiente"}</span></div>{x.status !== "PAID" && <div className="row-between" style={{ marginTop: 10 }}><span className="muted small">Por recibir {fmtRef(remaining)}</span><button className="btn btn-primary" onClick={() => setSelected(x)}>Registrar llegada</button></div>}</div>; })}</div>
-          <div className="row-between"><Link className="btn btn-ghost" href={`/orders/${s.order_id}`}>Ver orden</Link><span className="muted small">Venta íntegra: {fmtRef(s.gross_ref)} · comisión estimada, sin IVA: {fmtRef(s.commission_ref)}</span></div>
+          <div className="row-between"><div className="row" style={{gap:6}}><OrderPreviewButton orderId={s.order_id} cache={previewCache} /><Link className="btn btn-ghost" href={`/orders/${s.order_id}`}>Ver orden</Link></div><span className="muted small">Venta íntegra: {fmtRef(s.gross_ref)} · comisión estimada, sin IVA: {fmtRef(s.commission_ref)}</span></div>
         </article>;
       })}
       {!visible.length && <div className="card muted">No hay ventas Cashea en este filtro.</div>}
