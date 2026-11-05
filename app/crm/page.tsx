@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { ContactTunnel } from "@/components/crm/contact-tunnel";
 import { RecoveryView } from "@/components/crm/recovery-view";
 import { OsIcon } from "@/components/os-icon";
 import { supabase } from "@/lib/supabase";
 import {
-  KIND_LABEL, OUTCOMES, TEMPLATE_HELP, addDays, caracasToday, displayName, estimateMinutes, shortDate, waLink,
-  RECOVERY_BUCKETS, type CrmBoard, type CrmOutcome, type CrmQueueItem, type CrmResults, type CrmTemplateKind,
+  KIND_LABEL, OUTCOMES, TEMPLATE_HELP, addDays, caracasToday, displayName, estimateMinutes, matchesQuery, shortDate,
+  RECOVERY_CELLS, type CrmBoard, type CrmOutcome, type CrmQueueItem, type CrmResults, type CrmTemplateKind,
   type RecoveryBucket, type RecoverySort,
 } from "@/lib/crm";
 import { NumberInput } from "@/components/number-field";
@@ -19,7 +19,7 @@ const TAB_PARAM: Record<Tab, string> = { RECOVER: "recover", TODAY: "today", WAI
 function readUrl(): { tab: Tab; bucket: RecoveryBucket; sort: RecoverySort } {
   const q = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
   const tab = (Object.entries(TAB_PARAM).find(([, v]) => v === q.get("tab"))?.[0] ?? "RECOVER") as Tab;
-  const bucket = (RECOVERY_BUCKETS as string[]).includes(q.get("bucket") ?? "") ? q.get("bucket") as RecoveryBucket : "D0_30";
+  const bucket = (RECOVERY_CELLS as string[]).includes(q.get("bucket") ?? "") ? q.get("bucket") as RecoveryBucket : "D0_30";
   const sort = (["PRIORITY", "RECENT", "OLDEST"] as string[]).includes(q.get("sort") ?? "") ? q.get("sort") as RecoverySort : "PRIORITY";
   return { tab, bucket, sort };
 }
@@ -29,6 +29,15 @@ function writeUrl(state: { tab: Tab; bucket: RecoveryBucket; sort: RecoverySort 
   if (state.tab === "RECOVER") { q.set("bucket", state.bucket); if (state.sort === "PRIORITY") q.delete("sort"); else q.set("sort", state.sort); }
   else { q.delete("bucket"); q.delete("sort"); }
   window.history.replaceState(window.history.state, "", `${window.location.pathname}?${q.toString()}`);
+}
+// El túnel también va en la URL (?tunnel=today | bucket-D31_90 | item-<id>): el gesto de
+// atrás lo cierra y, si la página se recarga al volver de WhatsApp, se vuelve a abrir.
+type TunnelState = { queue: CrmQueueItem[]; pending: CrmQueueItem[]; sentToday: number; cap: number; source: string };
+function tunnelUrl(source: string | null) {
+  const q = new URLSearchParams(window.location.search);
+  if (source) q.set("tunnel", source); else q.delete("tunnel");
+  const text = q.toString();
+  return `${window.location.pathname}${text ? "?" + text : ""}`;
 }
 type Journey = {
   service_record_id: string; vehicle_id: string; customer_id: string; customer_name: string | null;
@@ -40,14 +49,14 @@ type Template = { kind: CrmTemplateKind; body: string };
 
 const STATUS_LABEL: Record<string, string> = {
   READY: "Para contactar", SCHEDULED: "Programado", UPCOMING: "Todavía no le toca", WAITING_REPLY: "Esperando respuesta",
-  BOOKED: "Tiene cita", CLOSED: "Cerrado", CLOSED_NO_REPLY: "Sin respuesta", NO_PHONE: "Falta WhatsApp", OPTED_OUT: "No quiere mensajes",
-  RETURNED: "Ya volvió",
+  BOOKED: "Tiene cita", CLOSED: "Cerrado", CLOSED_NO_REPLY: "Sin respuesta · 2.º intento", NO_PHONE: "Falta WhatsApp", OPTED_OUT: "No quiere mensajes",
+  RETURNED: "Ya volvió", DORMANT: "En cartera",
 };
 const OUTCOME_LABEL: Record<string, string> = {
   BOOKED: "Agendó", POSTPONED: "Más adelante", REPLIED: "Respondió", DECLINED: "No le interesa",
-  SOLD_VEHICLE: "Vendió el carro", CLOSED_NO_REPLY: "Sin respuesta", RETURNED: "Ya volvió",
+  SOLD_VEHICLE: "Vendió el carro", CLOSED_NO_REPLY: "Sin respuesta", RETURNED: "Ya volvió", DISMISSED: "No se envió",
 };
-const TEMPLATE_ORDER: CrmTemplateKind[] = ["PRE", "DUE", "FINAL", "RECOVERY", "RECONNECT"];
+const TEMPLATE_ORDER: CrmTemplateKind[] = ["PRE", "DUE", "FINAL", "AGREED", "RECOVERY", "SECOND", "RECONNECT"];
 
 function money(n: number) {
   return "REF " + n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -57,7 +66,8 @@ export default function CrmPage() {
   const [tab, setTabState] = useState<Tab>("RECOVER");
   const [bucket, setBucketState] = useState<RecoveryBucket>("D0_30");
   const [sort, setSortState] = useState<RecoverySort>("PRIORITY");
-  const [tunnelQueue, setTunnelQueue] = useState<{ queue: CrmQueueItem[]; sentToday: number; cap: number } | null>(null);
+  const [tunnelState, setTunnelState] = useState<TunnelState | null>(null);
+  const pushedTunnel = useRef(false);
   useEffect(() => { const u = readUrl(); setTabState(u.tab); setBucketState(u.bucket); setSortState(u.sort); }, []);
   const setTab = (t: Tab) => { setTabState(t); writeUrl({ tab: t, bucket, sort }); };
   const setBucket = (b: RecoveryBucket) => { setBucketState(b); writeUrl({ tab, bucket: b, sort }); };
@@ -66,21 +76,66 @@ export default function CrmPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [tunnel, setTunnel] = useState(false);
 
-  async function load() {
+  async function load(): Promise<CrmBoard | null> {
     setLoading(true); setError("");
     const { data, error } = await supabase.rpc("crm_board");
     setLoading(false);
-    if (error) { setError(error.message); return; }
+    if (error) { setError(error.message); return null; }
     setBoard(data as CrmBoard);
+    return data as CrmBoard;
   }
-  useEffect(() => { void load(); }, []);
+
+  /** Abre el túnel desde su origen. Siempre trae la cola fresca de la base. */
+  async function openTunnel(source: string, push = true, given?: { queue: CrmQueueItem[]; sentToday: number; cap: number }) {
+    setError("");
+    const fresh = await load();
+    if (!fresh) return;
+    let base = given ?? { queue: fresh.queue, sentToday: fresh.sent_today, cap: fresh.cap };
+    if (!given && source.startsWith("bucket-")) {
+      const { data, error } = await supabase.rpc("crm_bucket_queue", { p_bucket: source.slice(7), p_limit: null });
+      if (error) { setError(error.message); return; }
+      base = { queue: data.queue as CrmQueueItem[], sentToday: Number(data.sent_today), cap: Number(data.cap) };
+    } else if (!given && source.startsWith("item-")) {
+      const { data, error } = await supabase.rpc("crm_queue_item", { p_service_record_id: source.slice(5) });
+      base = { queue: error ? [] : [data as CrmQueueItem], sentToday: fresh.sent_today, cap: fresh.cap };
+    }
+    const pending = fresh.pending ?? [];
+    if (!base.queue.length && !pending.length) {
+      if (!push) window.history.replaceState(window.history.state, "", tunnelUrl(null));
+      setNotice("No hay mensajes para enviar ahora.");
+      return;
+    }
+    if (push) { window.history.pushState(window.history.state, "", tunnelUrl(source)); pushedTunnel.current = true; }
+    setTunnelState({ ...base, pending, source });
+  }
+
+  function closeTunnel() {
+    setTunnelState(null);
+    if (pushedTunnel.current) { pushedTunnel.current = false; window.history.back(); }
+    else window.history.replaceState(window.history.state, "", tunnelUrl(null));
+    void load();
+  }
+
+  useEffect(() => {
+    const source = new URLSearchParams(window.location.search).get("tunnel");
+    if (source) void openTunnel(source, false); else void load();
+    // Atrás (gesto o botón del navegador) cierra el túnel.
+    const onPop = () => {
+      if (!new URLSearchParams(window.location.search).get("tunnel")) {
+        pushedTunnel.current = false;
+        setTunnelState(current => { if (current) void load(); return null; });
+      }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const queue = board?.queue ?? [];
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "RECOVER", label: "Recuperar" },
-    { id: "TODAY", label: "Hoy", count: queue.length },
+    { id: "TODAY", label: "Hoy", count: queue.length + (board?.pending?.length ?? 0) },
     { id: "WAITING", label: "Esperando respuesta", count: board?.waiting.length },
     { id: "BOOKED", label: "Citas", count: board?.booked.length },
     { id: "FIX", label: "Corregir datos", count: board?.fix.length },
@@ -89,14 +144,9 @@ export default function CrmPage() {
     { id: "MESSAGES", label: "Mensajes y reglas" },
   ];
 
-  if (tunnelQueue) {
-    return <ContactTunnel queue={tunnelQueue.queue} sentToday={tunnelQueue.sentToday} cap={tunnelQueue.cap}
-      onClose={changed => { setTunnelQueue(null); if (changed) void load(); }} />;
-  }
-
-  if (tunnel && board) {
-    return <ContactTunnel queue={queue} sentToday={board.sent_today} cap={board.cap}
-      onClose={changed => { setTunnel(false); if (changed) void load(); }} />;
+  if (tunnelState) {
+    return <ContactTunnel key={tunnelState.source} queue={tunnelState.queue} pending={tunnelState.pending}
+      sentToday={tunnelState.sentToday} cap={tunnelState.cap} onClose={() => closeTunnel()} />;
   }
 
   return <main className="container crm">
@@ -119,8 +169,9 @@ export default function CrmPage() {
     {loading && !board ? <p className="crm-muted">Preparando la lista de hoy…</p> : null}
 
     {tab === "RECOVER" && <RecoveryView bucket={bucket} sort={sort} onBucket={setBucket} onSort={setSort}
-      onStartTunnel={(q, sentToday, cap) => setTunnelQueue({ queue: q, sentToday, cap })} onError={setError} />}
-    {board && tab === "TODAY" && <TodayView board={board} onStart={() => setTunnel(true)} />}
+      onStartTunnel={(q, sentToday, cap, source) => void openTunnel(source, true, { queue: q, sentToday, cap })} onError={setError} />}
+    {board && tab === "TODAY" && <TodayView board={board} onStart={() => void openTunnel("today")}
+      onChanged={msg => { setNotice(msg); void load(); }} onError={setError} />}
     {board && tab === "WAITING" && <WaitingView board={board} onChanged={msg => { setNotice(msg); void load(); }} onError={setError} />}
     {board && tab === "BOOKED" && <BookedView board={board} />}
     {board && tab === "FIX" && <FixView board={board} onChanged={msg => { setNotice(msg); void load(); }} onError={setError} />}
@@ -130,10 +181,34 @@ export default function CrmPage() {
   </main>;
 }
 
-function TodayView({ board, onStart }: { board: CrmBoard; onStart: () => void }) {
+function PendingConfirm({ items, onChanged, onError }: { items: CrmQueueItem[]; onChanged: (m: string) => void; onError: (m: string) => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  async function resolve(it: CrmQueueItem, sent: boolean) {
+    if (!it.attempt_id) return;
+    setBusy(it.id); onError("");
+    const { error } = await supabase.rpc("crm_confirm_send", { p_attempt_id: it.attempt_id, p_sent: sent });
+    setBusy(null);
+    if (error) { onError(error.message); return; }
+    onChanged(sent ? `Anotado: le enviaste el mensaje a ${displayName(it.customer_name)}.` : `${displayName(it.customer_name)} vuelve a la lista.`);
+  }
+  if (!items.length) return null;
+  return <section className="crm-pending" aria-label="Pendientes de confirmar">
+    <h2>Falta confirmar {items.length} {items.length === 1 ? "mensaje" : "mensajes"}</h2>
+    <p>Se abrió WhatsApp y no se anotó si se envió. Confírmalo para que no se le vuelva a escribir.</p>
+    {items.map(it => <div className="crm-pending-row" key={it.attempt_id ?? it.id}>
+      <span><strong>{displayName(it.customer_name)}</strong><small>{[it.vehicle, it.plate].filter(Boolean).join(" ")} · {it.why}</small></span>
+      <button className="btn btn-primary" disabled={busy === it.id} onClick={() => void resolve(it, true)}>Sí, lo envié</button>
+      <button className="btn" disabled={busy === it.id} onClick={() => void resolve(it, false)}>No se envió</button>
+    </div>)}
+  </section>;
+}
+
+function TodayView({ board, onStart, onChanged, onError }: { board: CrmBoard; onStart: () => void; onChanged: (m: string) => void; onError: (m: string) => void }) {
   const q = board.queue;
+  const pending = board.pending ?? [];
   const post = q.filter(x => x.type === "POST_SERVICE").length;
   return <section className="crm-today">
+    <PendingConfirm items={pending} onChanged={onChanged} onError={onError} />
     <div className="crm-hero">
       <div>
         <span className="crm-hero-label">Para enviar hoy</span>
@@ -143,7 +218,7 @@ function TodayView({ board, onStart }: { board: CrmBoard; onStart: () => void })
       <div className="crm-hero-side">
         <div><span>Enviados hoy</span><strong>{board.sent_today} de {board.cap}</strong></div>
         <div><span>Esperan su turno</span><strong>{Math.max(board.ready_total - q.length, 0)}</strong></div>
-        <button className="btn btn-primary crm-big" disabled={!q.length} onClick={onStart}>
+        <button className="btn btn-primary crm-big" disabled={!q.length && !pending.length} onClick={onStart}>
           <OsIcon name="arrow" size={18} /> Empezar</button>
       </div>
     </div>
@@ -157,7 +232,7 @@ function TodayView({ board, onStart }: { board: CrmBoard; onStart: () => void })
           <span className="crm-row-why">{x.why}</span>
         </li>)}
       </ol>
-      <p className="crm-muted">Primero van {post ? "los postservicios, luego " : ""}los cambios que vencen esta semana y después los clientes por recuperar. Máximo {board.cap} mensajes al día para cuidar el número.</p>
+      <p className="crm-muted">Primero van {post ? "los postservicios, luego " : ""}los cambios que vencen esta semana y después los clientes por recuperar. Una persona por día y máximo {board.cap} mensajes para cuidar el número.</p>
     </>}
   </section>;
 }
@@ -189,11 +264,27 @@ function OutcomeButtons({ serviceRecordId, onChanged, onError, compact }: {
 }
 
 function WaitingView({ board, onChanged, onError }: { board: CrmBoard; onChanged: (m: string) => void; onError: (m: string) => void }) {
+  const [query, setQuery] = useState("");
+  const [oldest, setOldest] = useState(false);
+  const rows = useMemo(() => {
+    const list = board.waiting.filter(w => !query.trim() || matchesQuery([w.customer_name, w.plate, w.phone, w.vehicle].filter(Boolean).join(" "), query));
+    return oldest ? [...list].reverse() : list;
+  }, [board.waiting, query, oldest]);
   if (!board.waiting.length) return <p className="crm-empty">Nadie está esperando respuesta. Cuando envíes mensajes, aparecen aquí para anotar qué contestó el cliente.</p>;
   return <section>
     <p className="crm-muted">Si el cliente respondió, toca lo que dijo. Si no ha respondido, no hagas nada: el sistema le manda el siguiente mensaje cuando toque.</p>
+    <div className="crm-waiting-tools">
+      <label className="crm-search"><OsIcon name="search" size={17} />
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar cliente, placa, carro o teléfono" aria-label="Buscar en esperando respuesta" /></label>
+      <select className="input" value={oldest ? "OLD" : "NEW"} onChange={e => setOldest(e.target.value === "OLD")} aria-label="Orden">
+        <option value="NEW">Más recientes primero</option>
+        <option value="OLD">Más antiguos primero</option>
+      </select>
+      <span className="crm-muted">{rows.length} de {board.waiting.length}</span>
+    </div>
+    {!rows.length && <p className="crm-empty">Nadie coincide con «{query}».</p>}
     <ul className="crm-cards">
-      {board.waiting.map(w => <li key={w.id} className="crm-card">
+      {rows.map(w => <li key={w.id} className="crm-card">
         <div className="crm-card-top">
           <div><strong>{displayName(w.customer_name)}</strong><small>{[w.vehicle, w.plate].filter(Boolean).join(" ")}</small></div>
           <div className="crm-card-meta">Le escribiste el {shortDate(w.last_sent_at)} · mensaje {w.sent_count}
@@ -369,8 +460,10 @@ function MessagesView({ cap, onChanged, onError }: { cap: number; onChanged: (m:
         <li>Postservicio entre el día de la visita y 3 días después. A los 5 días vence.</li>
         <li>Primer aviso 7 días antes de la fecha recomendada. Segundo, 10 días después si no responde. Tercero y último, 14 días después.</li>
         <li>A quien se le pasó la fecha hace más de un mes: 2 mensajes. Más de un año: 1 mensaje.</li>
-        <li>Nunca dos mensajes a la misma persona en menos de 14 días, aunque tenga varios carros.</li>
-        <li>Si registra un cambio de aceite nuevo, el seguimiento se cierra solo.</li>
+        <li>Si dice «más adelante», se le escribe en la fecha acordada con el mensaje «Como quedamos».</li>
+        <li>Si no responde, recibe una segunda oportunidad a los 120 días. Si tampoco responde, queda en la cartera para promociones.</li>
+        <li>Una persona por día y nunca dos mensajes en menos de 14 días, contando el postservicio y todos sus carros.</li>
+        <li>Si registra un cambio de aceite nuevo, o se anota «Ya volvió», empieza un ciclo nuevo.</li>
       </ul>
       <label className="crm-cap">Máximo de mensajes por día
         <NumberInput className="input" kind="qty" min={1} max={60} value={capDraft} onChange={e => setCapDraft(e.target.value)} />
