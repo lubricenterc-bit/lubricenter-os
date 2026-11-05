@@ -82,6 +82,8 @@ export function OsHeader({ pathname, onSearch, onMenu, onNavigate, menuOpen = fa
           aria-label={"Avisos financieros, " + unread + " pendientes"} onClick={event => intercept(event, "/finance", onNavigate)}>
           <OsIcon name="bell" size={19} />{unread > 0 && <span>{unread > 9 ? "9+" : unread}</span>}
         </Link>}
+        <Link href="/ayuda" className="os-bell os-help-link" title="Ayuda: ¿cómo hago…?" aria-label="Ayuda"
+          onClick={event => intercept(event, "/ayuda", onNavigate)}><OsIcon name="help" size={19} /></Link>
         <AttendantMenu />
         <button type="button" className="os-profile" onClick={onMenu} aria-label="Abrir todos los módulos y la sesión"
           aria-expanded={menuOpen} aria-controls="os-modules-drawer" aria-haspopup="dialog">

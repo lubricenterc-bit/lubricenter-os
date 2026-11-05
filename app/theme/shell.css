@@ -109,6 +109,7 @@
   .os-command-result-icon .bi-wrap { width: 30px; height: 30px; }
   @media (hover: hover) and (pointer: fine) { .os-command-result:is(:hover, :focus-visible) { background: var(--orange-tint); } }
   .os-command-hint { margin: 10px 14px 6px; font-size: 13px; color: var(--ink-2); }
+  .os-command-section { margin: 12px 14px 4px; color: var(--ink-3); font-size: 12px; font-weight: 700; letter-spacing: .02em; }
   .os-command-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px; text-align: center; color: var(--ink-2); }
   .os-command-gotin { width: 96px; height: 100px; }
   .os-command-footer { display: flex; gap: 18px; padding: 12px 22px; border-top: 1px solid var(--rule); font-size: 12.5px; color: var(--ink-2); }
