@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useUrlState } from "@/lib/use-url-state";
 import { supabase } from "@/lib/supabase";
 import { canAdministerOrders } from "@/lib/session-cache";
 import { fmtRef, fmtVes, fmtRate } from "@/lib/format";
@@ -18,9 +19,17 @@ function whenVenezuela(value:string){return new Intl.DateTimeFormat("es-VE",{tim
 function Explanation({title,children}:{title:string;children:React.ReactNode}){return <details style={{position:"relative"}}><summary title={title} aria-label={title} style={{cursor:"pointer",listStyle:"none",color:"var(--muted)",padding:"2px 5px"}}>ⓘ</summary><div className="card small" style={{position:"absolute",top:25,right:0,zIndex:5,width:"min(280px,74vw)",boxShadow:"0 12px 25px #0003"}}><strong>{title}</strong><p>{children}</p></div></details>;}
 function Metric({label,value,ves,description}:{label:string;value:number;ves?:boolean;description:string}){return <div className="card"><div className="row-between" style={{gap:5}}><span className="small muted">{label}</span><Explanation title={label}>{description}</Explanation></div><div className="kpi" style={{wordBreak:"break-word"}}>{ves?fmtVes(value):fmtRef(value)}</div></div>;}
 export default function OrdersPage() {
- const [rows,setRows]=useState<Sale[]>([]),[count,setCount]=useState(0),[page,setPage]=useState(0);
- const [summary,setSummary]=useState<Summary>(BLANK),[paymentFilter,setPaymentFilter]=useState("ALL"),[preset,setPreset]=useState<DatePreset>("TODAY");
- const [query,setQuery]=useState(""),[status,setStatus]=useState("CLOSED"),[from,setFrom]=useState(caracasToday()),[to,setTo]=useState(caracasToday());
+ return <Suspense fallback={<main className="container"><div className="card muted">Cargando órdenes…</div></main>}><OrdersScreen/></Suspense>;
+}
+function OrdersScreen() {
+ const [rows,setRows]=useState<Sale[]>([]),[count,setCount]=useState(0);
+ const [summary,setSummary]=useState<Summary>(BLANK);
+ // Filtros en la URL: sobreviven a «Volver» y a recargar la página.
+ const [filters,setFilters]=useUrlState({q:"",status:"CLOSED",from:caracasToday(),to:caracasToday(),page:"0",pay:"ALL",preset:"TODAY"});
+ const query=filters.q,status=filters.status,from=filters.from,to=filters.to,paymentFilter=filters.pay,preset=filters.preset as DatePreset,page=Math.max(0,Number(filters.page)||0);
+ const setQuery=(q:string)=>setFilters({q}),setStatus=(value:string)=>setFilters({status:value}),setFrom=(value:string)=>setFilters({from:value}),setTo=(value:string)=>setFilters({to:value});
+ const setPaymentFilter=(pay:string)=>setFilters({pay}),setPreset=(value:DatePreset)=>setFilters({preset:value});
+ const setPage=(value:number|((current:number)=>number))=>setFilters({page:String(typeof value==="function"?value(page):value)});
  const [admin,setAdmin]=useState(false),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[revision,setRevision]=useState(0);
  const [cancel,setCancel]=useState<Sale|null>(null),[reason,setReason]=useState(""),[keepAsBalance,setKeepAsBalance]=useState(false);
  useEffect(()=>{canAdministerOrders().then(({data})=>setAdmin(data===true));},[]);

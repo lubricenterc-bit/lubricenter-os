@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useUrlState } from "@/lib/use-url-state";
 import { ExpenseSheet, type ExpenseAccount } from "@/components/expense-sheet";
 import { fmtRef, fmtVes } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
@@ -17,13 +18,20 @@ type Data = { period:{from:string;to:string}; summary:{invoiced_ref:number;paid_
 type Tab = "OVERVIEW"|"SUPPLIERS"|"INVOICES";
 
 export default function ExpensesPage() {
-  const today=localDate(); const [from,setFrom]=useState(monthStart(today)); const [to,setTo]=useState(today);
+  return <Suspense fallback={<main className="container"><div className="card muted">Cargando compras…</div></main>}><ExpensesScreen /></Suspense>;
+}
+
+function ExpensesScreen() {
+  const today=localDate();
+  // Pestaña y fechas en la URL: sobreviven a «Volver» y a recargar.
+  const [urlState,setUrlState]=useUrlState({tab:"OVERVIEW",from:monthStart(today),to:today});
+  const from=urlState.from,to=urlState.to,tab:Tab=(["OVERVIEW","SUPPLIERS","INVOICES"] as string[]).includes(urlState.tab)?urlState.tab as Tab:"OVERVIEW";
+  const setFrom=(value:string)=>setUrlState({from:value}),setTo=(value:string)=>setUrlState({to:value}),setTab=(value:Tab)=>setUrlState({tab:value});
   const [canManage,setCanManage]=useState(false); const [data,setData]=useState<Data|null>(null);
-  const [tab,setTab]=useState<Tab>("OVERVIEW"); const [supplierEdit,setSupplierEdit]=useState<Supplier|"NEW"|null>(null);
+  const [supplierEdit,setSupplierEdit]=useState<Supplier|"NEW"|null>(null);
   const [showInvoice,setShowInvoice]=useState(false); const [showExpense,setShowExpense]=useState(false); const [error,setError]=useState(""); const [loading,setLoading]=useState(true);
   async function load(){setLoading(true);setError(""); const [{data:d,error:e},{data:permission}]=await Promise.all([supabase.rpc("purchasing_dashboard",{p_from:from,p_to:to}),canAdministerOrders()]);setCanManage(permission===true); setLoading(false); if(e){setData(null);return setError(e.message??"No pude cargar egresos.");} setData(d as Data)}
   useEffect(()=>{load()},[from,to]);
-  useEffect(()=>{const requested=new URLSearchParams(window.location.search).get("tab");if(requested==="SUPPLIERS"||requested==="INVOICES")setTab(requested)},[]);
   const overdue=data?.invoices.filter(x=>x.status!=="PAID"&&x.status!=="VOID"&&x.due_date&&x.due_date<today)??[];
   return <main className="container stack">
     <section className="brand-hero"><div><div className="eyebrow">COMPRAS · EGRESOS · PROVEEDORES</div><h1>Central de egresos</h1><p>Controla lo facturado, lo recibido, lo pagado y lo que todavía debes sin duplicar inventario ni salidas de dinero.</p></div><img src="/lubricenter-logo.png" alt="Lubricenter"/></section>

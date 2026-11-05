@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useUrlState } from "@/lib/use-url-state";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtRef } from "@/lib/format";
@@ -14,10 +15,17 @@ type CustomerSummary = {
 type Vehicle = { id: string; plate: string | null; make: string | null; model: string | null; year: number | null };
 
 export default function CustomersPage() {
+  return <Suspense fallback={<main className="container"><div className="card muted">Cargando clientes…</div></main>}><CustomersScreen /></Suspense>;
+}
+
+function CustomersScreen() {
   const router = useRouter();
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [unassigned, setUnassigned] = useState<Vehicle[]>([]);
-  const [search, setSearch] = useState("");
+  // Búsqueda en la URL: sobrevive a «Volver» y a recargar.
+  const [urlState, setUrlState] = useUrlState({ q: "" });
+  const search = urlState.q;
+  const setSearch = (q: string) => setUrlState({ q });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);

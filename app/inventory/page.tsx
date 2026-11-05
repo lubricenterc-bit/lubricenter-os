@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { GoodsEntrySheet } from "@/components/purchasing/goods-entry-sheet";
+import { useUrlState } from "@/lib/use-url-state";
 import Link from "next/link";
 import { InventoryHistory } from "@/components/inventory-history";
 import { supabase } from "@/lib/supabase";
@@ -43,14 +44,21 @@ function toRow(r: any): InventoryFullRow {
 }
 
 export default function InventoryPage() {
+  return <Suspense fallback={<main className="container"><div className="card muted">Cargando inventario…</div></main>}><InventoryScreen /></Suspense>;
+}
+
+function InventoryScreen() {
   const [goodsEntry, setGoodsEntry] = useState(false);
   const [location, setLocation] = useState<{ id: string; code: string; name: string } | null>(null);
   const [canManage, setCanManage] = useState(false);
   const [rows, setRows] = useState<InventoryFullRow[]>([]);
   const [rates, setRates] = useState<Rates>({ bcv: 0, operative: 0 });
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("TODOS");
-  const [filter, setFilter] = useState<InventoryFilter>("all");
+  // Búsqueda y filtros en la URL: sobreviven a «Volver» y a recargar.
+  const [urlState, setUrlState] = useUrlState({ q: "", rubro: "TODOS", filtro: "all" });
+  const search = urlState.q, category = urlState.rubro, filter = urlState.filtro as InventoryFilter;
+  const setSearch = (q: string) => setUrlState({ q });
+  const setCategory = (rubro: string) => setUrlState({ rubro });
+  const setFilter = (filtro: InventoryFilter) => setUrlState({ filtro });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [form, setForm] = useState<ItemForm | null>(null);
   const [historyItem, setHistoryItem] = useState<InventoryFullRow | null>(null);

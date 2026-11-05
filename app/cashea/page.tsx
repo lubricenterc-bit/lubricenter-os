@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useUrlState } from "@/lib/use-url-state";
 import { referenceError } from "@/lib/finance/money";
 import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
@@ -26,12 +27,19 @@ const METHODS: readonly [PaymentMethod,string][] = [
 function paymentLabel(method: string) { return Object.fromEntries(METHODS)[method] ?? method; }
 
 export default function CasheaPage() {
+  return <Suspense fallback={<main className="container"><div className="card muted">Cargando Cashea…</div></main>}><CasheaScreen /></Suspense>;
+}
+
+function CasheaScreen() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [installments, setInstallments] = useState<Installment[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [rates, setRates] = useState<Rates>({ bcv: 0, operative: 0 });
   const [selected, setSelected] = useState<Installment | null>(null);
-  const [filter, setFilter] = useState<"ACTIVE" | "SETTLED" | "ALL">("ACTIVE");
+  // Filtro en la URL: sobrevive a «Volver» y a recargar.
+  const [urlState, setUrlState] = useUrlState({ estado: "ACTIVE" });
+  const filter = urlState.estado as "ACTIVE" | "SETTLED" | "ALL";
+  const setFilter = (estado: "ACTIVE" | "SETTLED" | "ALL") => setUrlState({ estado });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tracking, setTracking] = useState<TrackingStatus | null>(null);

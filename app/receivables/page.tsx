@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useUrlState } from "@/lib/use-url-state";
 import { referenceError } from "@/lib/finance/money";
 import {
   currencyOf, debtMessage, payAllAmount, previewPayment, remaining, type PayCurrency,
@@ -44,6 +45,10 @@ function isOverdue(r: Receivable) {
 }
 
 export default function ReceivablesPage() {
+  return <Suspense fallback={<main className="container"><div className="card muted">Cargando créditos…</div></main>}><ReceivablesScreen /></Suspense>;
+}
+
+function ReceivablesScreen() {
   const [receivables, setReceivables] = useState<Receivable[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -51,8 +56,11 @@ export default function ReceivablesPage() {
   const [payments, setPayments] = useState<CreditPayment[]>([]);
   const [bcv, setBcv] = useState(0);
   const [selected, setSelected] = useState<Receivable | null>(null);
-  const [filter, setFilter] = useState<Filter>("OPEN");
-  const [search, setSearch] = useState("");
+  // Filtro y búsqueda en la URL: sobreviven a «Volver» y a recargar.
+  const [urlState, setUrlState] = useUrlState({ estado: "OPEN", q: "" });
+  const filter = urlState.estado as Filter, search = urlState.q;
+  const setFilter = (estado: Filter) => setUrlState({ estado });
+  const setSearch = (q: string) => setUrlState({ q });
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
