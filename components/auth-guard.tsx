@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { Gotin } from "@/components/gotin";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -30,7 +31,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     };
   }, [pathname, publicDesignLab, router]);
 
-  if (!ready) return <div className="container"><div className="card">Cargando Lubricenter OS…</div></div>;
+  // Pantalla de arranque de marca mientras se confirma la sesión (aparece solo si tarda).
+  if (!ready) return <div className="os-theme os-boot live" role="status" aria-live="polite">
+    <span className="sr-only">Cargando Lubricenter OS…</span>
+    <div className="os-boot-art" aria-hidden="true"><Gotin pose="wave" /></div>
+    <span className="os-wordmark os-boot-mark" aria-hidden="true" />
+    <span className="os-boot-bar" aria-hidden="true"><i /></span>
+  </div>;
   return <>{children}</>;
 }
 

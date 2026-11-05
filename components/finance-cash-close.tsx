@@ -43,6 +43,5 @@ export default function FinanceCashClose() {
     {data?.status === 'CLOSED' && <section className="card stack"><Link className="btn" href={`/cash-close/${day}/receipt`}>Imprimir resumen 58 mm</Link>{data.role === 'OWNER' && !data.legacy && <><label>Motivo para reabrir<input className="input" value={reason} onChange={e => setReason(e.target.value)} /></label><button className="btn" disabled={busy || reason.trim().length < 8} onClick={() => act(() => rpc('reopen_cash_day', { p_business_date: day, p_reason: reason }))}>Reabrir con historial</button></>}</section>}
     {data && <CashCloseCorrections day={day} status={data.status} legacy={data.legacy} accounts={data.accounts} onChanged={load} />}
     {data?.role === 'OWNER' && <FinanceCashAlerts />}
-    <Link href="/finance" className="btn btn-ghost">← Finanzas</Link>
   </main>;
 }

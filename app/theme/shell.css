@@ -6,7 +6,7 @@
   .os-back { width: min(100%, 1440px); margin: 0 auto; padding: 14px clamp(16px, 2.8vw, 40px) 0; }
   .os-back + .container { padding-top: 12px; }
   .os-back-link { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px 0 10px; border-radius: 999px; color: var(--ink-2); font-size: 13.5px; font-weight: 600; box-shadow: inset 0 0 0 1px var(--rule); background: var(--surface); text-decoration: none; transition: color .15s ease, box-shadow .15s ease; }
-  .os-back-link:hover { color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  @media (hover: hover) and (pointer: fine) { .os-back-link:hover { color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); } }
   .os-back-link:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
   .os-skip-link { position: fixed; top: 8px; left: 8px; z-index: 150; padding: 12px 18px; border-radius: 999px; color: var(--ink); background: var(--surface); box-shadow: inset 0 0 0 2px var(--orange); transform: translateY(-160%); }
   .os-skip-link:focus { transform: translateY(0); }
@@ -107,7 +107,7 @@
   .os-command-result small { display: block; font-size: 13px; color: var(--ink-2); }
   .os-command-result-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 14px; background: var(--surface-2); color: var(--ink); }
   .os-command-result-icon .bi-wrap { width: 30px; height: 30px; }
-  .os-command-result:is(:hover, :focus-visible) { background: var(--orange-tint); }
+  @media (hover: hover) and (pointer: fine) { .os-command-result:is(:hover, :focus-visible) { background: var(--orange-tint); } }
   .os-command-hint { margin: 10px 14px 6px; font-size: 13px; color: var(--ink-2); }
   .os-command-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px; text-align: center; color: var(--ink-2); }
   .os-command-gotin { width: 96px; height: 100px; }

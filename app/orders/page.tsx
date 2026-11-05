@@ -7,6 +7,7 @@ import { neighbor } from "@/lib/order-preview";
 import { supabase } from "@/lib/supabase";
 import { canAdministerOrders } from "@/lib/session-cache";
 import { fmtRef, fmtVes, fmtRate } from "@/lib/format";
+import { LoadingBlock } from "@/components/skeleton";
 type PaymentDetail = {method:string;currency:"VES"|"USD";amount_original:number;equivalent_bcv:number|null;reference_tail:string|null;paid_at:string|null};
 type CasheaInfo = {initial_percent:number;initial_bcv_usd:number;initial_ves:number;financed_bcv_usd:number;total_bcv_usd:number;bcv_rate:number;reference:string|null;initial_method:string|null;ownership_status:string;status:string};
 type Sale = {id:string;order_number:string;status:string;sale_at:string;customer_id:string|null;customer_name:string|null;plate:string|null;kind:string;services:string|null;total_ref:number;total_ves:number;payment_type:string;has_financed_sale:boolean;cancellation_reason:string|null;collected_ves:number;collected_usd:number;payment_details:PaymentDetail[];cashea:CasheaInfo|null};
@@ -21,7 +22,7 @@ function whenVenezuela(value:string){return new Intl.DateTimeFormat("es-VE",{tim
 function Explanation({title,children}:{title:string;children:React.ReactNode}){return <details style={{position:"relative"}}><summary title={title} aria-label={title} style={{cursor:"pointer",listStyle:"none",color:"var(--muted)",padding:"2px 5px"}}>ⓘ</summary><div className="card small" style={{position:"absolute",top:25,right:0,zIndex:5,width:"min(280px,74vw)",boxShadow:"0 12px 25px #0003"}}><strong>{title}</strong><p>{children}</p></div></details>;}
 function Metric({label,value,ves,description}:{label:string;value:number;ves?:boolean;description:string}){return <div className="card"><div className="row-between" style={{gap:5}}><span className="small muted">{label}</span><Explanation title={label}>{description}</Explanation></div><div className="kpi" style={{wordBreak:"break-word"}}>{ves?fmtVes(value):fmtRef(value)}</div></div>;}
 export default function OrdersPage() {
- return <Suspense fallback={<main className="container"><div className="card muted">Cargando órdenes…</div></main>}><OrdersScreen/></Suspense>;
+ return <Suspense fallback={<main className="container"><LoadingBlock label="Cargando órdenes…" kind="list" /></main>}><OrdersScreen/></Suspense>;
 }
 function OrdersScreen() {
  const [rows,setRows]=useState<Sale[]>([]),[count,setCount]=useState(0);

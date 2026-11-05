@@ -1,0 +1,159 @@
+/* Lubricenter OS en el teléfono: que se sienta app instalada, que cada carga tenga forma
+   y que cada toque responda. Solo transform y opacity en lo que se mueve. */
+
+/* ------------------------------------------------------------------ Base táctil */
+/* Sin el destello gris del navegador al tocar: cada control tiene su propio :active. */
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+/* Sin el «refrescar» ni el rebote de toda la página: la app trae su propio deslizar para actualizar. */
+@media screen { html, body { overscroll-behavior-y: none; } }
+/* Sin la espera de doble toque en controles. */
+:where(a, button, [role="button"], summary, label, select, .btn) { touch-action: manipulation; }
+/* Mantener presionado un control no selecciona su texto ni abre el menú del enlace. */
+:where(button, [role="button"], .btn, .pill, kbd, .os-dock, .os-subnav a, .os-modules a, .os-steps, .segmented,
+  .os-pay, .os-stage-tabs, .inv-chip, .crm-chip, .os-act, .os-lane) { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* iPhone acerca la página al tocar un campo de menos de 16 px y no vuelve: todos los campos a 16 px en táctil. */
+@media (pointer: coarse) {
+  .os-theme :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) { font-size: 16px; }
+}
+
+/* ------------------------------------------------------------------ Muesca y barra de estado */
+@media screen {
+  .os-masthead { padding-top: env(safe-area-inset-top, 0px); }
+  .os-subnav { top: calc(76px + env(safe-area-inset-top, 0px)); }
+}
+@media screen and (max-width: 900px) {
+  .os-subnav { top: calc(64px + env(safe-area-inset-top, 0px)); }
+  .os-drawer-scrim, .os-command-scrim { padding-top: calc(10px + env(safe-area-inset-top, 0px)); }
+}
+
+/* ------------------------------------------------------------------ Arranque */
+.os-boot { position: fixed; inset: 0; z-index: 200; display: grid; place-content: center; justify-items: center; gap: 18px; padding: env(safe-area-inset-top, 0px) 24px env(safe-area-inset-bottom, 0px); background: var(--paper); animation: os-boot-in .35s .18s var(--ease) both; }
+.os-boot-art { width: 124px; height: 136px; }
+.os-boot-art .gotin-wrap { width: 100%; height: 100%; }
+.os-boot-mark { width: 150px; color: var(--ink); }
+.os-boot-bar { width: 120px; height: 4px; overflow: hidden; border-radius: 2px; background: var(--sunk); }
+.os-boot-bar i { display: block; width: 40%; height: 100%; border-radius: 2px; background: var(--orange); animation: os-boot-bar 1.15s var(--io) infinite; }
+@keyframes os-boot-in { from { opacity: 0; } }
+@keyframes os-boot-bar { from { transform: translateX(-110%); } to { transform: translateX(260%); } }
+
+/* ------------------------------------------------------------------ Esqueletos de carga */
+.os-skel { position: relative; display: inline-block; max-width: 100%; overflow: hidden; vertical-align: middle; background: var(--sunk); }
+.os-skel::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 62%) 50%, transparent 80%); transform: translateX(-100%); animation: os-shimmer 1.4s var(--io) infinite; }
+@keyframes os-shimmer { to { transform: translateX(100%); } }
+/* Si la carga es instantánea el esqueleto ni se ve: aparece tras un instante. */
+.os-loading { animation: os-fade .3s .12s var(--ease) both; }
+.os-skel-rows { display: flex; flex-direction: column; padding: 6px; border-radius: 24px; background: var(--surface); box-shadow: var(--e1); }
+.os-skel-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 12px 10px; animation: os-fade .4s var(--ease) both; }
+.os-skel-row + .os-skel-row { box-shadow: 0 -1px 0 var(--rule); }
+.os-skel-lines { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.os-skel-cards { display: grid; gap: 12px; }
+.os-skel-card { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 22px; background: var(--surface); box-shadow: var(--e1); animation: os-fade .4s var(--ease) both; }
+.os-skel-detail { display: flex; flex-direction: column; gap: 14px; }
+.os-skel-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.os-skel-count { display: inline-block; width: 18px; height: 12px; border-radius: 6px; background: var(--rule-2); }
+.os-plist .os-skel-rows, .os-todo-skel .os-skel-rows { padding: 0; background: none; box-shadow: none; }
+.os-theme .os-todo .os-todo-skel { padding: 8px 0; }
+.os-home-lede-skel { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.os-theme .os-lane .os-lane-skel { display: flex; flex-direction: column; gap: 6px; }
+/* Los resultados que llegan después del esqueleto aparecen sin salto. */
+.os-theme .os-plist > .os-prow { animation: os-fade .28s var(--ease) both; }
+
+/* ------------------------------------------------------------------ Cambio de pantalla */
+/* Evita la barra de desplazamiento lateral mientras la pantalla entra de costado. */
+.os-workspace-content { overflow-x: clip; }
+.os-page { animation: os-page-in .3s var(--ease) backwards; }
+@keyframes os-page-in { from { opacity: 0; transform: translateY(6px); } }
+@media screen and (max-width: 900px) {
+  .os-page[data-dir="forward"] { animation-name: os-page-forward; animation-duration: .34s; }
+  .os-page[data-dir="back"] { animation-name: os-page-back; animation-duration: .34s; }
+  @keyframes os-page-forward { from { opacity: 0; transform: translateX(28px); } }
+  @keyframes os-page-back { from { opacity: 0; transform: translateX(-28px); } }
+}
+
+/* ------------------------------------------------------------------ Avisos */
+.os-theme :is(.error, .success) { animation: os-notice .42s var(--spring) both; }
+@keyframes os-notice { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
+
+/* ------------------------------------------------------------------ Deslizar para actualizar */
+.os-ptr { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 6px); left: 50%; z-index: 60; display: flex; flex-direction: column; align-items: center; gap: 4px; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+.os-ptr.is-idle, .os-ptr.is-refreshing { transition: transform .45s var(--spring), opacity .25s ease; }
+.os-ptr-drop { display: block; width: 54px; height: 60px; transform-origin: 50% 100%; transition: transform .18s var(--ease); }
+.os-ptr-drop svg { width: 100%; height: 100%; }
+.os-ptr-label { padding: 4px 11px; border-radius: 999px; background: var(--ink); color: var(--surface); font-size: 12px; font-weight: 650; white-space: nowrap; box-shadow: var(--e2); }
+.os-ptr.is-armed .os-ptr-label { background: var(--orange); color: #161616; }
+.os-ptr.is-refreshing .os-ptr-drop { animation: os-ptr-hop .9s var(--spring); }
+@keyframes os-ptr-hop { 30% { transform: scale(1.14, .86); } 60% { transform: translateY(-10px) scale(.92, 1.08); } 100% { transform: none; } }
+
+/* ------------------------------------------------------------------ Cabecera que se aparta */
+.os-shell.is-scrolled .os-masthead { box-shadow: 0 1px 0 var(--rule), 0 12px 26px -22px rgb(22 22 22 / 40%); }
+@media screen and (max-width: 900px) {
+  .os-masthead, .os-subnav { transition: transform .32s var(--ease), box-shadow .2s ease; }
+  .os-shell.is-head-away .os-masthead { transform: translateY(-100%); }
+  .os-shell.is-head-away .os-subnav { transform: translateY(calc(-64px - env(safe-area-inset-top, 0px))); }
+  /* Los accesos de sección se desplazan de lado con imán y se desvanecen en el borde. */
+  .os-subnav-in { scroll-snap-type: x proximity; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+  .os-subnav-in a { scroll-snap-align: start; }
+}
+
+/* ------------------------------------------------------------------ Dock */
+@media screen and (max-width: 900px) {
+  .os-dock-pill { position: absolute; top: 6px; bottom: 6px; left: 0; z-index: 0; border-radius: 20px; background: var(--orange); opacity: 0; pointer-events: none; transition: transform .5s var(--spring), width .5s var(--spring), opacity .2s ease; }
+  .os-dock :is(a, button) { position: relative; z-index: 1; transition: transform .2s var(--ease), color .2s ease; }
+  .os-dock a.is-active { background: transparent; color: var(--ink); }
+  .os-dock svg.is-hop { animation: os-hop .5s var(--spring); }
+  @keyframes os-hop { 35% { transform: translateY(-5px) scale(1.14, .9); } 70% { transform: translateY(0) scale(.96, 1.04); } 100% { transform: none; } }
+}
+
+/* ------------------------------------------------------------------ Respuesta al toque */
+@media (pointer: coarse) {
+  .os-theme :is(.os-todo a, .os-tools-panel a, .os-day dl a, a.card, .directory-option, .crm-customer-row, .os-wcard, .os-stage-tabs button, .os-subnav a) { transition-property: transform, background-color, box-shadow, color; transition-duration: .16s; }
+  .os-theme :is(.os-todo a, .os-tools-panel a, .os-day dl a, a.card, .directory-option, .crm-customer-row):active { transform: scale(.985); transition-duration: .08s; }
+  .os-theme :is(.os-stage-tabs button, .os-subnav a):active { transform: scale(.94); transition-duration: .08s; }
+}
+
+/* ------------------------------------------------------------------ Hojas tipo app */
+@media screen and (max-width: 700px) {
+  .os-theme .overlay { align-items: end; place-items: end center; padding: 0; }
+  .os-theme .overlay > .sheet { width: 100%; max-height: 94dvh; border-radius: 28px 28px 0 0; overscroll-behavior: contain; animation: os-sheet-up .46s var(--drawer) both; }
+  /* El asa de arriba dice «esto es una hoja». */
+  .os-theme .overlay > .sheet::before { content: ""; display: block; flex: none; width: 40px; height: 5px; margin: -10px auto 14px; border-radius: 3px; background: var(--rule-2); }
+  .os-theme .overlay.os-side { align-items: flex-end; padding: 0; }
+  .os-theme .overlay.os-side > .sheet { height: auto; max-height: 94dvh; padding: 22px 18px calc(22px + env(safe-area-inset-bottom, 0px)); border-radius: 28px 28px 0 0; animation-name: os-sheet-up; }
+  @keyframes os-sheet-up { from { transform: translateY(100%); } }
+}
+
+/* ------------------------------------------------------------------ Taller por etapas */
+.os-stage-tabs { display: none; }
+@media screen and (max-width: 900px) {
+  .os-theme .os-stage-tabs { position: sticky; top: calc(64px + env(safe-area-inset-top, 0px)); z-index: 20; display: flex; gap: 6px; margin: 0 -14px; padding: 8px 14px; overflow-x: auto; scrollbar-width: none; background: rgb(247 245 241 / 94%); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); transition: transform .32s var(--ease); }
+  .os-shell.is-head-away .os-stage-tabs { transform: translateY(calc(-64px - env(safe-area-inset-top, 0px))); }
+  .os-theme .os-stage-tabs::-webkit-scrollbar { display: none; }
+  .os-theme .os-stage-tabs button { display: inline-flex; flex: none; align-items: center; gap: 8px; height: 38px; padding: 0 8px 0 14px; border: 0; border-radius: 999px; background: var(--surface); color: var(--ink-2); font-size: 13.5px; font-weight: 600; box-shadow: inset 0 0 0 1px var(--rule); }
+  .os-theme .os-stage-tabs button b { display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px; background: var(--surface-2); color: var(--ink); font-size: 12.5px; }
+  .os-theme .os-stage-tabs button.is-on { background: var(--ink); color: var(--surface); box-shadow: none; }
+  .os-theme .os-stage-tabs button.is-on b { background: var(--orange); color: #161616; }
+  .os-theme .os-board-wrap { margin: 0 -14px; padding: 4px 14px 24px; scroll-snap-type: x mandatory; scroll-padding: 0 14px; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .os-theme .os-board-wrap::-webkit-scrollbar { display: none; }
+  .os-theme .os-board { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: calc(100vw - 44px); gap: 12px; min-width: 0; }
+  .os-theme .os-col { scroll-snap-align: start; scroll-snap-stop: always; }
+}
+
+/* ------------------------------------------------------------------ Encabezados con acciones */
+@media screen and (max-width: 700px) {
+  /* Títulos con botones al lado (Órdenes, Cobros…): título arriba, acciones en una fila que se desplaza. */
+  .os-theme .container > .row-between:first-child { flex-direction: column; align-items: stretch; gap: 14px; }
+  .os-theme .container > .row-between:first-child > .row { flex-wrap: nowrap !important; gap: 8px; margin: 0 -14px; padding: 2px 14px 4px; overflow-x: auto; scrollbar-width: none; }
+  .os-theme .container > .row-between:first-child > .row::-webkit-scrollbar { display: none; }
+  .os-theme .container > .row-between:first-child > .row > .btn { flex: none; min-height: 42px; padding: 9px 16px; font-size: 13.5px; }
+}
+
+/* ------------------------------------------------------------------ Instalar en el teléfono */
+.os-install { position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 0 0 24px; padding: 14px 44px 14px 12px; border-radius: 24px; background: var(--ink); color: var(--surface); box-shadow: var(--e2); animation: os-popin .5s .4s var(--spring) both; }
+.os-install-art { width: 56px; height: 62px; }
+.os-install-art .gotin-wrap { width: 100%; height: 100%; }
+.os-install-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.os-install-text strong { font-size: 15px; font-weight: 750; }
+.os-install-text small { color: rgb(255 255 255 / 72%); font-size: 13px; line-height: 1.35; }
+.os-install-share { display: inline-block; vertical-align: -2px; transform: rotate(-90deg); }
+.os-install .btn { min-height: 40px; padding: 8px 16px; }
+.os-install-close { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: rgb(255 255 255 / 12%); color: inherit; }

@@ -12,7 +12,7 @@
 .oce-choice {display:flex;align-items:center;gap:8px;min-height:48px;padding:10px;
  color:#bfccd7;background:#263441;border:1px solid #4d5c6c;border-radius:9px;
  font-size:11px;font-weight:690;line-height:1.4;cursor:pointer;transition:border-color .15s,background .15s;}
-.oce-choice:hover {border-color:#ffaf79;}
+@media (hover: hover) and (pointer: fine) { .oce-choice:hover {border-color:#ffaf79;} }
 .oce-choice.is-checked {background:#47342b;border-color:#fa9859;color:#ffd7b9;}
 .oce-choice input {width:18px;height:18px;accent-color:#ff914d;flex-shrink:0;cursor:pointer;}
 .oce-choice > span {flex:1;min-width:0;}
@@ -25,7 +25,7 @@
 .oce-add-custom button {display:inline-flex;align-items:center;justify-content:center;gap:5px;
  padding:9px 11px;background:#384553;color:#e8f0f6;font-weight:780;font-size:11px;
  border:1px solid #68798a;border-radius:8px;white-space:nowrap;}
-.oce-add-custom button:hover {background:#4a5868;}
+@media (hover: hover) and (pointer: fine) { .oce-add-custom button:hover {background:#4a5868;} }
 .oce-add-custom button:disabled {opacity:.55;cursor:default;}
 .oce-manual-list {display:flex;gap:6px;flex-wrap:wrap;}
 .oce-custom-pill {display:inline-flex;align-items:center;gap:5px;border-radius:16px;padding:6px 9px;

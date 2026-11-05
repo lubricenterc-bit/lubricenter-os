@@ -10,6 +10,7 @@ import {
 } from "@/lib/finance/receivables";
 import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtVes } from "@/lib/format";
+import { LoadingBlock } from "@/components/skeleton";
 
 type Receivable = {
   id: string; order_id: string; customer_id: string | null;
@@ -46,7 +47,7 @@ function isOverdue(r: Receivable) {
 }
 
 export default function ReceivablesPage() {
-  return <Suspense fallback={<main className="container"><div className="card muted">Cargando créditos…</div></main>}><ReceivablesScreen /></Suspense>;
+  return <Suspense fallback={<main className="container"><LoadingBlock label="Cargando créditos…" kind="list" /></main>}><ReceivablesScreen /></Suspense>;
 }
 
 function ReceivablesScreen() {
@@ -171,7 +172,7 @@ function ReceivablesScreen() {
       </div>
     </section>
 
-    {loading && !receivables.length ? <div className="card muted">Cargando cuentas por cobrar…</div> : <section className="stack">
+    {loading && !receivables.length ? <LoadingBlock label="Cargando cuentas por cobrar…" kind="list" /> : <section className="stack">
       {visible.map(r => {
         const c = r.customer_id ? customerMap.get(r.customer_id) : undefined;
         const o = orderMap.get(r.order_id);

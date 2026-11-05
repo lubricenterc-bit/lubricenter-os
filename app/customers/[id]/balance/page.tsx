@@ -8,6 +8,7 @@ import { financeRole } from "@/lib/session-cache";
 import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
 import { referenceError } from "@/lib/finance/money";
 import { NumberInput } from "@/components/number-field";
+import { LoadingBlock } from "@/components/skeleton";
 
 type Customer = { id: string; name: string | null; phone: string | null };
 type Pocket = "USD" | "VES_BCV";
@@ -119,7 +120,7 @@ export default function CustomerBalanceDetailPage() {
     <section className="brand-hero"><div><div className="eyebrow">CRM · SALDO A FAVOR</div><h1>{customer?.name || "Cliente"}</h1><p>{customer?.phone || "Sin teléfono"} · El dinero recibido y su uso quedan en un historial.</p></div><img src="/lubricenter-logo.png" alt="Lubricenter" /></section>
     <div className="row"><Link className="btn" href={`/customers/${id}`}>Ficha del cliente</Link></div>
     {error && <div className="error" role="alert">{error}</div>}{notice && <div className="success" role="status">{notice}</div>}
-    {loading ? <div className="card muted">Cargando saldo…</div> : <>
+    {loading ? <LoadingBlock label="Cargando saldo…" kind="detail" /> : <>
       <section className="grid grid-2">
         <div className="card stack"><div className="muted small">DIVISAS RECIBIDAS</div><div className="kpi">{fmtRef(balances.USD)}</div><div className="muted small">Se usan como USD; una devolución debe salir en divisas.</div></div>
         <div className="card stack"><div className="muted small">BS RECIBIDOS · VALOR BCV CONGELADO</div><div className="kpi">{fmtRef(balances.VES_BCV)}</div><div className="muted small">Hoy equivalen a {fmtVes(balances.VES_BCV*rates.bcv)} con BCV {rates.bcv.toLocaleString("es-VE")}.</div></div>

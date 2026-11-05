@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
 import { NumberInput } from "@/components/number-field";
+import { LoadingBlock } from "@/components/skeleton";
 
 type Customer = { id: string; name: string | null; phone: string | null; document_id: string | null; created_at: string };
 type Vehicle = { id: string; customer_id: string | null; plate: string | null; make: string | null; model: string | null; year: number | null; engine: string | null; current_odometer: number | null; customer_name?: string | null };
@@ -104,7 +105,7 @@ export default function CustomerDetailPage() {
     router.push(`/orders/${row.id}`);
   }
 
-  if (!customer && !error) return <main className="container"><div className="card muted">Cargando ficha maestra…</div></main>;
+  if (!customer && !error) return <main className="container"><LoadingBlock label="Cargando ficha maestra…" kind="detail" /></main>;
 
   return <main className="container stack">
     {error && <div className="error">{error}</div>}{notice && <div className="success">{notice}</div>}

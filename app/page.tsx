@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAppSession } from "@/components/app-session-context";
-import { OsHome, type HomeBoardRow, type HomeDashboard as Dashboard } from "@/components/os-home";
+import { OsHome, type HomeBoardRow, type HomeDashboard as Dashboard, type HomeProfit } from "@/components/os-home";
 
 const INITIAL: Dashboard = {
   localDate: "", closedOrdersToday: 0, salesRefToday: 0, collectedRefToday: 0,
@@ -22,6 +22,8 @@ export default function HomePage() {
   // Tras la primera carga, los refrescos actualizan las cifras sin vaciarlas a «—».
   const [loadedOnce, setLoadedOnce] = useState(false);
   const [error, setError] = useState("");
+  // Ganancia del día por área: solo el dueño la ve; si falla, el inicio sigue sin ella.
+  const [profit, setProfit] = useState<HomeProfit | null | undefined>(undefined);
 
   async function load() {
     setLoading(true); setError("");
@@ -67,7 +69,18 @@ export default function HomePage() {
     setLoading(false); setLoadedOnce(true);
   }
   useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    if (!owner || !data.localDate) return;
+    let active = true;
+    supabase.rpc("finance_profit_report", { p_from: data.localDate, p_to: data.localDate }).then(({ data: report, error }) => {
+      if (!active) return;
+      const value = report as { areas?: Record<string, { profit_ref?: number } | undefined>; total_profit_ref?: number } | null;
+      const num = (x: number | null | undefined) => x == null ? null : Number(x);
+      setProfit(error ? null : { store: num(value?.areas?.TIENDA?.profit_ref), workshop: num(value?.areas?.TALLER?.profit_ref), total: num(value?.total_profit_ref) });
+    });
+    return () => { active = false; };
+  }, [owner, data.localDate]);
 
-  return <OsHome data={data} board={board} owner={owner} locationName={locationName} loading={loading && !loadedOnce} error={error}
+  return <OsHome data={data} board={board} owner={owner} profit={owner ? profit : null} locationName={locationName} loading={loading && !loadedOnce} error={error}
     onRefresh={() => void load()} />;
 }

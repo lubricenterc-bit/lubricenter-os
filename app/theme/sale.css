@@ -206,7 +206,7 @@
   .os-theme .os-tk-foot .os-tk-hint { margin-top: 8px; }
   /* Dentro del ticket los botones secundarios van en gris claro para que el naranja de cobrar mande */
   .os-theme .os-ticket .btn:not(.btn-primary):not(.btn-ghost):not(.os-charge) { background: var(--surface-2); color: var(--ink); }
-  .os-theme .os-ticket .btn:not(.btn-primary):not(.btn-ghost):not(.os-charge):hover { background: var(--sunk); }
+  @media (hover: hover) and (pointer: fine) { .os-theme .os-ticket .btn:not(.btn-primary):not(.btn-ghost):not(.os-charge):hover { background: var(--sunk); } }
 
   /* El guante señala lo que falta */
   .os-theme .os-guide { position: absolute; top: 0; left: 0; z-index: 6; width: 44px; height: 44px; opacity: 0; pointer-events: none; transition: transform .55s var(--spring), opacity .25s ease; }

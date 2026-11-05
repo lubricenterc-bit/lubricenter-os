@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import {useEffect,useMemo,useState} from 'react';
 import {supabase} from '@/lib/supabase';
+import { LoadingBlock } from "@/components/skeleton";
 
 type CampaignStatus='PENDING'|'SENT'|'RESPONDED'|'SCHEDULED'|'VISITED'|'CONVERTED'|'NOT_INTERESTED';
 type Campaign={name:string;slug:string;status:string;starts_on:string;ends_on:string|null;objective:string;description:string|null};
@@ -45,7 +46,7 @@ export default function CampaignsPage(){
       </div>
       <img src="/lubricenter-logo.png" alt="Lubricenter"/>
     </section>
-    {loading&&<div className="card">Cargando campañas…</div>}
+    {loading&&<LoadingBlock label="Cargando campañas…" kind="cards" />}
     {error&&<div className="error">{error}</div>}
     {campaign&&<>
       <section className="grid grid-3">

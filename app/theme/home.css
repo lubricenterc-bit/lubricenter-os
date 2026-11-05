@@ -12,12 +12,13 @@
   .os-theme .os-home-alert { color: var(--red); font-weight: 650; }
   .os-theme .os-home-lead > .os-attendant { margin: -8px 0 24px; }
 
-  .os-theme .os-home-actions { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-  .os-theme .os-act { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; min-height: 148px; padding: 22px 22px 20px 24px; border-radius: 28px; background: var(--surface); color: var(--ink); box-shadow: var(--e1); text-decoration: none; animation: os-popin .6s var(--spring) both; transition: transform .45s var(--spring), box-shadow .25s ease; }
-  .os-theme .os-act kbd { position: absolute; top: 20px; left: 24px; }
-  .os-theme .os-act strong { display: block; font-size: 26px; font-weight: 800; letter-spacing: -.035em; line-height: 1; }
+  .os-theme .os-home-actions-title { margin: 0 0 12px; font-size: 15px; font-weight: 700; letter-spacing: -.01em; color: var(--ink-2); }
+  .os-theme .os-home-actions { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .os-theme .os-act { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; min-height: 136px; padding: 22px 22px 20px 24px; border-radius: 28px; background: var(--surface); color: var(--ink); box-shadow: var(--e1); text-decoration: none; animation: os-popin .6s var(--spring) both; transition: transform .45s var(--spring), box-shadow .25s ease; }
+  .os-theme .os-act kbd { position: absolute; top: 16px; right: 16px; }
+  .os-theme .os-act strong { display: block; font-size: 23px; font-weight: 800; letter-spacing: -.035em; line-height: 1; }
   .os-theme .os-act small { display: block; margin-top: 8px; color: var(--ink-2); font-size: 14px; line-height: 1.35; }
-  .os-theme .os-act-icon { width: 84px; height: 84px; margin: -6px -4px -4px 0; transition: transform .45s var(--spring); }
+  .os-theme .os-act-icon { width: 70px; height: 70px; margin: -6px -4px -4px 0; transition: transform .45s var(--spring); }
   .os-theme .os-act.is-main { background: var(--orange); color: #161616; }
   .os-theme .os-act.is-main small { color: rgb(22 22 22 / 78%); }
   .os-theme .os-act.is-main kbd { background: rgb(0 0 0 / 12%); }
@@ -29,11 +30,6 @@
     .os-theme .os-act.is-main:hover { background: var(--orange-hover); }
   }
 
-  .os-theme .os-home-starts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
-  .os-theme .os-home-starts > span { margin-right: 4px; color: var(--ink-3); font-size: 13.5px; font-weight: 600; }
-  .os-theme .os-home-starts a { display: inline-flex; align-items: center; height: 36px; padding: 0 15px; border-radius: 999px; color: var(--ink); font-size: 13.5px; font-weight: 600; text-decoration: none; box-shadow: inset 0 0 0 1.5px var(--rule-2); transition: box-shadow .2s ease, transform .3s var(--spring); }
-  .os-theme .os-home-starts a:active { transform: scale(.95); }
-  @media (hover: hover) { .os-theme .os-home-starts a:hover { box-shadow: inset 0 0 0 1.5px var(--ink); } }
 
   /* Escenario: Gotín de pie sobre la tarjeta del día */
   .os-theme .os-home-stage { position: relative; padding-top: 178px; }
@@ -130,9 +126,17 @@
 @media screen and (max-width: 600px) {
   .os-theme .os-home > section { margin-bottom: 44px; }
   .os-theme .os-home-lede { font-size: 16.5px; }
-  .os-theme .os-home-actions { grid-template-columns: minmax(0, 1fr); }
-  .os-theme .os-act { min-height: 118px; }
-  .os-theme .os-act-icon { width: 72px; height: 72px; }
+  /* Teléfono: rejilla de 2 compacta; Vender ocupa todo el ancho porque es lo que más se toca. */
+  .os-theme .os-home-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .os-theme .os-act { grid-template-columns: minmax(0, 1fr); align-items: start; min-height: 128px; padding: 16px 16px 14px; border-radius: 24px; }
+  .os-theme .os-act.is-main { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) auto; align-items: end; min-height: 112px; }
+  .os-theme .os-act > span:not(.os-act-icon):not(.bi-wrap) { align-self: end; }
+  .os-theme .os-act strong { font-size: 19px; }
+  .os-theme .os-act small { margin-top: 5px; font-size: 12.5px; }
+  .os-theme .os-act kbd { top: 12px; right: 12px; }
+  .os-theme .os-act-icon { order: -1; width: 46px; height: 46px; margin: 0; }
+  .os-theme .os-act.is-main .os-act-icon { order: 0; width: 64px; height: 64px; }
+
   .os-theme .os-home-stage { padding-top: 150px; }
   .os-theme .os-home-gotin { width: 150px; height: 156px; right: 4px; }
   .os-theme .os-bubble { right: 146px; max-width: 190px; font-size: 13.5px; }

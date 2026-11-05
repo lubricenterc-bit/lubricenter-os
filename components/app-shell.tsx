@@ -12,6 +12,7 @@ import { OsDock, OsHeader, OsSubnav, SHORTCUTS } from "@/components/os-navigatio
 import { BrandIcon, Gotin, useLive } from "@/components/gotin";
 import { AppSessionProvider } from "@/components/app-session-context";
 import { BackButton } from "@/components/back-button";
+import { PageStage, PullToRefresh, useScrollChrome } from "@/components/mobile-shell";
 import {
   NAV_MODULES, linksForModule, moduleForPath, navigationSearch, pageLabelForPath,
   type NavigationRole,
@@ -37,6 +38,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const workspaceRef = useRef<HTMLDivElement>(null);
   const [calm, setCalm] = useState(false);
   const commandLive = useLive<HTMLDivElement>();
+  // Teléfono: la cabecera se esconde al bajar, y deslizar hacia abajo vuelve a cargar la pantalla.
+  const shellRef = useRef<HTMLDivElement>(null);
+  useScrollChrome(shellRef);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refreshScreen = useCallback(() => setRefreshKey(value => value + 1), []);
   const owner = role === "OWNER" || role === "ADMIN";
   const results = useMemo(() => navigationSearch(search, role), [search, role]);
 
@@ -187,7 +193,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AppSessionProvider value={{ role, roleLoaded, locationName }}>
-      <div className="shell os-theme os-shell">
+      <div ref={shellRef} className="shell os-theme os-shell">
         <div ref={workspaceRef} className="os-workspace">
           <a className="os-skip-link" href="#os-main">Ir al contenido</a>
           <OsHeader pathname={pathname} onSearch={() => setSearchOpen(true)} onMenu={() => setMobileMenu(true)}
@@ -197,8 +203,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <OsSubnav pathname={pathname} role={role} />
           <div id="os-main" className="os-workspace-content" tabIndex={-1}>
             <Suspense fallback={null}><BackButton /></Suspense>
-            {children}
+            <PageStage refreshKey={refreshKey}>{children}</PageStage>
           </div>
+          <PullToRefresh onRefresh={refreshScreen} />
           <OsDock pathname={pathname} onSearch={() => setSearchOpen(true)} onMenu={() => setMobileMenu(true)} menuOpen={mobileMenu} />
         </div>
 

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import "./catalog/catalog.css";
@@ -18,6 +18,7 @@ import "./theme/home.css";
 import "./theme/sale.css";
 import "./theme/workshop.css";
 import "./theme/login.css";
+import "./theme/mobile.css";
 import "./theme/motion.css";
 import { AuthGuard } from "@/components/auth-guard";
 import { AppShell } from "@/components/app-shell";
@@ -51,9 +52,21 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    // La cabecera es clara: letras oscuras en la barra de estado de la app instalada.
+    statusBarStyle: "default",
     title: "Lubricenter OS"
   },
+};
+
+// Pantalla completa hasta la muesca (los márgenes seguros los ponen la cabecera, el dock y las hojas),
+// el teclado de Android encoge la vista y la barra del navegador toma el color de la cabecera.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+  themeColor: "#F7F5F1",
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

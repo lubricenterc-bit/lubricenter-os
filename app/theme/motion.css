@@ -31,22 +31,41 @@
 .bi .speed, .bi .drop { opacity: 0; }
 .bi .wr { transform-origin: 20% 85%; }
 .bi .can-body { transform-origin: 50% 100%; }
-:is(.live.on, .live .on, .hov:hover) .bi .car-body { animation: bi-car .42s ease-in-out infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .wheel { animation: bi-spin .8s linear infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .speed { animation: bi-speed .5s ease-out infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .wr { animation: bi-wrench 1s ease-in-out infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .bolt { animation: bi-spin 2s linear infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .lens { animation: bi-scan 1.6s ease-in-out infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .hg { animation: bi-flip 3.2s cubic-bezier(.65, 0, .35, 1) infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .sand { animation: bi-sand .6s linear infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .cloth { animation: bi-flag .7s ease-in-out infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .ring { animation: bi-ring 2.4s ease-in-out infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .tagb { animation: bi-swing 1.6s ease-in-out infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .today { animation: bi-pulse 1.2s cubic-bezier(.34, 1.56, .64, 1) infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .drop { animation: bi-drip 1.3s cubic-bezier(.55, 0, 1, .45) infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .can-body { animation: bi-tilt 1.3s ease-in-out infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .pencil { animation: bi-write .5s ease-in-out infinite; }
-:is(.live.on, .live .on, .hov:hover) .bi .puffs { animation: bi-puffs .9s ease-out infinite; }
+:is(.live.on, .live .on) .bi .car-body { animation: bi-car .42s ease-in-out infinite; }
+:is(.live.on, .live .on) .bi .wheel { animation: bi-spin .8s linear infinite; }
+:is(.live.on, .live .on) .bi .speed { animation: bi-speed .5s ease-out infinite; }
+:is(.live.on, .live .on) .bi .wr { animation: bi-wrench 1s ease-in-out infinite; }
+:is(.live.on, .live .on) .bi .bolt { animation: bi-spin 2s linear infinite; }
+:is(.live.on, .live .on) .bi .lens { animation: bi-scan 1.6s ease-in-out infinite; }
+:is(.live.on, .live .on) .bi .hg { animation: bi-flip 3.2s cubic-bezier(.65, 0, .35, 1) infinite; }
+:is(.live.on, .live .on) .bi .sand { animation: bi-sand .6s linear infinite; }
+:is(.live.on, .live .on) .bi .cloth { animation: bi-flag .7s ease-in-out infinite; }
+:is(.live.on, .live .on) .bi .ring { animation: bi-ring 2.4s ease-in-out infinite; }
+:is(.live.on, .live .on) .bi .tagb { animation: bi-swing 1.6s ease-in-out infinite; }
+:is(.live.on, .live .on) .bi .today { animation: bi-pulse 1.2s cubic-bezier(.34, 1.56, .64, 1) infinite; }
+:is(.live.on, .live .on) .bi .drop { animation: bi-drip 1.3s cubic-bezier(.55, 0, 1, .45) infinite; }
+:is(.live.on, .live .on) .bi .can-body { animation: bi-tilt 1.3s ease-in-out infinite; }
+:is(.live.on, .live .on) .bi .pencil { animation: bi-write .5s ease-in-out infinite; }
+:is(.live.on, .live .on) .bi .puffs { animation: bi-puffs .9s ease-out infinite; }
+/* Con puntero real, pasar por encima también las anima; en táctil no se quedan pegadas tras un toque. */
+@media (hover: hover) and (pointer: fine) {
+  .hov:hover .bi .car-body { animation: bi-car .42s ease-in-out infinite; }
+  .hov:hover .bi .wheel { animation: bi-spin .8s linear infinite; }
+  .hov:hover .bi .speed { animation: bi-speed .5s ease-out infinite; }
+  .hov:hover .bi .wr { animation: bi-wrench 1s ease-in-out infinite; }
+  .hov:hover .bi .bolt { animation: bi-spin 2s linear infinite; }
+  .hov:hover .bi .lens { animation: bi-scan 1.6s ease-in-out infinite; }
+  .hov:hover .bi .hg { animation: bi-flip 3.2s cubic-bezier(.65, 0, .35, 1) infinite; }
+  .hov:hover .bi .sand { animation: bi-sand .6s linear infinite; }
+  .hov:hover .bi .cloth { animation: bi-flag .7s ease-in-out infinite; }
+  .hov:hover .bi .ring { animation: bi-ring 2.4s ease-in-out infinite; }
+  .hov:hover .bi .tagb { animation: bi-swing 1.6s ease-in-out infinite; }
+  .hov:hover .bi .today { animation: bi-pulse 1.2s cubic-bezier(.34, 1.56, .64, 1) infinite; }
+  .hov:hover .bi .drop { animation: bi-drip 1.3s cubic-bezier(.55, 0, 1, .45) infinite; }
+  .hov:hover .bi .can-body { animation: bi-tilt 1.3s ease-in-out infinite; }
+  .hov:hover .bi .pencil { animation: bi-write .5s ease-in-out infinite; }
+  .hov:hover .bi .puffs { animation: bi-puffs .9s ease-out infinite; }
+}
 @keyframes bi-car { 50% { transform: translateY(-2px) rotate(-1deg); } }
 @keyframes bi-spin { to { transform: rotate(360deg); } }
 @keyframes bi-speed { 0% { opacity: 0; transform: translateX(8px); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateX(-6px); } }

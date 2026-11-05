@@ -14,6 +14,7 @@ import { mergeBnc, parseBnc, type BncPreview } from "@/lib/cashea-conciliation/b
 import { runEngine, summarizePeriod, BRANCHES, type Adjustment, type BankLine, type Branch, type CasheaOrder, type CasheaPayment, type ClassifiedLine, type Cutoff, type Destination, type EngineException, type OsOrder, type OsPayment, type OsSale, type Override } from "@/lib/cashea-conciliation/engine";
 import { bdvPanel, canonicalCasheaHeaders, detectKind, exportSheets, ORIGIN_LABELS, RULE_LABELS, type BdvLine } from "@/lib/cashea-conciliation/report";
 import "./conciliacion.css";
+import { LoadingBlock } from "@/components/skeleton";
 
 type Dataset = {
   from: string; branches: Branch[]; bank_lines: BankLine[]; cashea_payments: CasheaPayment[]; cashea_orders: CasheaOrder[];
@@ -270,7 +271,7 @@ export default function CasheaConciliationPage() {
       {!!data?.imports.length && <details><summary className="muted small">Últimas cargas</summary>{data.imports.map(i => <div key={i.id} className="muted small">{i.created_at.slice(0, 16).replace("T", " ")} · {i.kind} · {i.file_name} · {i.inserted}/{i.row_count} nuevas · {i.observed_from} → {i.observed_to}</div>)}</details>}
     </section>
 
-    {!data && !error && <div className="card">Cargando…</div>}
+    {!data && !error && <LoadingBlock label="Cargando datos…" kind="list" />}
     {result && cur && <>
       <section className="card stack">
         <div className="row-between"><h2 className="section-title">Corte actual</h2><span className="muted small">{cur.cutoff ? `Desde el cero del ${cur.cutoff.cut_date} (ref ${cur.cutoff.reference})` : "Sin cero registrado"} · hasta {cur.to_date ?? "—"} · {cur.credits} abonos</span></div>
