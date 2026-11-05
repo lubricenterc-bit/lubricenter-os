@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { canAdministerOrders, financeRole } from "@/lib/session-cache";
 import { useVisiblePolling } from "@/lib/use-visible-polling";
@@ -11,6 +11,7 @@ import { OsIcon } from "@/components/os-icon";
 import { OsDock, OsHeader, OsSubnav, SHORTCUTS } from "@/components/os-navigation";
 import { BrandIcon, Gotin, useLive } from "@/components/gotin";
 import { AppSessionProvider } from "@/components/app-session-context";
+import { BackButton } from "@/components/back-button";
 import {
   NAV_MODULES, linksForModule, moduleForPath, navigationSearch, pageLabelForPath,
   type NavigationRole,
@@ -195,6 +196,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </OsHeader>
           <OsSubnav pathname={pathname} role={role} />
           <div id="os-main" className="os-workspace-content" tabIndex={-1}>
+            <Suspense fallback={null}><BackButton /></Suspense>
             {children}
           </div>
           <OsDock pathname={pathname} onSearch={() => setSearchOpen(true)} onMenu={() => setMobileMenu(true)} menuOpen={mobileMenu} />

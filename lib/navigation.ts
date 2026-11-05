@@ -108,3 +108,38 @@ export function navigationSearch(query: string, role: NavigationRole) {
       .join(" ").toLocaleLowerCase("es-VE").includes(normalized)
   ).slice(0, 10);
 }
+
+const PARENT_OVERRIDES: readonly [RegExp, string, string][] = [
+  [/^\/purchases\/[^/]+/, "/expenses", "Compras y proveedores"],
+  [/^\/suppliers\/[^/]+/, "/expenses", "Compras y proveedores"],
+  [/^\/customers\/[^/]+\/balance$/, "/customer-balances", "Saldos de clientes"],
+  [/^\/orders\/[^/]+\/.+/, "", "Orden"],
+];
+
+/**
+ * Pantalla «padre» de una ruta de detalle, para el botón «Volver» cuando no
+ * hay historial (p. ej. se abrió un enlace directo). En la raíz de una
+ * sección devuelve null.
+ */
+export function parentForPath(path: string): { href: string; label: string } | null {
+  if (path === "/") return null;
+  const override = PARENT_OVERRIDES.find(([pattern]) => pattern.test(path));
+  if (override) {
+    const [, href, label] = override;
+    // /orders/<id>/<sub> vuelve a la orden.
+    if (!href) return { href: path.split("/").slice(0, 3).join("/"), label };
+    return { href, label };
+  }
+  const links = NAV_MODULES.flatMap(module => module.links);
+  if (links.some(link => link.href === path)) return null;
+  const best = links
+    .filter(link => link.href !== "/" && path.startsWith(link.href + "/"))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  if (best) {
+    // Si la lista es la portada de su módulo, se nombra como el módulo («Clientes», no «Directorio»).
+    const owner = NAV_MODULES.find(module => module.defaultHref === best.href);
+    return { href: best.href, label: owner ? owner.label : best.label };
+  }
+  const module = moduleForPath(path);
+  return module.id === "home" ? { href: "/", label: "Inicio" } : { href: module.defaultHref, label: module.label };
+}

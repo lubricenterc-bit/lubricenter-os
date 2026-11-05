@@ -117,7 +117,7 @@ export default function CustomerBalanceDetailPage() {
 
   return <main className="container stack">
     <section className="brand-hero"><div><div className="eyebrow">CRM · SALDO A FAVOR</div><h1>{customer?.name || "Cliente"}</h1><p>{customer?.phone || "Sin teléfono"} · El dinero recibido y su uso quedan en un historial.</p></div><img src="/lubricenter-logo.png" alt="Lubricenter" /></section>
-    <div className="row"><Link className="btn btn-ghost" href="/customer-balances">← Todos los saldos</Link><Link className="btn" href={`/customers/${id}`}>Ficha del cliente</Link></div>
+    <div className="row"><Link className="btn" href={`/customers/${id}`}>Ficha del cliente</Link></div>
     {error && <div className="error" role="alert">{error}</div>}{notice && <div className="success" role="status">{notice}</div>}
     {loading ? <div className="card muted">Cargando saldo…</div> : <>
       <section className="grid grid-2">
