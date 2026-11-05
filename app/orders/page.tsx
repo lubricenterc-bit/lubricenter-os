@@ -47,7 +47,7 @@ function OrdersScreen() {
   if(!active)return;setLoading(false);if(r.error){setRows([]);setSummary(BLANK);return setError(r.error.message);}setRows(r.data?.rows??[]);setSummary(r.data?.summary??BLANK);setCount(Number(r.data?.count??0));setError("");
  },250);return()=>{active=false;clearTimeout(timer);};},[query,status,from,to,page,revision,paymentFilter]);
  function selectPeriod(p:DatePreset){setPreset(p);setPage(0);const today=caracasToday();if(p==="TODAY"){setFrom(today);setTo(today);}if(p==="YESTERDAY"){const d=shiftDate(today,-1);setFrom(d);setTo(d);}if(p==="WEEK"){setFrom(monday(today));setTo(today);}if(p==="MONTH"){setFrom(today.slice(0,7)+"-01");setTo(today);}if(p==="ALL"){setFrom("");setTo("");}}
- async function annul(){if(!cancel||busy||reason.trim().length<5)return;setBusy(true);setError("");const r=await supabase.rpc(keepAsBalance?"cancel_order_to_customer_balance":"cancel_order",{p_order_id:cancel.id,p_reason:reason.trim()});setBusy(false);if(r.error)return setError(r.error.message);setCancel(null);setReason("");setKeepAsBalance(false);setRevision(x=>x+1);}
+ async function annul(){if(!cancel||busy||reason.trim().length<5)return;setBusy(true);setError("");const r=await supabase.rpc(keepAsBalance?"cancel_order_to_customer_balance":"cancel_order",{p_order_id:cancel.id,p_reason:reason.trim()});setBusy(false);if(r.error)return setError(annulError(r.error.message));setCancel(null);setReason("");setKeepAsBalance(false);setRevision(x=>x+1);}
  return <main className="container stack">
   <div className="row-between"><div><div className="eyebrow">VENTAS · CONTROL DIARIO</div><h1>Órdenes y cobranza</h1><p className="muted">Lo que se hizo, cuánto se vendió, cómo se cobró y qué quedó financiado. Sin duplicar la inicial de Cashea. Toca una orden para verla al instante; ↑/↓ pasa a la siguiente.</p></div><div className="row" style={{flexWrap:"wrap"}}><Link className="btn" href="/orders/audit">Auditoría e inventario</Link><Link className="btn" href="/service-history">Historial de mantenimiento</Link><Link className="btn" href="/quick-sale">Venta rápida</Link><Link className="btn btn-primary" href="/orders/new">+ Orden completa</Link></div></div>
   {error&&<div className="error" role="alert">{error}</div>}
@@ -170,3 +170,5 @@ function OrdersScreen() {
  </main>;
 }
 
+// La base protege los cobros con vuelto: sin devolución auditada anularlos descuadraría la caja.
+function annulError(message:string){return /vuelto documentado/i.test(message)?"No se puede anular: esta venta se cobró con vuelto en efectivo y anularla descuadraría la caja. Avísale al dueño; falta registrar la devolución del vuelto.":message;}

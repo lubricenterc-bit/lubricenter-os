@@ -70,6 +70,9 @@ export const HELP_TOPICS: HelpTopic[] = [
   { id: "corregir-orden", area: "ordenes", question: "¿Cómo corrijo una orden ya cerrada?", href: "/orders", cta: "Abrir Órdenes",
     keywords: "corregir error cobro pago servicio rectificar anular",
     steps: ["Abre la orden cerrada.", "Usa «Corrección financiera de venta» para montos y pagos, o «Corregir servicio / CRM sin tocar cobros» para el servicio.", "Cada corrección queda en el historial de movimientos de la orden."] },
+  { id: "anular-venta", area: "ordenes", question: "¿Cómo anulo una venta?", href: "/orders", cta: "Abrir Órdenes", ownerOnly: true,
+    keywords: "anular devolver devolucion cancelar venta reverso reembolso arrepintio",
+    steps: ["En Órdenes busca la venta y toca «Anular».", "Indica qué pasó con el dinero: se le devolvió al cliente o se queda como saldo a favor.", "Escribe el motivo y confirma: el inventario y el dinero se revierten solos.", "Si la venta se cobró con vuelto en efectivo, el sistema todavía no deja anularla: avísale al dueño."] },
 
   // Taller
   { id: "mover-vehiculo", area: "taller", question: "¿Cómo paso un vehículo a la siguiente etapa?", shortcut: "F6", href: "/workshop", cta: "Abrir el taller",
@@ -126,6 +129,9 @@ export const HELP_TOPICS: HelpTopic[] = [
   { id: "proveedores", area: "inventario", question: "¿Dónde veo compras, facturas y deudas con proveedores?", href: "/expenses", cta: "Abrir Compras",
     keywords: "proveedor factura compra deuda pagar egreso",
     steps: ["Entra a Inventario › Compras y proveedores.", "Ahí están las facturas, la mercancía recibida y lo que se debe."] },
+  { id: "pagar-proveedor", area: "inventario", question: "¿Cómo pago una factura de un proveedor?", href: "/expenses", cta: "Abrir Compras", ownerOnly: true,
+    keywords: "pagar proveedor factura abono abonar saldo dolares efectivo caja usd divisas",
+    steps: ["Entra a Inventario › Compras y proveedores y abre la factura.", "Toca «+ Registrar pago» y elige la cuenta que paga.", "Toca «Usar este monto» para saldarla. Con dólares de caja el monto es menor que el saldo: los dólares se valoran a la tasa operativa y la factura va en REF a tasa BCV.", "Si pagas solo una parte, la pantalla te dice cuánto queda pendiente."] },
 
   // Caja y cierre
   { id: "cierre", area: "caja", question: "¿Cómo cierro la caja del día?", href: "/cash-close", cta: "Abrir el cierre",
