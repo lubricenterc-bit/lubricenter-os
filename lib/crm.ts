@@ -2,7 +2,7 @@
 // Las reglas (a quién, cuándo y qué mensaje) viven en la base: crm_board() y
 // crm_vehicle_journeys. Aquí solo se presentan.
 
-export type CrmKind = "POST_SERVICE" | "PRE" | "DUE" | "FINAL" | "RECOVERY" | "RECONNECT";
+export type CrmKind = "POST_SERVICE" | "PRE" | "DUE" | "FINAL" | "RECOVERY" | "RECONNECT" | "AGREED" | "SECOND";
 export type CrmTemplateKind = Exclude<CrmKind, "POST_SERVICE">;
 
 export type CrmQueueItem = {
@@ -23,6 +23,12 @@ export type CrmQueueItem = {
   why: string;
   warning: string | null;
   message: string;
+  /** Último mensaje de este ciclo (para preguntar «¿respondió?» antes del siguiente). */
+  last_sent_at?: string | null;
+  /** WhatsApp abierto y falta confirmar (viene de crm_board.pending). */
+  attempt_id?: string;
+  opened_at?: string;
+  mine?: boolean;
 };
 
 export type CrmWaiting = {
@@ -39,6 +45,8 @@ export type CrmFix = {
 export type CrmBoard = {
   today: string; cap: number; sent_today: number; remaining: number; ready_total: number;
   queue: CrmQueueItem[]; waiting: CrmWaiting[]; booked: CrmBooked[]; fix: CrmFix[];
+  /** Abrieron WhatsApp y falta decir si se envió (sobrevive a recargar la página). */
+  pending?: CrmQueueItem[];
 };
 export type CrmResults = {
   days: number; reminders_sent: number; post_service_sent: number; answered: number; booked: number;
@@ -55,6 +63,8 @@ export const KIND_LABEL: Record<CrmKind, string> = {
   FINAL: "Último mensaje",
   RECOVERY: "Recuperar cliente",
   RECONNECT: "Reconectar",
+  AGREED: "Como quedamos",
+  SECOND: "Segunda oportunidad",
 };
 
 export const TEMPLATE_HELP: Record<CrmTemplateKind, string> = {
@@ -63,7 +73,21 @@ export const TEMPLATE_HELP: Record<CrmTemplateKind, string> = {
   FINAL: "Tercer mensaje y último. Sin insistir.",
   RECOVERY: "Primer mensaje a quien se le pasó la fecha hace más de un mes.",
   RECONNECT: "Un solo mensaje a quien no viene hace más de un año.",
+  AGREED: "Cuando el cliente dijo «más adelante»: se le escribe en la fecha acordada.",
+  SECOND: "Un mensaje más a los 120 días a quien no respondió. Si tampoco responde, queda en la cartera.",
 };
+
+/** «No enviar»: cada motivo saca el mensaje de pendientes. */
+export type DismissReason = "NOT_NEEDED" | "TOO_LATE" | "ALREADY_DONE" | "NO_WHATSAPP";
+export const DISMISS_REASONS: { id: DismissReason; label: string; hint: string; reminderOnly?: boolean }[] = [
+  { id: "NOT_NEEDED", label: "No hace falta", hint: "Se cierra el ciclo hasta su próxima visita." },
+  { id: "TOO_LATE", label: "Pasó mucho tiempo", hint: "Pasa a la cartera para promociones.", reminderOnly: true },
+  { id: "ALREADY_DONE", label: "Ya vino o ya lo hizo", hint: "Empieza un ciclo nuevo desde hoy.", reminderOnly: true },
+  { id: "NO_WHATSAPP", label: "No tiene WhatsApp", hint: "Pasa a Corregir datos." },
+];
+export function dismissReasons(type: CrmQueueItem["type"]) {
+  return DISMISS_REASONS.filter(r => type === "REMINDER" || !r.reminderOnly);
+}
 
 export const OUTCOMES: { id: CrmOutcome; label: string; hint: string; needsDate?: boolean; danger?: boolean }[] = [
   { id: "BOOKED", label: "Agendó", hint: "Pon el día. Aparece en Citas.", needsDate: true },
@@ -110,13 +134,16 @@ export function captureBlocks(status: { needs?: boolean | null; optional?: boole
 }
 
 // --- Recuperar: tramos de vencidos -------------------------------------------
-export type RecoveryBucket = "SOON" | "D0_30" | "D31_90" | "D91_180" | "D181_365" | "D365P";
+export type RecoveryBucket = "SOON" | "D0_30" | "D31_90" | "D91_180" | "D181_365" | "D365P" | "POOL";
 export const RECOVERY_BUCKETS: RecoveryBucket[] = ["SOON", "D0_30", "D31_90", "D91_180", "D181_365", "D365P"];
+/** Celda aparte: sin respuesta (esperan la segunda oportunidad) y en cartera. */
+export const RECOVERY_CELLS: RecoveryBucket[] = [...RECOVERY_BUCKETS, "POOL"];
 export type RecoverySort = "PRIORITY" | "RECENT" | "OLDEST";
 
 export type RecoverySummaryItem = {
   bucket: RecoveryBucket; label: string; vehicles: number; customers: number; contacted: number;
   awaiting_reply: number; lifetime_ref: number; estimated: number; no_phone: number;
+  dormant?: number; second_pending?: number;
 };
 
 export type RecoveryRow = {
@@ -145,3 +172,16 @@ export function contactableToday(remaining: number, eligible: number): number {
   return Math.max(0, Math.min(remaining, eligible));
 }
 
+
+/** Mueve el elemento actual al final de la cola («Después»). */
+export function moveToEnd<T>(list: T[], index: number): T[] {
+  if (index < 0 || index >= list.length - 1) return list;
+  return [...list.slice(0, index), ...list.slice(index + 1), list[index]];
+}
+
+/** Búsqueda sin acentos ni mayúsculas, con todas las palabras. */
+export function matchesQuery(text: string, query: string): boolean {
+  const fold = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es-VE");
+  const hay = fold(text);
+  return fold(query).split(/\s+/).filter(Boolean).every(w => hay.includes(w));
+}

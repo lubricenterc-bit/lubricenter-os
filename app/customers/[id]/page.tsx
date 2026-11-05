@@ -1,6 +1,7 @@
 "use client";
 
 import { OrderPreviewButton, useOrderPreviewCache } from "@/components/orders/order-preview-panel";
+import { ContactPermissionBanner } from "@/components/crm/contact-permission-banner";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -110,6 +111,7 @@ export default function CustomerDetailPage() {
     {customer && <>
       <section className="brand-hero"><div><div className="eyebrow">CRM · FICHA MAESTRA</div><h1>{customer.name || "Cliente sin nombre"}</h1><p>{[customer.phone, customer.document_id].filter(Boolean).join(" · ") || "Sin datos de contacto"}</p></div><img src="/lubricenter-logo.png" alt="Lubricenter" /></section>
 
+      <ContactPermissionBanner customerId={id} />
       <div className="row crm-action-bar"><Link href={`/customers/${id}/balance`} className="btn">$ Saldo a favor</Link><Link href={`/service-history?customer=${id}`} className="btn">Historial de mantenimiento</Link><button className="btn" onClick={() => setShowEdit(true)}>Editar datos</button><button className="btn btn-primary" disabled={busy} onClick={() => startOrder()}>+ Nueva orden</button></div>
 
       <section className="grid grid-3"><div className="card"><div className="muted small">VEHÍCULOS ACTUALES</div><div className="kpi">{vehicles.length}</div></div><div className="card"><div className="muted small">SERVICIOS REGISTRADOS</div><div className="kpi">{services.length}</div></div><div className="card"><div className="muted small">TOTAL FACTURADO EN OS</div><div className="kpi">{fmtRef(totalRef)}</div></div></section>
