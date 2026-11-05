@@ -100,3 +100,33 @@ describe("Compras - recepción segura",()=>{
   }finally{await db.close();}
  });
 });
+
+const noDilution=readFileSync("supabase/migrations/20261105141000_purchase_cost_no_dilution.sql","utf8");
+describe("Compras - costo promedio sin dilución",()=>{
+ it("un artículo sin costo con existencia toma el costo de la factura",async()=>{
+  const db=await dbSetup();try{
+   await db.exec(noDilution);
+   // 10 unidades contadas sin costo (0 y marcado sin costo): antes daba 10·0 + 10·4 / 20 = 2.
+   await db.exec("insert into inventory_movements(inventory_item_id,location_id,quantity_delta,movement_type) values('"+sku+"','"+loc+"',10,'OPENING_IMPORT')");
+   await receive(db,key,[{line_id:line,quantity:10}]);
+   expect(Number(await scalar(db,"select average_cost_ref from inventory_items where id=$1",[sku]))).toBe(4);
+   expect(await scalar(db,"select cost_missing from inventory_items where id=$1",[sku])).toBe(false);
+   expect(Number(await scalar(db,"select average_cost_after from supplier_receipt_items"))).toBe(4);
+  }finally{await db.close();}
+ });
+ it("con costo conocido sigue el promedio ponderado",async()=>{
+  const db=await dbSetup();try{
+   await db.exec(noDilution);
+   await db.exec("update inventory_items set average_cost_ref=2,cost_missing=false where id='"+sku+"'");
+   await db.exec("insert into inventory_movements(inventory_item_id,location_id,quantity_delta,movement_type) values('"+sku+"','"+loc+"',10,'OPENING_IMPORT')");
+   await receive(db,key,[{line_id:line,quantity:10}]);
+   expect(Number(await scalar(db,"select average_cost_ref from inventory_items where id=$1",[sku]))).toBe(3);
+  }finally{await db.close();}
+ });
+ it("mantiene los permisos: autenticado sí, anónimo no",async()=>{
+  const db=await dbSetup();try{
+   await db.exec(noDilution);
+   expect(await scalar(db,"select has_function_privilege('anon','lubricenter_private.inventory_receive_purchase(uuid,uuid,uuid,date,jsonb,text)','EXECUTE')")).toBe(false);
+  }finally{await db.close();}
+ });
+});
