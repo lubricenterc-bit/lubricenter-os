@@ -50,7 +50,7 @@
   .crm-card { padding: 14px 0; border-bottom: 1px solid var(--rule, #e2e2de); display: grid; gap: 10px; }
   .crm-card-top { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
   .crm-card-meta { display: flex; gap: 14px; align-items: center; color: var(--ink-2, #5c5c58); font-size: 13px; }
-  .crm-outcomes { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+  .crm-outcomes { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
   .crm-chip { min-height: 40px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--rule-2, #d6d0c6); background: var(--surface, #fff); color: var(--ink, #222); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
   @media (hover: hover) and (pointer: fine) { .crm-chip:hover { border-color: var(--ink, #222); } }
   .crm-chip.is-danger { color: var(--red, #b3322a); }
