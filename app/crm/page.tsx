@@ -3,15 +3,33 @@
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { ContactTunnel } from "@/components/crm/contact-tunnel";
+import { RecoveryView } from "@/components/crm/recovery-view";
 import { OsIcon } from "@/components/os-icon";
 import { supabase } from "@/lib/supabase";
 import {
   KIND_LABEL, OUTCOMES, TEMPLATE_HELP, addDays, caracasToday, displayName, estimateMinutes, shortDate, waLink,
-  type CrmBoard, type CrmOutcome, type CrmResults, type CrmTemplateKind,
+  RECOVERY_BUCKETS, type CrmBoard, type CrmOutcome, type CrmQueueItem, type CrmResults, type CrmTemplateKind,
+  type RecoveryBucket, type RecoverySort,
 } from "@/lib/crm";
 import { NumberInput } from "@/components/number-field";
 
-type Tab = "TODAY" | "WAITING" | "BOOKED" | "FIX" | "RESULTS" | "ALL" | "MESSAGES";
+type Tab = "RECOVER" | "TODAY" | "WAITING" | "BOOKED" | "FIX" | "RESULTS" | "ALL" | "MESSAGES";
+// La pestaña, el tramo y el orden van en la URL (?tab=recover&bucket=D31_90&sort=OLDEST).
+const TAB_PARAM: Record<Tab, string> = { RECOVER: "recover", TODAY: "today", WAITING: "waiting", BOOKED: "booked", FIX: "fix", RESULTS: "results", ALL: "all", MESSAGES: "messages" };
+function readUrl(): { tab: Tab; bucket: RecoveryBucket; sort: RecoverySort } {
+  const q = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
+  const tab = (Object.entries(TAB_PARAM).find(([, v]) => v === q.get("tab"))?.[0] ?? "RECOVER") as Tab;
+  const bucket = (RECOVERY_BUCKETS as string[]).includes(q.get("bucket") ?? "") ? q.get("bucket") as RecoveryBucket : "D0_30";
+  const sort = (["PRIORITY", "RECENT", "OLDEST"] as string[]).includes(q.get("sort") ?? "") ? q.get("sort") as RecoverySort : "PRIORITY";
+  return { tab, bucket, sort };
+}
+function writeUrl(state: { tab: Tab; bucket: RecoveryBucket; sort: RecoverySort }) {
+  const q = new URLSearchParams(window.location.search);
+  q.set("tab", TAB_PARAM[state.tab]);
+  if (state.tab === "RECOVER") { q.set("bucket", state.bucket); if (state.sort === "PRIORITY") q.delete("sort"); else q.set("sort", state.sort); }
+  else { q.delete("bucket"); q.delete("sort"); }
+  window.history.replaceState(window.history.state, "", `${window.location.pathname}?${q.toString()}`);
+}
 type Journey = {
   service_record_id: string; vehicle_id: string; customer_id: string; customer_name: string | null;
   customer_phone: string | null; wa_phone: string | null; plate: string | null; make: string | null; model: string | null;
@@ -23,10 +41,11 @@ type Template = { kind: CrmTemplateKind; body: string };
 const STATUS_LABEL: Record<string, string> = {
   READY: "Para contactar", SCHEDULED: "Programado", UPCOMING: "Todavía no le toca", WAITING_REPLY: "Esperando respuesta",
   BOOKED: "Tiene cita", CLOSED: "Cerrado", CLOSED_NO_REPLY: "Sin respuesta", NO_PHONE: "Falta WhatsApp", OPTED_OUT: "No quiere mensajes",
+  RETURNED: "Ya volvió",
 };
 const OUTCOME_LABEL: Record<string, string> = {
   BOOKED: "Agendó", POSTPONED: "Más adelante", REPLIED: "Respondió", DECLINED: "No le interesa",
-  SOLD_VEHICLE: "Vendió el carro", CLOSED_NO_REPLY: "Sin respuesta",
+  SOLD_VEHICLE: "Vendió el carro", CLOSED_NO_REPLY: "Sin respuesta", RETURNED: "Ya volvió",
 };
 const TEMPLATE_ORDER: CrmTemplateKind[] = ["PRE", "DUE", "FINAL", "RECOVERY", "RECONNECT"];
 
@@ -35,7 +54,14 @@ function money(n: number) {
 }
 
 export default function CrmPage() {
-  const [tab, setTab] = useState<Tab>("TODAY");
+  const [tab, setTabState] = useState<Tab>("RECOVER");
+  const [bucket, setBucketState] = useState<RecoveryBucket>("D0_30");
+  const [sort, setSortState] = useState<RecoverySort>("PRIORITY");
+  const [tunnelQueue, setTunnelQueue] = useState<{ queue: CrmQueueItem[]; sentToday: number; cap: number } | null>(null);
+  useEffect(() => { const u = readUrl(); setTabState(u.tab); setBucketState(u.bucket); setSortState(u.sort); }, []);
+  const setTab = (t: Tab) => { setTabState(t); writeUrl({ tab: t, bucket, sort }); };
+  const setBucket = (b: RecoveryBucket) => { setBucketState(b); writeUrl({ tab, bucket: b, sort }); };
+  const setSort = (s: RecoverySort) => { setSortState(s); writeUrl({ tab, bucket, sort: s }); };
   const [board, setBoard] = useState<CrmBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -53,6 +79,7 @@ export default function CrmPage() {
 
   const queue = board?.queue ?? [];
   const tabs: { id: Tab; label: string; count?: number }[] = [
+    { id: "RECOVER", label: "Recuperar" },
     { id: "TODAY", label: "Hoy", count: queue.length },
     { id: "WAITING", label: "Esperando respuesta", count: board?.waiting.length },
     { id: "BOOKED", label: "Citas", count: board?.booked.length },
@@ -61,6 +88,11 @@ export default function CrmPage() {
     { id: "ALL", label: "Todos los vehículos" },
     { id: "MESSAGES", label: "Mensajes y reglas" },
   ];
+
+  if (tunnelQueue) {
+    return <ContactTunnel queue={tunnelQueue.queue} sentToday={tunnelQueue.sentToday} cap={tunnelQueue.cap}
+      onClose={changed => { setTunnelQueue(null); if (changed) void load(); }} />;
+  }
 
   if (tunnel && board) {
     return <ContactTunnel queue={queue} sentToday={board.sent_today} cap={board.cap}
@@ -86,6 +118,8 @@ export default function CrmPage() {
     {notice && <div className="success" role="status">{notice}</div>}
     {loading && !board ? <p className="crm-muted">Preparando la lista de hoy…</p> : null}
 
+    {tab === "RECOVER" && <RecoveryView bucket={bucket} sort={sort} onBucket={setBucket} onSort={setSort}
+      onStartTunnel={(q, sentToday, cap) => setTunnelQueue({ queue: q, sentToday, cap })} onError={setError} />}
     {board && tab === "TODAY" && <TodayView board={board} onStart={() => setTunnel(true)} />}
     {board && tab === "WAITING" && <WaitingView board={board} onChanged={msg => { setNotice(msg); void load(); }} onError={setError} />}
     {board && tab === "BOOKED" && <BookedView board={board} />}
@@ -235,7 +269,7 @@ function ResultsView({ onError }: { onError: (m: string) => void }) {
       </div>
       <h2 className="crm-section">Captura en el mostrador</h2>
       <div className="crm-strip">
-        <div><span>Ventas con aceite</span><strong>{r.oil_orders}</strong><small>Órdenes cerradas en el período</small></div>
+        <div><span>Cambios de aceite</span><strong>{r.oil_orders}</strong><small>Ventas cerradas que exigen placa</small></div>
         <div><span>Con placa</span><strong>{capture === null ? "—" : capture + "%"}</strong><small>{r.oil_orders_with_vehicle} de {r.oil_orders}</small></div>
         <div><span>No quiso dar datos</span><strong>{r.oil_orders_skipped}</strong><small>Registrado en Venta rápida</small></div>
         <div><span>Pidieron no recibir mensajes</span><strong>{r.opted_out}</strong><small>Bloqueados para siempre</small></div>

@@ -46,7 +46,7 @@ export type CrmResults = {
   oil_orders_with_vehicle: number; oil_orders_skipped: number;
 };
 
-export type CrmOutcome = "BOOKED" | "POSTPONED" | "OTHER_SHOP" | "DECLINED" | "SOLD_VEHICLE" | "WRONG_NUMBER" | "OPT_OUT";
+export type CrmOutcome = "BOOKED" | "POSTPONED" | "OTHER_SHOP" | "DECLINED" | "SOLD_VEHICLE" | "WRONG_NUMBER" | "OPT_OUT" | "RETURNED";
 
 export const KIND_LABEL: Record<CrmKind, string> = {
   POST_SERVICE: "Postservicio",
@@ -108,3 +108,40 @@ export function displayName(name: string | null | undefined) {
 export function captureBlocks(status: { needs?: boolean | null; optional?: boolean | null } | null | undefined): boolean {
   return !!status?.needs;
 }
+
+// --- Recuperar: tramos de vencidos -------------------------------------------
+export type RecoveryBucket = "SOON" | "D0_30" | "D31_90" | "D91_180" | "D181_365" | "D365P";
+export const RECOVERY_BUCKETS: RecoveryBucket[] = ["SOON", "D0_30", "D31_90", "D91_180", "D181_365", "D365P"];
+export type RecoverySort = "PRIORITY" | "RECENT" | "OLDEST";
+
+export type RecoverySummaryItem = {
+  bucket: RecoveryBucket; label: string; vehicles: number; customers: number; contacted: number;
+  awaiting_reply: number; lifetime_ref: number; estimated: number; no_phone: number;
+};
+
+export type RecoveryRow = {
+  service_record_id: string; vehicle_id: string; customer_id: string; customer_name: string | null;
+  wa_phone: string | null; plate: string | null; make: string | null; model: string | null;
+  performed_at: string; cycle_due: string; days_from_due: number; estimated: boolean;
+  oil_brand: string | null; oil_viscosity: string | null; sent_count: number; last_sent_at: string | null;
+  last_outcome: string | null; status: string; eligible_on: string | null; lifetime_ref: number; visits: number;
+};
+
+/** «vencido hace 47 días», «vence hoy» o «vence en 5 días». */
+export function dueText(days: number): string {
+  if (days === 0) return "vence hoy";
+  if (days < 0) return `vence en ${-days} ${-days === 1 ? "día" : "días"}`;
+  return `vencido hace ${days} ${days === 1 ? "día" : "días"}`;
+}
+
+/** «2 mensajes · último 12/10» o «sin contactar». */
+export function contactText(sentCount: number, lastSentAt: string | null): string {
+  if (!sentCount) return "sin contactar";
+  return `${sentCount} ${sentCount === 1 ? "mensaje" : "mensajes"}${lastSentAt ? ` · último ${shortDate(lastSentAt)}` : ""}`;
+}
+
+/** Cuántos se pueden contactar hoy en un tramo: el mínimo entre el tope restante y los elegibles. */
+export function contactableToday(remaining: number, eligible: number): number {
+  return Math.max(0, Math.min(remaining, eligible));
+}
+
