@@ -53,6 +53,12 @@ async function session(admin=true){
    if(name==='get_bcv_official_status')return respond({mode:'OBSERVER',state:{last_success_at:null,last_error:null},current:null,next:null});
    if(name==='upsert_supplier'){state.supplierWrites.push(args);return respond(data.supplierId);}
    if(name==='create_supplier_invoice'){state.invoiceWrites.push(args);return respond(data.invoiceId);}
+   // Ingresar mercancía (F6): buscador por marca y factura + entrada en un paso.
+   if(name==='purchasing_brands')return respond([]);
+   if(name==='purchasing_item_search')return respond(data.inventory.filter(i=>!args.p_query||`${i.sku} ${i.description} ${i.brand??''}`.toLowerCase().includes(String(args.p_query).toLowerCase())).map(i=>({
+    id:i.id,sku:i.sku,display_name:i.description,description:i.description,brand:i.brand,brand_key:null,category:i.category,unit:i.unit,
+    stock:0,average_cost_ref:i.average_cost_ref,last_purchase_cost_ref:null,price_usd:null,bought_from_supplier:false,last_bought_at:null})));
+   if(name==='purchase_invoice_and_receive'){state.invoiceWrites.push(args);return respond({invoice_id:data.invoiceId,receipt_id:null,stock_after:[]});}
    if(name==='inventory_receive_purchase'){
     assert(admin);assert.equal(args.p_invoice_id,data.invoiceId);assert.equal(args.p_items.length,1);assert.equal(args.p_items[0].quantity,6);
     state.requests.push(args);
@@ -68,7 +74,8 @@ async function session(admin=true){
    return respond([]);
   }
   const table=url.pathname.split('/').at(-1);
-  let rows=({products:data.products,inventory_items:data.inventory,locations:data.locations,app_settings:data.settings})[table]||[];
+  let rows=({products:data.products,inventory_items:data.inventory,locations:data.locations,app_settings:data.settings,
+   suppliers:[{id:data.supplierId,name:'Proveedor de prueba',default_currency:'USD',active:true}]})[table]||[];
   if(table==='app_settings'&&url.searchParams.get('key')?.startsWith('eq.'))rows=rows.filter(r=>r.key===url.searchParams.get('key').slice(3));
   // Inventario pide su sucursal con .maybeSingle(): sin este filtro llegan las dos y falla.
   if(table==='locations'&&url.searchParams.get('code')?.startsWith('eq.'))rows=rows.filter(r=>r.code===url.searchParams.get('code').slice(3));
@@ -96,19 +103,30 @@ try{
  await sheet.getByRole('button',{name:'Guardar proveedor',exact:true}).click();
  await page.locator('.sheet').waitFor({state:'detached'});
  assert.equal(state.supplierWrites[0].p_name,'Proveedor de prueba');
- await page.getByRole('button',{name:'+ Factura de proveedor',exact:true}).click();
- sheet=page.locator('.sheet').last();
+ await page.getByRole('button',{name:'Ingresar mercancía',exact:true}).click();
+ sheet=page.getByRole('dialog',{name:'Ingresar mercancía'});
+ await sheet.getByRole('button',{name:'Proveedor de prueba',exact:true}).click();
  await sheet.getByLabel('Número de factura').fill('SIM-01');
- await sheet.locator(`select:has(option[value="${fixtures[0].skuId}"])`).selectOption(fixtures[0].skuId);
- await sheet.locator('input[inputmode="decimal"]').nth(0).fill('12');
- await sheet.locator('input[inputmode="decimal"]').nth(1).fill('3516');
- await sheet.getByRole('button',{name:/(Guardar|Registrar) factura/}).click();
+ await sheet.getByLabel('Moneda').selectOption('VES');
+ // Buscador escribible: ninguna lista <select> de artículos.
+ assert.equal(await sheet.locator(`select:has(option[value="${fixtures[0].skuId}"])`).count(),0);
+ await sheet.getByRole('combobox',{name:'Buscar artículo'}).fill('Aceite');
+ await sheet.getByRole('listbox').getByRole('option').first().click();
+ await sheet.getByLabel('Cantidad 1').fill('12');
+ await sheet.getByLabel('Costo 1').fill('3516');
+ await sheet.getByText('La mercancía ya llegó completa').click();
+ await sheet.getByRole('button',{name:'Revisar y confirmar'}).click();
+ await sheet.getByRole('button',{name:'Registrar factura',exact:true}).click();
+ await page.getByRole('link',{name:'Ver factura'}).click();
  await page.waitForURL(`**/purchases/${fixtures[0].invoiceId}`);
  assert.equal(state.invoiceWrites[0].p_currency,'VES');
  assert.equal(state.invoiceWrites[0].p_items[0].quantity,12);
+ assert.equal(state.invoiceWrites[0].p_items[0].inventory_item_id,fixtures[0].skuId);
+ assert.equal(state.invoiceWrites[0].p_receive_all,false);
  await page.getByRole('button',{name:'+ Recibir mercancía',exact:true}).click();
  let dialog=page.getByRole('dialog',{name:'Recibir mercancía'});
- assert.equal(await dialog.getByLabel('Cantidad recibida: Aceite de prueba').inputValue(),'0');
+ // Prellenado con lo pendiente de recibir.
+ assert.equal(await dialog.getByLabel('Cantidad recibida: Aceite de prueba').inputValue(),'12');
  await dialog.getByLabel('Cantidad recibida: Aceite de prueba').fill('6');
  await dialog.getByRole('button',{name:'Confirmar entrada al inventario'}).click();
  await dialog.getByRole('alert').waitFor();
@@ -137,8 +155,8 @@ try{
  await context.close();
  const operator=await session(false);
  await operator.page.goto(`${base}/expenses`);
- await operator.page.getByRole('button',{name:'+ Factura de proveedor',exact:true}).waitFor();
- assert(await operator.page.getByRole('button',{name:'+ Factura de proveedor',exact:true}).isDisabled());
+ await operator.page.getByRole('button',{name:'Ingresar mercancía',exact:true}).waitFor();
+ assert(await operator.page.getByRole('button',{name:'Ingresar mercancía',exact:true}).isDisabled());
  await operator.page.goto(`${base}/purchases/${fixtures[0].invoiceId}`);
  await operator.page.getByText('Recepción de mercancía',{exact:true}).waitFor();
  assert.equal(await operator.page.getByRole('button',{name:'+ Recibir mercancía',exact:true}).count(),0);

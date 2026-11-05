@@ -12,7 +12,8 @@ export function PurchaseReceiveSheet({invoiceId,lines,locations,onCancel,onDone}
   const [date,setDate]=useState(today());
   const [location,setLocation]=useState(locations.find(x=>x.code==="CABUDARE")?.id??"");
   const [notes,setNotes]=useState("");
-  const [qty,setQty]=useState<Record<string,number>>(()=>Object.fromEntries(lines.map(x=>[x.id,0])));
+  // Prellenado con lo pendiente de recibir (antes 0).
+  const [qty,setQty]=useState<Record<string,number>>(()=>Object.fromEntries(lines.map(x=>[x.id,Math.max(Number(x.quantity)-Number(x.received_quantity),0)])));
   const [pending,setPending]=useState<ReceiptRequest|null>(null);
   const [ready,setReady]=useState(false);
   const [busy,setBusy]=useState(false);
