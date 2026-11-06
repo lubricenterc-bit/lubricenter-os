@@ -12,6 +12,8 @@ import { OsDock, OsHeader, OsSubnav, SHORTCUTS } from "@/components/os-navigatio
 import { BrandIcon, Gotin, useLive } from "@/components/gotin";
 import { AppSessionProvider } from "@/components/app-session-context";
 import { BackButton } from "@/components/back-button";
+import { PageStage, PullToRefresh, useScrollChrome } from "@/components/mobile-shell";
+import { searchHelp } from "@/lib/help-topics";
 import {
   NAV_MODULES, linksForModule, moduleForPath, navigationSearch, pageLabelForPath,
   type NavigationRole,
@@ -37,8 +39,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const workspaceRef = useRef<HTMLDivElement>(null);
   const [calm, setCalm] = useState(false);
   const commandLive = useLive<HTMLDivElement>();
+  // Teléfono: la cabecera se esconde al bajar, y deslizar hacia abajo vuelve a cargar la pantalla.
+  const shellRef = useRef<HTMLDivElement>(null);
+  useScrollChrome(shellRef);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refreshScreen = useCallback(() => setRefreshKey(value => value + 1), []);
   const owner = role === "OWNER" || role === "ADMIN";
   const results = useMemo(() => navigationSearch(search, role), [search, role]);
+  // El buscador también responde «¿cómo hago…?» con los temas de la Ayuda.
+  const helpResults = useMemo(() => search.trim().length > 1 ? searchHelp(search, role === "OWNER" || role === "ADMIN", 4) : [], [search, role]);
 
   useEffect(() => {
     let stored = false;
@@ -187,7 +196,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AppSessionProvider value={{ role, roleLoaded, locationName }}>
-      <div className="shell os-theme os-shell">
+      <div ref={shellRef} className="shell os-theme os-shell">
         <div ref={workspaceRef} className="os-workspace">
           <a className="os-skip-link" href="#os-main">Ir al contenido</a>
           <OsHeader pathname={pathname} onSearch={() => setSearchOpen(true)} onMenu={() => setMobileMenu(true)}
@@ -197,8 +206,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <OsSubnav pathname={pathname} role={role} />
           <div id="os-main" className="os-workspace-content" tabIndex={-1}>
             <Suspense fallback={null}><BackButton /></Suspense>
-            {children}
+            <PageStage refreshKey={refreshKey}>{children}</PageStage>
           </div>
+          <PullToRefresh onRefresh={refreshScreen} />
           <OsDock pathname={pathname} onSearch={() => setSearchOpen(true)} onMenu={() => setMobileMenu(true)} menuOpen={mobileMenu} />
         </div>
 
@@ -250,7 +260,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="os-command-input"><OsIcon name="search"/><input ref={searchRef} value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar módulo o herramienta…" aria-label="Buscar módulo o herramienta"
-              onKeyDown={e => { if (e.key === "Enter" && results[0]) { e.preventDefault(); router.push(results[0].href); setSearchOpen(false); } }}/><button onClick={() => setSearchOpen(false)} aria-label="Cerrar buscador"><kbd>Esc</kbd></button></div>
+              onKeyDown={e => {
+                const first = results[0]?.href ?? (helpResults[0] ? "/ayuda#" + helpResults[0].id : null);
+                if (e.key === "Enter" && first) { e.preventDefault(); router.push(first); setSearchOpen(false); }
+              }}/><button onClick={() => setSearchOpen(false)} aria-label="Cerrar buscador"><kbd>Esc</kbd></button></div>
             <div className="os-command-results" ref={commandLive}>
               {search.trim() === "" && <div className="os-command-start">
                 <p>Atajos del mostrador</p>
@@ -260,10 +273,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </Link>)}
                 <p className="os-command-hint">También puedes escribir «cierre», «Cashea», «clientes» o «proveedores».</p>
               </div>}
-              {search.trim() !== "" && !results.length && <div className="os-command-empty"><Gotin pose="shrug" className="os-command-gotin"/><p>No encontré «{search.trim()}». Intenta con otra palabra.</p></div>}
+              {search.trim() !== "" && !results.length && !helpResults.length && <div className="os-command-empty"><Gotin pose="shrug" className="os-command-gotin"/><p>No encontré «{search.trim()}». Intenta con otra palabra.</p></div>}
               {results.map(item => <Link href={item.href} key={item.href} className="os-command-result" onClick={() => setSearchOpen(false)}>
                 <span className="os-command-result-icon"><OsIcon name={item.icon}/></span>
                 <span><strong>{item.label}</strong><small>{item.module}. {item.description}</small></span>
+                <OsIcon name="arrow" size={17}/>
+              </Link>)}
+              {helpResults.length > 0 && <p className="os-command-section">En la ayuda</p>}
+              {helpResults.map(topic => <Link href={"/ayuda#" + topic.id} key={"ayuda-" + topic.id} className="os-command-result" onClick={() => setSearchOpen(false)}>
+                <span className="os-command-result-icon"><OsIcon name="help"/></span>
+                <span><strong>{topic.question}</strong><small>{topic.steps[0]}</small></span>
                 <OsIcon name="arrow" size={17}/>
               </Link>)}
             </div>

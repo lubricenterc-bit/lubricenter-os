@@ -60,7 +60,7 @@ export const NAV_MODULES: readonly NavModule[] = [
   ] },
   { id: "admin", label: "Administración", icon: "settings", defaultHref: "/settings", links: [
     { href: "/settings", label: "Configuración y precios", description: "Tasas, sincronización y reglas" },
-    { href: "/more", label: "Directorio de herramientas", description: "Accesos a funciones anteriores" }
+    { href: "/ayuda", label: "Ayuda", description: "¿Cómo hago…? Pasos y acceso directo a cada función", keywords: "ayuda como hago tutorial pasos no se donde esta" }
   ] }
 ];
 
@@ -75,7 +75,7 @@ export function linksForModule(module: NavModule, role: NavigationRole) {
 const exceptions: readonly [string, string][] = [
   ["/orders", "sales"], ["/vehicles", "customers"],
   ["/suppliers", "inventory"], ["/purchases", "inventory"],
-  ["/promociones", "customers"], ["/reminders", "customers"]
+  ["/promociones", "customers"], ["/more", "admin"], ["/reminders", "customers"]
 ];
 
 export function moduleForPath(path: string): NavModule {

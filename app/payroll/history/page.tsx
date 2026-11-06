@@ -4,6 +4,7 @@ import Link from "next/link";
 import {useEffect,useMemo,useState} from "react";
 import {supabase} from "@/lib/supabase";
 import { canAdministerOrders } from "@/lib/session-cache";
+import { LoadingBlock } from "@/components/skeleton";
 
 type Change={occurred_at:string;reason:string|null;before_decision:string|null;after_decision:string|null;before_amount:string|null;after_amount:string|null;before_reason:string|null;after_reason:string|null};
 type Work={id:string;order_id:string;order_number:string;description:string;earned_at:string;source_type:string;payout_mode:string|null;decision_at_settlement:string;reason_at_settlement:string|null;amount_at_settlement:number;late_posting:boolean;carried_from_prior_week:boolean;settled_in_this_run:boolean;timeline:Change[]};
@@ -65,7 +66,7 @@ export default function PayrollHistory(){
     </div>
     {report&&<div className="muted small">Semana {report.start} al {report.end} · {report.runs.length} liquidación(es) · lo registrado después se muestra separado del cierre original.</div>}
    </section>}
-  {loading&&<p className="muted">Cargando evidencia administrativa…</p>}
+  {loading&&<LoadingBlock label="Cargando evidencia administrativa…" kind="list" />}
   {!loading&&authorized&&weeks.length===0&&<section className="card">Todavía no hay liquidaciones registradas.</section>}
   {!loading&&report&&visible.map(run=>{
     const held=run.work.filter(w=>w.decision_at_settlement==="HOLD");

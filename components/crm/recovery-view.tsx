@@ -6,6 +6,7 @@ import {
   RECOVERY_CELLS, contactText, contactableToday, displayName, dueText, shortDate,
   type CrmQueueItem, type RecoveryBucket, type RecoveryRow, type RecoverySort, type RecoverySummaryItem,
 } from "@/lib/crm";
+import { LoadingBlock } from "@/components/skeleton";
 
 const STATUS: Record<string, string> = {
   READY: "Para contactar", SCHEDULED: "Programado", UPCOMING: "Todavía no le toca", WAITING_REPLY: "Esperando respuesta",
@@ -181,7 +182,7 @@ export function RecoveryView({ bucket, sort, onBucket, onSort, onStartTunnel, on
         </li>;
       })}
     </ul>
-    {loadingRows && <p className="crm-muted">Cargando…</p>}
+    {loadingRows && <LoadingBlock label="Cargando datos…" kind="list" />}
     {!loadingRows && rows.length < total && <button className="btn btn-ghost" onClick={() => void loadRows(rows.length)}>Ver más ({total - rows.length})</button>}
   </section>;
 }

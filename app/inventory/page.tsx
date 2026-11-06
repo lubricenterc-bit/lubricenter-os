@@ -13,6 +13,7 @@ import {
   inventoryState, INVENTORY_FILTERS, matchesInventoryFilter, type InventoryFilter, type InventoryFullRow
 } from "@/lib/inventory-full";
 import { NumberInput } from "@/components/number-field";
+import { LoadingBlock } from "@/components/skeleton";
 
 type Rates = { bcv: number; operative: number };
 type ItemForm = {
@@ -44,7 +45,7 @@ function toRow(r: any): InventoryFullRow {
 }
 
 export default function InventoryPage() {
-  return <Suspense fallback={<main className="container"><div className="card muted">Cargando inventario…</div></main>}><InventoryScreen /></Suspense>;
+  return <Suspense fallback={<main className="container"><LoadingBlock label="Cargando inventario…" kind="table" /></main>}><InventoryScreen /></Suspense>;
 }
 
 function InventoryScreen() {
@@ -232,7 +233,7 @@ function InventoryScreen() {
     <nav className="inv-filters" aria-label="Filtrar por estado">
       {INVENTORY_FILTERS.map(f => <button key={f.id} type="button" className={"inv-chip" + (filter === f.id ? " is-on" : "")}
         aria-pressed={filter === f.id} onClick={() => setFilter(f.id)} title={f.hint}>
-        <span>{f.label}</span><b>{counts[f.id] ?? 0}</b>
+        <span>{f.label}</span>{loading && !rows.length ? <b className="os-skel-count" aria-hidden="true" /> : <b>{counts[f.id] ?? 0}</b>}
       </button>)}
     </nav>
 
@@ -254,7 +255,7 @@ function InventoryScreen() {
 
     <div className="muted small">{visible.length} de {rows.length} artículos</div>
 
-    {loading && !rows.length ? <div className="card muted">Cargando inventario…</div> : <div className="inv-table-wrap">
+    {loading && !rows.length ? <LoadingBlock label="Cargando inventario…" kind="table" /> : <div className="inv-table-wrap">
       <table className="inv-table">
         <thead><tr>
           {canManage && <th className="inv-check"><input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} aria-label="Seleccionar los visibles" /></th>}

@@ -8,6 +8,7 @@ import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
 import { VehicleOilForecastCard } from "@/components/vehicle-oil-forecast-card";
 import type { VehicleOilForecast } from "@/lib/oil-forecast";
 import { NumberInput } from "@/components/number-field";
+import { LoadingBlock } from "@/components/skeleton";
 
 type Vehicle = {
   id: string;
@@ -121,7 +122,7 @@ export default function VehiclePage() {
     }
   }
 
-  if (!vehicle && !error) return <main className="container"><div className="card muted">Cargando ficha del vehículo…</div></main>;
+  if (!vehicle && !error) return <main className="container"><LoadingBlock label="Cargando ficha del vehículo…" kind="detail" /></main>;
 
   return <main className="container stack">
     {error && <div className="error">{error}</div>}

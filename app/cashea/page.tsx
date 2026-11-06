@@ -10,6 +10,7 @@ import { fmtDate, fmtRef, fmtVes } from "@/lib/format";
 import { NumberInput } from "@/components/number-field";
 import { PendingConfirmation } from "@/components/cashea/pending-confirmation";
 import { freshnessLine, paidSourceLabel, trackingWarnings, type SyncResult, type TrackingStatus, type UnverifiedInstallment } from "@/lib/cashea-sync";
+import { LoadingBlock } from "@/components/skeleton";
 
 type PaymentMethod = "TRANSFER_BDV" | "TRANSFER_BNC" | "CASH_VES" | "CASH_USD";
 type Sale = {
@@ -28,7 +29,7 @@ const METHODS: readonly [PaymentMethod,string][] = [
 function paymentLabel(method: string) { return Object.fromEntries(METHODS)[method] ?? method; }
 
 export default function CasheaPage() {
-  return <Suspense fallback={<main className="container"><div className="card muted">Cargando Cashea…</div></main>}><CasheaScreen /></Suspense>;
+  return <Suspense fallback={<main className="container"><LoadingBlock label="Cargando Cashea…" kind="list" /></main>}><CasheaScreen /></Suspense>;
 }
 
 function CasheaScreen() {
@@ -106,7 +107,7 @@ function CasheaScreen() {
 
     {error && <div className="error">{error}</div>}
     <PendingConfirmation items={pending} />
-    {loading ? <div className="card muted">Cargando Cashea…</div> : <section className="stack">
+    {loading ? <LoadingBlock label="Cargando Cashea…" kind="list" /> : <section className="stack">
       {visible.map(s => {
         const order = orderMap.get(s.order_id); const parts = bySale.get(s.id) ?? [];
         const remain = parts.reduce((a,x) => a + Math.max(x.amount_ref-x.paid_ref,0),0);

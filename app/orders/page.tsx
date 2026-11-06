@@ -7,6 +7,7 @@ import { neighbor } from "@/lib/order-preview";
 import { supabase } from "@/lib/supabase";
 import { canAdministerOrders } from "@/lib/session-cache";
 import { fmtRef, fmtVes, fmtRate } from "@/lib/format";
+import { LoadingBlock } from "@/components/skeleton";
 type PaymentDetail = {method:string;currency:"VES"|"USD";amount_original:number;equivalent_bcv:number|null;reference_tail:string|null;paid_at:string|null};
 type CasheaInfo = {initial_percent:number;initial_bcv_usd:number;initial_ves:number;financed_bcv_usd:number;total_bcv_usd:number;bcv_rate:number;reference:string|null;initial_method:string|null;ownership_status:string;status:string};
 type Sale = {id:string;order_number:string;status:string;sale_at:string;customer_id:string|null;customer_name:string|null;plate:string|null;kind:string;services:string|null;total_ref:number;total_ves:number;payment_type:string;has_financed_sale:boolean;cancellation_reason:string|null;collected_ves:number;collected_usd:number;payment_details:PaymentDetail[];cashea:CasheaInfo|null};
@@ -21,7 +22,7 @@ function whenVenezuela(value:string){return new Intl.DateTimeFormat("es-VE",{tim
 function Explanation({title,children}:{title:string;children:React.ReactNode}){return <details style={{position:"relative"}}><summary title={title} aria-label={title} style={{cursor:"pointer",listStyle:"none",color:"var(--muted)",padding:"2px 5px"}}>ⓘ</summary><div className="card small" style={{position:"absolute",top:25,right:0,zIndex:5,width:"min(280px,74vw)",boxShadow:"0 12px 25px #0003"}}><strong>{title}</strong><p>{children}</p></div></details>;}
 function Metric({label,value,ves,description}:{label:string;value:number;ves?:boolean;description:string}){return <div className="card"><div className="row-between" style={{gap:5}}><span className="small muted">{label}</span><Explanation title={label}>{description}</Explanation></div><div className="kpi" style={{wordBreak:"break-word"}}>{ves?fmtVes(value):fmtRef(value)}</div></div>;}
 export default function OrdersPage() {
- return <Suspense fallback={<main className="container"><div className="card muted">Cargando órdenes…</div></main>}><OrdersScreen/></Suspense>;
+ return <Suspense fallback={<main className="container"><LoadingBlock label="Cargando órdenes…" kind="list" /></main>}><OrdersScreen/></Suspense>;
 }
 function OrdersScreen() {
  const [rows,setRows]=useState<Sale[]>([]),[count,setCount]=useState(0);
@@ -46,7 +47,7 @@ function OrdersScreen() {
   if(!active)return;setLoading(false);if(r.error){setRows([]);setSummary(BLANK);return setError(r.error.message);}setRows(r.data?.rows??[]);setSummary(r.data?.summary??BLANK);setCount(Number(r.data?.count??0));setError("");
  },250);return()=>{active=false;clearTimeout(timer);};},[query,status,from,to,page,revision,paymentFilter]);
  function selectPeriod(p:DatePreset){setPreset(p);setPage(0);const today=caracasToday();if(p==="TODAY"){setFrom(today);setTo(today);}if(p==="YESTERDAY"){const d=shiftDate(today,-1);setFrom(d);setTo(d);}if(p==="WEEK"){setFrom(monday(today));setTo(today);}if(p==="MONTH"){setFrom(today.slice(0,7)+"-01");setTo(today);}if(p==="ALL"){setFrom("");setTo("");}}
- async function annul(){if(!cancel||busy||reason.trim().length<5)return;setBusy(true);setError("");const r=await supabase.rpc(keepAsBalance?"cancel_order_to_customer_balance":"cancel_order",{p_order_id:cancel.id,p_reason:reason.trim()});setBusy(false);if(r.error)return setError(r.error.message);setCancel(null);setReason("");setKeepAsBalance(false);setRevision(x=>x+1);}
+ async function annul(){if(!cancel||busy||reason.trim().length<5)return;setBusy(true);setError("");const r=await supabase.rpc(keepAsBalance?"cancel_order_to_customer_balance":"cancel_order",{p_order_id:cancel.id,p_reason:reason.trim()});setBusy(false);if(r.error)return setError(annulError(r.error.message));setCancel(null);setReason("");setKeepAsBalance(false);setRevision(x=>x+1);}
  return <main className="container stack">
   <div className="row-between"><div><div className="eyebrow">VENTAS · CONTROL DIARIO</div><h1>Órdenes y cobranza</h1><p className="muted">Lo que se hizo, cuánto se vendió, cómo se cobró y qué quedó financiado. Sin duplicar la inicial de Cashea. Toca una orden para verla al instante; ↑/↓ pasa a la siguiente.</p></div><div className="row" style={{flexWrap:"wrap"}}><Link className="btn" href="/orders/audit">Auditoría e inventario</Link><Link className="btn" href="/service-history">Historial de mantenimiento</Link><Link className="btn" href="/quick-sale">Venta rápida</Link><Link className="btn btn-primary" href="/orders/new">+ Orden completa</Link></div></div>
   {error&&<div className="error" role="alert">{error}</div>}
@@ -169,3 +170,5 @@ function OrdersScreen() {
  </main>;
 }
 
+// La base protege los cobros con vuelto: sin devolución auditada anularlos descuadraría la caja.
+function annulError(message:string){return /vuelto documentado/i.test(message)?"No se puede anular: esta venta se cobró con vuelto en efectivo y anularla descuadraría la caja. Avísale al dueño; falta registrar la devolución del vuelto.":message;}

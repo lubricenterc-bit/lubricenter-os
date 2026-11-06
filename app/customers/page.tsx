@@ -6,6 +6,7 @@ import { useUrlState } from "@/lib/use-url-state";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { fmtDate, fmtRef } from "@/lib/format";
+import { LoadingBlock } from "@/components/skeleton";
 
 type CustomerSummary = {
   customer_id: string; name: string | null; phone: string | null; document_id: string | null;
@@ -15,7 +16,7 @@ type CustomerSummary = {
 type Vehicle = { id: string; plate: string | null; make: string | null; model: string | null; year: number | null };
 
 export default function CustomersPage() {
-  return <Suspense fallback={<main className="container"><div className="card muted">Cargando clientes…</div></main>}><CustomersScreen /></Suspense>;
+  return <Suspense fallback={<main className="container"><LoadingBlock label="Cargando clientes…" kind="list" /></main>}><CustomersScreen /></Suspense>;
 }
 
 function CustomersScreen() {

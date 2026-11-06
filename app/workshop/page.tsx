@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabase";
 import { fmtRef } from "@/lib/format";
 import { BrandIcon, Gotin, prefersCalm, replay, useLive } from "@/components/gotin";
 import { OsIcon } from "@/components/os-icon";
+import { Skel, SkelCards } from "@/components/skeleton";
+import { haptic } from "@/lib/haptics";
 import { BRAND_ICONS, type BrandIconName } from "@/lib/brand-art";
 
 type WorkflowStatus = "RECEIVED" | "DIAGNOSIS" | "IN_PROGRESS" | "WAITING_PART" | "READY";
@@ -133,6 +135,7 @@ export default function WorkshopPage() {
     setBusyId(null);
     if (error) return setError(error.message);
     setNotice(`${row.order_number} → ${columns.find(c => c.key === status)?.title ?? status}`);
+    haptic("success");
     const first = measure();
     const from = first.get(row.id);
     before.current = first;
@@ -142,14 +145,43 @@ export default function WorkshopPage() {
 
   const setBoard = (element: HTMLDivElement | null) => { boardRef.current = element; boardLive(element); };
 
+  // Teléfono: una etapa a la vez. La fila de etapas marca la que está a la vista y lleva a cualquiera.
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [visible, setVisible] = useState<WorkflowStatus>("RECEIVED");
+  function goStage(key: WorkflowStatus, smooth = true) {
+    const wrap = wrapRef.current, column = document.getElementById("etapa-" + key);
+    if (!wrap || !column) return;
+    wrap.scrollTo({ left: column.offsetLeft - wrap.offsetLeft - 6, behavior: smooth && !prefersCalm() ? "smooth" : "auto" });
+    setVisible(key);
+  }
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || !("IntersectionObserver" in window)) return;
+    const observer = new IntersectionObserver(entries => {
+      const best = entries.filter(e => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (best) setVisible(best.target.id.replace("etapa-", "") as WorkflowStatus);
+    }, { root: wrap, threshold: [0.55, 0.8] });
+    wrap.querySelectorAll(".os-col").forEach(col => observer.observe(col));
+    return () => observer.disconnect();
+  }, [loaded]);
+  // Desde el inicio (#etapa-…) se abre directamente la etapa pedida.
+  useEffect(() => {
+    if (!loaded) return;
+    const key = window.location.hash.replace("#etapa-", "") as WorkflowStatus;
+    if (columns.some(c => c.key === key)) requestAnimationFrame(() => {
+      goStage(key, false);
+      if (window.matchMedia("(min-width: 901px)").matches) document.getElementById("etapa-" + key)?.scrollIntoView({ block: "nearest", inline: "center" });
+    });
+  }, [loaded]);
+
   return <main className="container os-workshop">
     <header className="os-page-head">
       <div><h1>Taller</h1><p>Una sola vista para saber qué llegó, qué está en diagnóstico, qué se está trabajando, qué espera repuesto y qué ya está listo.</p></div>
       <div className="os-workshop-side">
         <dl className="os-workshop-figures">
-          <div><dt>Vehículos abiertos</dt><dd>{loaded ? rows.length : "—"}</dd></div>
-          <div><dt>En trabajo</dt><dd>{loaded ? grouped.IN_PROGRESS.length : "—"}</dd></div>
-          <div className="is-ready"><dt>Listos</dt><dd>{loaded ? grouped.READY.length : "—"}</dd></div>
+          <div><dt>Vehículos abiertos</dt><dd>{loaded ? rows.length : <Skel w={34} h={28} />}</dd></div>
+          <div><dt>En trabajo</dt><dd>{loaded ? grouped.IN_PROGRESS.length : <Skel w={34} h={28} />}</dd></div>
+          <div className="is-ready"><dt>Listos</dt><dd>{loaded ? grouped.READY.length : <Skel w={34} h={28} />}</dd></div>
         </dl>
         <Link className="btn btn-primary" href="/orders/new"><OsIcon name="plus" size={18} /> Nueva orden o servicio rápido <kbd>F3</kbd></Link>
       </div>
@@ -158,13 +190,19 @@ export default function WorkshopPage() {
     {error && <div className="error" role="alert">{error}</div>}
     {notice && <div className="success os-workshop-notice" role="status"><BrandIcon name="flag" />{notice}</div>}
 
-    <div className="os-board-wrap">
+    <nav className="os-stage-tabs" aria-label="Etapas del taller">
+      {columns.map(col => <button key={col.key} type="button" className={visible === col.key ? "is-on" : undefined}
+        aria-current={visible === col.key ? "true" : undefined} onClick={() => goStage(col.key)}>
+        {col.title}<b>{loaded ? grouped[col.key].length : "·"}</b>
+      </button>)}
+    </nav>
+    <div className="os-board-wrap" ref={wrapRef}>
       <div className="os-board" ref={setBoard}>
         {columns.map(col => {
           const list = grouped[col.key];
           const next = NEXT[col.key];
           const busy = (col.key === "IN_PROGRESS" || col.key === "WAITING_PART") && list.length > 0;
-          return <section key={col.key} className={"os-col" + (col.key === "IN_PROGRESS" ? " is-flow" : "") + (busy ? " on" : "")} aria-labelledby={"os-col-" + col.key}>
+          return <section key={col.key} id={"etapa-" + col.key} className={"os-col" + (col.key === "IN_PROGRESS" ? " is-flow" : "") + (busy ? " on" : "")} aria-labelledby={"os-col-" + col.key}>
             <header className="os-col-head hov"><BrandIcon name={col.icon} /><h2 id={"os-col-" + col.key}>{col.title}</h2><b key={list.length} className="os-col-count">{list.length}</b></header>
             <div className="os-cards">
               {list.map(row => {
@@ -197,7 +235,7 @@ export default function WorkshopPage() {
                   </div>
                 </article>;
               })}
-              {!list.length && <div className="os-col-empty">{loaded ? <><Gotin pose={col.key === "READY" ? "flag" : "idle"} />{col.empty}</> : "Cargando…"}</div>}
+              {!list.length && (loaded ? <div className="os-col-empty"><Gotin pose={col.key === "READY" ? "flag" : "idle"} />{col.empty}</div> : <SkelCards count={2} />)}
             </div>
           </section>;
         })}

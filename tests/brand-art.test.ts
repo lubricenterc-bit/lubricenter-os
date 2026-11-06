@@ -43,7 +43,8 @@ describe("Gotín y las piezas de marca", () => {
     const motion = readFileSync("app/theme/motion.css", "utf8");
     const rules = motion.split("}").filter(rule => /animation:[^;]*infinite/.test(rule));
     expect(rules.length).toBeGreaterThan(10);
-    for (const rule of rules) expect(rule, rule.trim()).toContain(".live");
+    // A la vista: dentro de un .live, o bajo el puntero (lo que está bajo el cursor está en pantalla).
+    for (const rule of rules) expect(/\.live|:hover/.test(rule), rule.trim()).toBe(true);
     expect(motion).toContain("prefers-reduced-motion: reduce");
     expect(motion).toContain(".calm-motion");
   });

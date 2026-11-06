@@ -7,6 +7,9 @@ import { BrandIcon, Gotin, replay, useLive } from "@/components/gotin";
 import { OsIcon, type OsIconName } from "@/components/os-icon";
 import type { BrandIconName } from "@/lib/brand-art";
 import { fmtRef, fmtVes } from "@/lib/format";
+import { Skel, SkelRows } from "@/components/skeleton";
+import { InstallPrompt } from "@/components/install-prompt";
+import { haptic } from "@/lib/haptics";
 
 export type HomeDashboard = {
   localDate: string; closedOrdersToday: number; salesRefToday: number; collectedRefToday: number;
@@ -23,8 +26,11 @@ export type HomeBoardRow = {
   customer_name: string | null; service_areas: string | null;
 };
 
+/** Ganancia del día por área (solo dueño). */
+export type HomeProfit = { store: number | null; workshop: number | null; total: number | null };
+
 export type OsHomeProps = {
-  data: HomeDashboard; board: HomeBoardRow[]; owner: boolean; locationName: string;
+  data: HomeDashboard; board: HomeBoardRow[]; owner: boolean; locationName: string; profit?: HomeProfit | null;
   loading: boolean; error: string; onRefresh: () => void; onNavigate?: (href: string) => void;
 };
 
@@ -48,7 +54,7 @@ function greeting(date: Date) {
   return h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches";
 }
 
-export function OsHome({ data, board, owner, locationName, loading, error, onRefresh, onNavigate }: OsHomeProps) {
+export function OsHome({ data, board, owner, locationName, profit, loading, error, onRefresh, onNavigate }: OsHomeProps) {
   const attendant = useAttendant();
   const heroLive = useLive<HTMLDivElement>();
   const lanesLive = useLive<HTMLDivElement>();
@@ -63,8 +69,9 @@ export function OsHome({ data, board, owner, locationName, loading, error, onRef
   function go(href: string) {
     return onNavigate ? (event: MouseEvent<HTMLAnchorElement>) => { event.preventDefault(); onNavigate(href); } : undefined;
   }
-  const n = (value: number) => loading ? "—" : String(value);
-  const money = (value: number) => loading ? "—" : fmtRef(value);
+  // Mientras carga, cada cifra muestra su esqueleto en vez de un «—» o un 0 que parece real.
+  const n = (value: number) => loading ? <Skel w={38} h={34} /> : String(value);
+  const money = (value: number) => loading ? <Skel w={128} h={30} /> : fmtRef(value);
   const dateText = data.localDate
     ? new Date(data.localDate + "T12:00:00").toLocaleDateString("es-VE", { weekday: "long", day: "numeric", month: "long" })
     : "";
@@ -87,30 +94,32 @@ export function OsHome({ data, board, owner, locationName, loading, error, onRef
     setTip(value => value + 1);
     setBubbleKey(value => value + 1);
     replay(gotinRef.current?.querySelector("svg"), "jump", 750);
+    haptic("tick");
   }
 
-  const lede = loading ? "Cargando la jornada…" : owner
+  const lede = loading ? null : owner
     ? `Van ${plural(data.closedOrdersToday, "venta cerrada", "ventas cerradas")} por ${fmtRef(data.salesRefToday)} y ${fmtRef(data.collectedRefToday)} cobrados.`
     : `Hay ${plural(data.activeVehicles, "vehículo", "vehículos")} en el taller: ${data.inProgress} en trabajo y ${data.ready} ${data.ready === 1 ? "listo" : "listos"} para entregar.`;
   const alert = loading ? "" : data.waitingParts > 0
     ? `${plural(data.waitingParts, "vehículo espera", "vehículos esperan")} repuesto.`
     : data.crmToSend > 0 ? `Hay ${plural(data.crmToSend, "mensaje", "mensajes")} de seguimiento para hoy.` : "";
 
-  const actions: { href: string; key: string; title: string; note: string; icon: BrandIconName; main?: boolean }[] = [
-    { href: "/quick-sale", key: "F2", title: "Vender", note: "Productos y servicios al ticket", icon: "can", main: true },
-    { href: "/orders/new", key: "F3", title: "Recibir", note: "Vehículo, cliente y trabajo", icon: "car" },
-    { href: "/quote", key: "F4", title: "Cotizar", note: "Aceites, filtros y servicios", icon: "clip" },
-    { href: "/workshop", key: "F6", title: "Taller", note: loading ? "Tablero por etapas" : `${plural(data.activeVehicles, "vehículo", "vehículos")}, ${data.ready} ${data.ready === 1 ? "listo" : "listos"}`, icon: "wrench" },
-  ];
-  const starts: [string, string][] = [
-    ["/orders/new?start=oil", "Cambio de aceite"], ["/orders/new?start=workshop", "Trabajo de taller"],
-    ["/orders/new?start=electro", "Electroauto"], ["/quote/oil", "Comparar aceites"], ["/catalog", "Catálogo"],
+  // ¿Qué vas a registrar? Cada acceso lleva a un sitio distinto: no hay dos caminos al mismo destino.
+  const actions: { href: string; key?: string; title: string; note: string; icon: BrandIconName; main?: boolean }[] = [
+    { href: "/quick-sale", key: "F2", title: "Vender", note: "Mostrador: productos sin vehículo", icon: "can", main: true },
+    { href: "/orders/new?start=oil", title: "Cambio de aceite", note: "Cliente, vehículo, aceite y filtro", icon: "bottle" },
+    { href: "/orders/new?start=workshop", title: "Trabajo de taller", note: "Mano de obra de Cheo, por cotización", icon: "wrench" },
+    { href: "/orders/new?start=electro", title: "Electroauto", note: "Trabajos de Alexis, por cotización", icon: "lens" },
+    { href: "/quote", key: "F4", title: "Cotizar", note: "Precios para el cliente, sin crear orden", icon: "clip" },
+    { href: "/workshop", key: "F6", title: "Taller", note: loading ? "Tablero por etapas" : `${plural(data.activeVehicles, "vehículo", "vehículos")}, ${data.ready} ${data.ready === 1 ? "listo" : "listos"}`, icon: "car" },
   ];
 
   const figures = owner ? [
-    { label: "Ventas cerradas", value: money(data.salesRefToday), unit: "", note: plural(data.closedOrdersToday, "orden cerrada", "órdenes cerradas"), href: "/finance" },
+    { label: "Ventas cerradas", value: money(data.salesRefToday), unit: "", note: plural(data.closedOrdersToday, "orden cerrada", "órdenes cerradas"), href: "/orders" },
+    { label: "Ganancia de hoy", value: loading || profit === undefined ? <Skel w={128} h={30} /> : profit?.total == null ? "—" : fmtRef(profit.total), unit: "",
+      note: !profit ? "Tienda y taller por separado" : `Tienda ${profit.store == null ? "—" : fmtRef(profit.store)} · Taller ${profit.workshop == null ? "—" : fmtRef(profit.workshop)}`, href: "/finance/profit" },
     { label: "Cobros registrados", value: money(data.collectedRefToday), unit: "", note: "Incluye abonos; no es saldo bancario", href: "/finance" },
-    { label: "Crédito LC pendiente", value: loading ? "—" : fmtVes(data.receivablesOutstandingVes), unit: "", note: plural(data.receivablesOpen, "cuenta abierta", "cuentas abiertas"), href: "/receivables" },
+    { label: "Crédito LC pendiente", value: loading ? <Skel w={128} h={30} /> : fmtVes(data.receivablesOutstandingVes), unit: "", note: plural(data.receivablesOpen, "cuenta abierta", "cuentas abiertas"), href: "/receivables" },
   ] : [
     { label: "Vehículos activos", value: n(data.activeVehicles), unit: "", note: "Dentro del flujo del taller", href: "/workshop" },
     { label: "En trabajo", value: n(data.inProgress), unit: "", note: "Trabajos en curso", href: "/workshop" },
@@ -139,7 +148,7 @@ export function OsHome({ data, board, owner, locationName, loading, error, onRef
   ];
 
   const plates = (stage: string) => board.filter(row => row.workflow_status === stage).slice(0, 3);
-  const rate = (value: number) => loading ? "—" : value.toLocaleString("es-VE", { maximumFractionDigits: 2 });
+  const rate = (value: number) => loading ? <Skel w={48} h={12} /> : value.toLocaleString("es-VE", { maximumFractionDigits: 2 });
 
   return <main className="container os-home">
     <section className="os-home-hero" ref={heroLive}>
@@ -147,21 +156,17 @@ export function OsHome({ data, board, owner, locationName, loading, error, onRef
         <h1>¿Qué hacemos ahora, <span>{who}</span>?</h1>
         <p className="os-home-lede">
           {dateLabel && <span className="os-home-date">{dateLabel}, {locationName}. </span>}
-          {lede} {alert && <strong className="os-home-alert">{alert}</strong>}
+          {lede ?? <span className="os-home-lede-skel" aria-hidden="true"><Skel w="92%" h={16} /><Skel w="64%" h={16} /></span>} {alert && <strong className="os-home-alert">{alert}</strong>}
         </p>
         {!attendant && <AttendantPicker />}
+        <h2 className="os-home-actions-title">¿Qué vas a registrar?</h2>
         <div className="os-home-actions">
-          <h2 className="sr-only">Acciones rápidas</h2>
           {actions.map((action, index) => <Link key={action.href} href={action.href} onClick={go(action.href)}
             className={"os-act hov" + (action.main ? " is-main" : "")} style={{ animationDelay: index * 60 + "ms" }}>
-            <kbd>{action.key}</kbd>
+            {action.key && <kbd>{action.key}</kbd>}
             <span><strong>{action.title}</strong><small>{action.note}</small></span>
             <BrandIcon name={action.icon} className="os-act-icon" />
           </Link>)}
-        </div>
-        <div className="os-home-starts" aria-label="Registrar">
-          <span>Registrar</span>
-          {starts.map(([href, label]) => <Link key={href} href={href} onClick={go(href)}>{label}</Link>)}
         </div>
       </div>
 
@@ -187,16 +192,19 @@ export function OsHome({ data, board, owner, locationName, loading, error, onRef
       </div>
     </section>
 
+    <InstallPrompt />
     {error && <div className="error" role="alert">No fue posible cargar el resumen: {error} <button className="btn btn-ghost" onClick={onRefresh}>Reintentar</button></div>}
 
     <section aria-labelledby="os-lanes-title">
       <div className="os-section-head"><h2 id="os-lanes-title">El taller, ahora<span>{loading ? "" : plural(data.activeVehicles, "vehículo", "vehículos")}</span></h2>
-        <Link className="os-link" href="/workshop" onClick={go("/workshop")}>Abrir el taller <OsIcon name="arrow" size={17} /></Link></div>
+</div>
       <div className="os-lanes" ref={lanesLive}>
         {STAGES.map(stage => {
           const count = stage.count(data);
           const rows = plates(stage.key);
-          return <Link key={stage.key} href="/workshop" onClick={go("/workshop")}
+          // Cada carril abre el tablero justo en su etapa.
+          const laneHref = "/workshop#etapa-" + stage.key;
+          return <Link key={stage.key} href={laneHref} onClick={go(laneHref)} title={"Ver " + stage.title.toLowerCase() + " en el tablero"}
             className={"os-lane hov" + (stage.key === "IN_PROGRESS" ? " is-flow" : "") + (stage.busy && count > 0 ? " on" : "")}>
             <span className="os-lane-head"><BrandIcon name={stage.icon} /><b>{n(count)}</b></span>
             <strong>{stage.title}</strong>
@@ -206,7 +214,8 @@ export function OsHome({ data, board, owner, locationName, loading, error, onRef
                 <span>{[row.make, row.model].filter(Boolean).join(" ") || row.customer_name || "Servicio rápido"}</span>
                 <small>{age(row.workflow_updated_at)} en esta etapa</small>
               </li>)}
-              {!rows.length && <li className="os-lane-none">{count > 0 ? "Ver en el tablero" : "Nadie en esta etapa"}</li>}
+              {loading && <li className="os-lane-skel" aria-hidden="true"><Skel w={74} h={22} r={5} /><Skel w="80%" h={12} /><Skel w="56%" h={10} /></li>}
+              {!loading && !rows.length && <li className="os-lane-none">{count > 0 ? "Ver en el tablero" : "Nadie en esta etapa"}</li>}
               {count > rows.length && rows.length > 0 && <li className="os-lane-more">y {count - rows.length} más</li>}
             </ul>
           </Link>;
@@ -226,7 +235,7 @@ export function OsHome({ data, board, owner, locationName, loading, error, onRef
             </Link>
           </li>)}
           {!loading && !pending.length && <li className="os-todo-clear"><Gotin pose="cheer" /><span><strong>Todo al día.</strong><small>No hay recordatorios, órdenes ni inventario pendientes.</small></span></li>}
-          {loading && <li className="os-todo-clear"><span><small>Buscando pendientes…</small></span></li>}
+          {loading && <li className="os-todo-skel" role="status"><span className="sr-only">Buscando pendientes…</span><SkelRows rows={3} /></li>}
         </ul>
       </section>
       <section className="os-tools-panel" aria-labelledby="os-tools-title">

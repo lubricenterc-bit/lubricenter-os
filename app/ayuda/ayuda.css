@@ -1,0 +1,38 @@
+/* Ayuda: «¿Cómo hago…?» con buscador grande, áreas y respuestas que se abren con sus pasos. */
+@media screen {
+  .os-theme .os-help { display: flex; flex-direction: column; gap: 18px; max-width: 980px; padding-top: 14px; }
+  .os-theme .os-help-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; }
+  .os-theme .os-help-head h1 { margin: 0; font-size: clamp(40px, 4.6vw, 64px); font-weight: 800; letter-spacing: -.045em; line-height: .95; }
+  .os-theme .os-help-head p { max-width: 54ch; margin: 12px 0 0; color: var(--ink-2); font-size: 15.5px; }
+  .os-theme .os-help-gotin { flex: none; width: 110px; height: 120px; }
+  .os-theme .os-help-gotin .gotin-wrap { width: 100%; height: 100%; }
+  .os-theme .os-help-search input { padding-right: 24px; }
+  .os-theme .os-help-areas { display: flex; gap: 6px; margin: 0 -2px; padding: 2px; overflow-x: auto; scrollbar-width: none; }
+  .os-theme .os-help-areas::-webkit-scrollbar { display: none; }
+  .os-theme .os-help-areas button { flex: none; height: 38px; padding: 0 15px; border: 0; border-radius: 999px; background: var(--surface); color: var(--ink-2); font-size: 13.5px; font-weight: 600; box-shadow: inset 0 0 0 1px var(--rule); transition: background-color .2s ease, color .2s ease, transform .3s var(--spring); }
+  .os-theme .os-help-areas button.is-on { background: var(--ink); color: var(--surface); box-shadow: none; }
+  .os-theme .os-help-areas button:active { transform: scale(.95); }
+
+  .os-theme .os-help-group h2 { margin: 6px 4px 10px; color: var(--ink-3); font-size: 13px; font-weight: 700; letter-spacing: .02em; }
+  .os-theme .os-help-group ul { margin: 0; padding: 6px; border-radius: 24px; background: var(--surface); box-shadow: var(--e1); list-style: none; }
+  .os-theme .os-help-group li + li { border-top: 1px solid var(--rule); }
+  .os-theme .os-help-q { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 12px 14px; border: 0; border-radius: 18px; background: none; color: var(--ink); font-size: 15.5px; font-weight: 650; text-align: left; letter-spacing: -.01em; transition: background-color .15s ease; }
+  .os-theme .os-help-q span { flex: 1; }
+  .os-theme .os-help-chevron { flex: none; color: var(--ink-3); transition: transform .35s var(--spring); }
+  .os-theme .is-open .os-help-chevron { transform: rotate(180deg); color: var(--ink); }
+  @media (hover: hover) and (pointer: fine) { .os-theme .os-help-q:hover { background: var(--surface-2); } }
+  .os-theme .os-help-a { padding: 0 14px 16px 16px; animation: os-help-open .32s var(--ease) both; }
+  @keyframes os-help-open { from { opacity: 0; transform: translateY(-6px); } }
+  .os-theme .os-help-a ol { margin: 0 0 14px; padding: 0; list-style: none; counter-reset: paso; }
+  .os-theme .os-help-a ol li { position: relative; padding: 6px 0 6px 38px; color: var(--ink-2); font-size: 14.5px; line-height: 1.5; counter-increment: paso; border: 0; }
+  .os-theme .os-help-a ol li::before { content: counter(paso); position: absolute; top: 6px; left: 0; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--orange-soft); color: var(--orange-ink); font-size: 12.5px; font-weight: 800; }
+  .os-theme .os-help-a .btn { gap: 8px; }
+  .os-theme .os-help-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 30px 20px; border-radius: 24px; background: var(--surface); color: var(--ink-2); text-align: center; box-shadow: var(--e1); }
+  .os-theme .os-help-empty .gotin-wrap { width: 100px; height: 108px; }
+  .os-theme .os-help-empty strong { color: var(--ink); font-size: 17px; }
+}
+@media screen and (max-width: 700px) {
+  .os-theme .os-help-gotin { width: 76px; height: 84px; }
+  .os-theme .os-help-q { font-size: 15px; padding: 12px 10px; }
+  .os-theme .os-help-a .btn { width: 100%; }
+}

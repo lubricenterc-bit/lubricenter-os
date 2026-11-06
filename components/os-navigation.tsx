@@ -82,6 +82,8 @@ export function OsHeader({ pathname, onSearch, onMenu, onNavigate, menuOpen = fa
           aria-label={"Avisos financieros, " + unread + " pendientes"} onClick={event => intercept(event, "/finance", onNavigate)}>
           <OsIcon name="bell" size={19} />{unread > 0 && <span>{unread > 9 ? "9+" : unread}</span>}
         </Link>}
+        <Link href="/ayuda" className="os-bell os-help-link" title="Ayuda: ¿cómo hago…?" aria-label="Ayuda"
+          onClick={event => intercept(event, "/ayuda", onNavigate)}><OsIcon name="help" size={19} /></Link>
         <AttendantMenu />
         <button type="button" className="os-profile" onClick={onMenu} aria-label="Abrir todos los módulos y la sesión"
           aria-expanded={menuOpen} aria-controls="os-modules-drawer" aria-haspopup="dialog">
@@ -146,7 +148,32 @@ export function OsDock({ pathname, onSearch, onMenu, onNavigate, menuOpen = fals
     { href: "/workshop", label: "Taller", icon: "workshop" },
   ];
   const active = (href: string) => href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
-  return <nav className="os-dock" aria-label="Accesos rápidos">
+  const dockRef = useRef<HTMLElement>(null);
+  const pillRef = useRef<HTMLSpanElement>(null);
+  const placed = useRef(false);
+
+  // La pastilla naranja viaja con rebote hasta la pestaña activa; el ícono salta al llegar.
+  const movePill = useCallback(() => {
+    const dock = dockRef.current, pill = pillRef.current;
+    const current = dock?.querySelector<HTMLAnchorElement>('a[aria-current="page"]');
+    if (!dock || !pill) return;
+    if (!current) { pill.style.opacity = "0"; placed.current = false; return; }
+    if (!placed.current) pill.style.transition = "none";
+    pill.style.width = current.offsetWidth + "px";
+    pill.style.transform = `translateX(${current.offsetLeft}px)`;
+    pill.style.opacity = "1";
+    if (!placed.current) { void pill.offsetWidth; pill.style.transition = ""; placed.current = true; }
+    else replay(current.querySelector("svg"), "is-hop", 520);
+  }, []);
+  useIsoLayoutEffect(() => { movePill(); }, [pathname, movePill]);
+  useEffect(() => {
+    const onResize = () => { placed.current = false; movePill(); };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [movePill]);
+
+  return <nav ref={dockRef} className="os-dock" aria-label="Accesos rápidos">
+    <span ref={pillRef} className="os-dock-pill" aria-hidden="true" />
     {links.map(link => <Link key={link.href} href={link.href} className={active(link.href) ? "is-active" : undefined}
       aria-current={active(link.href) ? "page" : undefined} onClick={event => intercept(event, link.href, onNavigate)}>
       <OsIcon name={link.icon} size={22} /><span>{link.label}</span>

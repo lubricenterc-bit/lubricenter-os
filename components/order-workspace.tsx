@@ -22,6 +22,7 @@ import { allowsManualSale, useInventorySalePolicy } from "@/lib/inventory-policy
 import { fmtRef, fmtVes } from "@/lib/format";
 import { electroautoAllocation, workshopAllocation } from "@/lib/domain/allocations";
 import { NumberInput } from "@/components/number-field";
+import { LoadingBlock } from "@/components/skeleton";
 
 type InventoryProduct = {
   id: string;
@@ -277,7 +278,7 @@ export function OrderWorkspace({ initialOrderId }: { initialOrderId?: string }) 
     return () => { document.body.style.overflow = overflow; document.removeEventListener("keydown", trap); previous?.focus(); };
   }, [modal]);
 
-  if (loading) return <div className="card"><div className="muted">Cargando orden…</div></div>;
+  if (loading) return <LoadingBlock label="Cargando orden…" kind="detail" />;
 
   return <div className="stack mesa-order-workspace">
     <section className="card brand-card"><div className="row-between"><div><div className="muted small">ORDEN</div><div className="money-lg">{order?.order_number ?? "Nueva orden"}</div>{order && <div className="muted small">Se guarda automáticamente en la nube.</div>}</div><span className={`pill ${status === "CLOSED" ? "ok" : status === "OPEN" ? "warn" : ""}`}>{status === "OPEN" ? "ABIERTA" : status === "CLOSED" ? "CERRADA" : "CANCELADA"}</span></div></section>

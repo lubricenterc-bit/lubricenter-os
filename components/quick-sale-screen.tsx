@@ -19,6 +19,8 @@ import { AdjustmentControls, NO_ADJUSTMENT, useDiscountLimit, type AdjustmentSta
 import { distributeCartAdjustment, previewAdjustments } from "@/lib/domain/economics";
 import { AttendantPicker, stampAttendant, useAttendant } from "@/components/attendant-picker";
 import { BrandIcon, Gotin, prefersCalm, replay, useLive } from "@/components/gotin";
+import { Skel, SkelRows } from "@/components/skeleton";
+import { haptic } from "@/lib/haptics";
 import type { BrandIconName } from "@/lib/brand-art";
 import { NumberInput } from "@/components/number-field";
 
@@ -84,6 +86,8 @@ export function QuickSaleScreen() {
   const [completed, setCompleted] = useState<CompletedSale | null>(null);
   // Cada venta guarda quién la atendió.
   useEffect(() => { if (completed?.order_id) void stampAttendant(completed.order_id); }, [completed?.order_id]);
+  // En el teléfono, la venta cerrada también se siente.
+  useEffect(() => { if (completed?.order_id) haptic("success"); }, [completed?.order_id]);
   useEffect(() => { if (prepared?.order_id) void stampAttendant(prepared.order_id); }, [prepared?.order_id]);
   const [partialCreditOpen, setPartialCreditOpen] = useState(false);
 
@@ -363,7 +367,7 @@ export function QuickSaleScreen() {
     if (!item || prefersCalm() || typeof item.animate !== "function") return remove();
     item.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateX(20px) scale(.96)" }], { duration: 180, easing: "ease-in" }).onfinish = remove;
   }
-  const rate = (value: number) => ratesLoading || !value ? "…" : value.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const rate = (value: number) => ratesLoading || !value ? <Skel w={72} h={22} /> : value.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   if(prepared)return <main className="container os-sale" ref={doneLive}>{error&&<div className="error" role="alert">{error}</div>}
     <section className="os-sale-pending">
@@ -441,7 +445,7 @@ export function QuickSaleScreen() {
         <span className="os-search-hint"><kbd>Enter</kbd> agrega el primero</span>
       </label>
       <div className="os-plist-head"><span>{query ? (results.length === 1 ? "1 resultado" : `${results.length} resultados`) : "Sugerencias"}</span><span>{inventory.length} artículos con existencia</span></div>
-      {loading && !inventory.length ? <div className="os-plist os-plist-empty"><span className="os-loading-dot" />Cargando precios…</div>
+      {loading && !inventory.length ? <div className="os-plist" role="status"><span className="sr-only">Cargando precios…</span><SkelRows rows={6} /></div>
         : results.length ? <div className="os-plist">
           {results.map((r, index) => {
             const visc = viscosity(r.title + " " + r.subtitle);

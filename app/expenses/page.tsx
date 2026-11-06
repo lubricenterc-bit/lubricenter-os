@@ -10,6 +10,7 @@ import { canAdministerOrders } from "@/lib/session-cache";
 import { NumberInput } from "@/components/number-field";
 import { GoodsEntrySheet } from "@/components/purchasing/goods-entry-sheet";
 import type { NumberKind } from "@/lib/number-input";
+import { LoadingBlock } from "@/components/skeleton";
 
 type Supplier = { id:string; name:string; legal_name:string|null; rif:string|null; phone:string|null; email:string|null; address:string|null; contact_name:string|null; bank_details:string|null; default_currency:"USD"|"VES"; payment_terms_days:number; notes:string|null; active:boolean; invoice_count:number; payable_ref:number };
 type Invoice = { id:string; supplier_id:string; supplier_name:string; invoice_number:string; invoice_date:string; due_date:string|null; currency:"USD"|"VES"; total_original:number; paid_original:number; outstanding_original:number; status:string; received_units:number; invoiced_units:number };
@@ -18,7 +19,7 @@ type Data = { period:{from:string;to:string}; summary:{invoiced_ref:number;paid_
 type Tab = "OVERVIEW"|"SUPPLIERS"|"INVOICES";
 
 export default function ExpensesPage() {
-  return <Suspense fallback={<main className="container"><div className="card muted">Cargando compras…</div></main>}><ExpensesScreen /></Suspense>;
+  return <Suspense fallback={<main className="container"><LoadingBlock label="Cargando compras…" kind="list" /></main>}><ExpensesScreen /></Suspense>;
 }
 
 function ExpensesScreen() {
