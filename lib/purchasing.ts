@@ -40,7 +40,7 @@ export function lineTotal(line: { quantity: number | null; unit_cost: number | n
   return (line.quantity ?? 0) * (line.unit_cost ?? 0);
 }
 
-export function entryTotals(lines: EntryLine[], tax: number | null, freight: number | null, discount: number | null) {
+export function entryTotals(lines: { quantity: number | null; unit_cost: number | null }[], tax: number | null, freight: number | null, discount: number | null) {
   const subtotal = lines.reduce((s, l) => s + lineTotal(l), 0);
   return { subtotal, total: subtotal + (tax ?? 0) + (freight ?? 0) - (discount ?? 0) };
 }
@@ -76,3 +76,47 @@ export function invoiceItems(lines: EntryLine[]) {
 }
 
 export const DRAFT_KEY = "lubricenter:goods-entry-draft";
+
+// ── Editar factura (solo el dueño; reglas en supplier_invoice_update) ──
+
+export type EditLine = {
+  key: string; lineId: string | null; type: "INVENTORY" | "EXPENSE";
+  itemId: string | null; name: string; sku: string | null;
+  description: string; category: string;
+  quantity: number | null; unit_cost: number | null;
+  /** Lo que ya entró al inventario y la cantidad facturada antes de editar. */
+  received: number; ordered: number;
+};
+
+/** Mismo criterio que la base: si la línea estaba recibida completa, lo recibido
+ *  pasa a ser la cantidad nueva; si estaba a medias, solo puede bajar. */
+export function receivedAfterEdit(received: number, ordered: number, quantity: number): number {
+  if (received <= 0) return 0;
+  if (received >= ordered) return quantity;
+  return Math.min(received, quantity);
+}
+
+/** Cambio de existencia que producirá la edición de una línea, por artículo. */
+export function stockChanges(line: EditLine, originalItemId: string | null): { itemId: string; delta: number }[] {
+  if (line.received <= 0 || line.type !== "INVENTORY" || !line.itemId) return [];
+  const after = receivedAfterEdit(line.received, line.ordered, line.quantity ?? 0);
+  if (originalItemId && originalItemId !== line.itemId) {
+    return [{ itemId: originalItemId, delta: -line.received }, ...(after ? [{ itemId: line.itemId, delta: after }] : [])];
+  }
+  return after !== line.received ? [{ itemId: line.itemId, delta: after - line.received }] : [];
+}
+
+export function editLineIssue(line: EditLine): LineIssue {
+  if (!line.quantity || line.quantity <= 0) return "Falta la cantidad";
+  if (line.unit_cost === null || line.unit_cost < 0) return "Falta el costo";
+  if (line.type === "INVENTORY" && !line.itemId) return "Elige el producto";
+  if (line.type === "EXPENSE" && !line.description.trim()) return "Describe el gasto";
+  return null;
+}
+
+/** Líneas en el formato de supplier_invoice_update (con id si ya existían). */
+export function editItems(lines: EditLine[]) {
+  return lines.map(l => l.type === "INVENTORY"
+    ? { id: l.lineId, line_type: "INVENTORY", inventory_item_id: l.itemId, description: l.name, quantity: l.quantity, unit_cost: l.unit_cost }
+    : { id: l.lineId, line_type: "EXPENSE", description: l.description.trim(), expense_category: l.category.trim() || null, quantity: l.quantity, unit_cost: l.unit_cost });
+}
