@@ -6,6 +6,7 @@ import { OIL_TO_QUOTE_KEY, storeQuoteLines, type SalesQuoteLine } from "@/lib/sa
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
+import { whatsappUrl } from "@/lib/whatsapp";
 import { OsIcon } from "@/components/os-icon";
 import {
   catalogIsFresh, formatCatalogDate, normalizeCatalogProduct, normalizeCatalogSync,
@@ -390,7 +391,7 @@ export default function OilQuotePage() {
               onClick={()=>void copyQuote()}><OsIcon name={copyResult==="copied"?"check":"receipt"} size={17}/>
               {copyResult==="copied"?"Cotización copiada":"Copiar cotización"}</button>
             <a className={"oq-button oq-whatsapp" + (!shareText ? " is-disabled" : "")}
-              href={shareText ? "https://wa.me/?text=" + encodeURIComponent(shareText) : undefined}
+              href={shareText ? whatsappUrl(null, shareText) : undefined}
               target="_blank" rel="noopener noreferrer" aria-disabled={!shareText}
               onClick={event=>{if(!shareText)event.preventDefault();}}>
               <OsIcon name="arrow" size={17}/> Compartir por WhatsApp

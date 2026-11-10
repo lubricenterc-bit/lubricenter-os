@@ -80,7 +80,9 @@ describe("CRM semiautomático", () => {
   });
 
   it("utilidades", () => {
-    expect(waLink("584141234567", "Hola ñ")).toBe("https://wa.me/584141234567?text=Hola%20%C3%B1");
+    expect(waLink("584141234567", "Hola ñ")).toBe("https://api.whatsapp.com/send?phone=584141234567&text=Hola%20%C3%B1");
+    // Emojis: directo a api.whatsapp.com (wa.me los rompe al redirigir)
+    expect(waLink("584141234567", "Hola 👋 🛢️")).toBe("https://api.whatsapp.com/send?phone=584141234567&text=Hola%20%F0%9F%91%8B%20%F0%9F%9B%A2%EF%B8%8F");
     expect(addDays("2026-11-30", 1)).toBe("2026-12-01");
     expect(estimateMinutes(12)).toBe(7);
   });

@@ -9,6 +9,7 @@ import {
   currencyOf, debtMessage, payAllAmount, previewPayment, remaining, type PayCurrency,
 } from "@/lib/finance/receivables";
 import { supabase } from "@/lib/supabase";
+import { whatsappUrl } from "@/lib/whatsapp";
 import { fmtDate, fmtVes } from "@/lib/format";
 import { LoadingBlock } from "@/components/skeleton";
 
@@ -142,7 +143,7 @@ function ReceivablesScreen() {
     if (digits.length < 10) return null;
     const phone = digits.startsWith("58") ? digits : "58" + digits.replace(/^0/, "");
     const text = debtMessage(c?.name ?? null, orderMap.get(r.order_id)?.order_number ?? "", r, bcv);
-    return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+    return whatsappUrl(phone, text);
   }
 
   return <main className="container stack">

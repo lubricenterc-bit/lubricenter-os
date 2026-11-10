@@ -73,7 +73,7 @@ describe('acceso privado y estado cloud de campañas',()=>{
       const response=await GET(new Request('https://test.invalid/api/campaigns/oil-promo',{headers:{Authorization:'Bearer test'}}));
       expect(response.status).toBe(200);expect(response.headers.get('vary')).toBe('Authorization');
       const data=await response.json();expect(data.asOf).toBe('2026-10-06');expect(data.contacts).toHaveLength(1);
-      expect(data.contacts[0].status).toBe('PENDING');expect(data.contacts[0].url).toContain('https://wa.me/584141234567?text=');
+      expect(data.contacts[0].status).toBe('PENDING');expect(data.contacts[0].url).toContain('https://api.whatsapp.com/send?phone=584141234567&text=');
       expect(contactsRead).toBe(2);
     }finally{vi.useRealTimers();}
   });

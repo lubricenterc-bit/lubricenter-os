@@ -1,3 +1,4 @@
+import { whatsappUrl } from "./whatsapp";
 // CRM semiautomático: tipos y textos de la pantalla Seguimiento.
 // Las reglas (a quién, cuándo y qué mensaje) viven en la base: crm_board() y
 // crm_vehicle_journeys. Aquí solo se presentan.
@@ -100,7 +101,7 @@ export const OUTCOMES: { id: CrmOutcome; label: string; hint: string; needsDate?
 ];
 
 export function waLink(waPhone: string, message: string) {
-  return `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
+  return whatsappUrl(waPhone, message);
 }
 
 export function caracasToday(now = new Date()) {
