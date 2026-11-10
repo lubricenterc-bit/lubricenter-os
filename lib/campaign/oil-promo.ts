@@ -1,3 +1,4 @@
+import {whatsappUrl} from '../whatsapp';
 export const CAMPAIGN_END = '2026-10-10';
 export type Customer = {id:string; name:string; phone:string|null};
 export type Vehicle = {id:string; customer_id:string|null; make:string|null; model:string|null; year:number|null; plate:string|null};
@@ -50,7 +51,7 @@ export function selectContacts(customers:Customer[],vehicles:Vehicle[],services:
     const reason=[due?`Revisión programada vencida (${dateText(oil.next_service_date!)})`:null,idleDays>=180?`${idleDays} días sin visita registrada de este vehículo`:null].filter(Boolean).join('; ');
     const score=(due?100:0)+(idleDays>=180?40:0)+(compact.test(vehicle)?20:0)+Math.min(20,oils.length*3)+Math.min(30,idleDays/20);
     const message=campaignMessage({name:c.name,vehicle,kind});
-    candidates.push({customerId:c.id,vehicleId:v.id,name:c.name,phone,vehicle,plate:v.plate,lastOil:oil.performed_at,due:oil.next_service_date,idleDays,kind,reason,score,first:false,message,url:`https://wa.me/${phone}?text=${encodeURIComponent(message)}`});
+    candidates.push({customerId:c.id,vehicleId:v.id,name:c.name,phone,vehicle,plate:v.plate,lastOil:oil.performed_at,due:oil.next_service_date,idleDays,kind,reason,score,first:false,message,url:whatsappUrl(phone,message)});
   }
   candidates.sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name,'es')||a.vehicleId.localeCompare(b.vehicleId));
   const phones=new Set<string>(),clients=new Set<string>(),out:Contact[]=[];

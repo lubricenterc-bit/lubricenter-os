@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { OsIcon } from "@/components/os-icon";
 import { supabase } from "@/lib/supabase";
+import { whatsappUrl } from "@/lib/whatsapp";
 import { fmtRef, fmtVes } from "@/lib/format";
 import {
   normalizeCatalogProduct, normalizeCatalogSync, normalizeCatalogSearch, catalogIsFresh,
@@ -334,7 +335,7 @@ export default function GeneralQuotePage() {
             <button className="sq-button" onClick={()=>void copyMessage()} disabled={!shareText}>
               <OsIcon name={copied?"check":"receipt"} size={17}/>{copied?"Copiado":"Copiar mensaje"}
             </button>
-            <a href={shareText?"https://wa.me/?text="+encodeURIComponent(shareText):undefined}
+            <a href={shareText?whatsappUrl(null,shareText):undefined}
               aria-disabled={!shareText} onClick={e=>{if(!shareText)e.preventDefault();}}
               target="_blank" rel="noopener noreferrer" className={"sq-button is-whatsapp"+(shareText?"":" is-disabled")}>
               <OsIcon name="arrow" size={17}/> WhatsApp

@@ -6,6 +6,7 @@ import { ContactTunnel } from "@/components/crm/contact-tunnel";
 import { RecoveryView } from "@/components/crm/recovery-view";
 import { OsIcon } from "@/components/os-icon";
 import { supabase } from "@/lib/supabase";
+import { whatsappUrl } from "@/lib/whatsapp";
 import {
   KIND_LABEL, OUTCOMES, TEMPLATE_HELP, addDays, caracasToday, displayName, estimateMinutes, matchesQuery, shortDate,
   RECOVERY_CELLS, type CrmBoard, type CrmOutcome, type CrmQueueItem, type CrmResults, type CrmTemplateKind,
@@ -288,7 +289,7 @@ function WaitingView({ board, onChanged, onError }: { board: CrmBoard; onChanged
         <div className="crm-card-top">
           <div><strong>{displayName(w.customer_name)}</strong><small>{[w.vehicle, w.plate].filter(Boolean).join(" ")}</small></div>
           <div className="crm-card-meta">Le escribiste el {shortDate(w.last_sent_at)} · mensaje {w.sent_count}
-            {w.wa_phone && <a className="crm-link" href={`https://wa.me/${w.wa_phone}`} target="_blank" rel="noopener noreferrer">Abrir chat</a>}</div>
+            {w.wa_phone && <a className="crm-link" href={whatsappUrl(w.wa_phone)} target="_blank" rel="noopener noreferrer">Abrir chat</a>}</div>
         </div>
         <OutcomeButtons serviceRecordId={w.id} onChanged={onChanged} onError={onError} />
       </li>)}
@@ -303,7 +304,7 @@ function BookedView({ board }: { board: CrmBoard }) {
     {board.booked.map(b => <li key={b.id} className="crm-row">
       <span className={"crm-day" + (b.date === today ? " is-today" : "")}>{b.date === today ? "Hoy" : shortDate(b.date)}</span>
       <span className="crm-row-main"><strong>{displayName(b.customer_name)}</strong><small>{[b.vehicle, b.plate].filter(Boolean).join(" ")}</small></span>
-      {b.wa_phone && <a className="crm-link" href={`https://wa.me/${b.wa_phone}`} target="_blank" rel="noopener noreferrer">Abrir chat</a>}
+      {b.wa_phone && <a className="crm-link" href={whatsappUrl(b.wa_phone)} target="_blank" rel="noopener noreferrer">Abrir chat</a>}
     </li>)}
     <li className="crm-muted crm-note">Cuando el carro llegue y se registre su cambio de aceite, la cita se cierra sola como «Volvió».</li>
   </ul>;

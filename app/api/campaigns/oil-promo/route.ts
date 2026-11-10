@@ -1,4 +1,5 @@
 import {createClient, type SupabaseClient} from '@supabase/supabase-js';
+import {whatsappUrl} from '../../../../lib/whatsapp';
 import {selectContacts, type Customer, type Vehicle, type Service, type Visit} from '../../../../lib/campaign/oil-promo';
 
 export const runtime='nodejs';
@@ -76,7 +77,7 @@ export async function GET(request:Request) {
     const contacts=(rows as StoredContact[]||[]).map(c=>({
       id:c.id,customerId:c.customer_id,vehicleId:c.vehicle_id,name:c.name_snapshot,phone:c.phone_snapshot,
       vehicle:c.vehicle_snapshot,plate:c.plate_snapshot,kind:c.segment,first:c.priority,reason:c.reason,
-      message:c.message_snapshot,url:`https://wa.me/${c.phone_snapshot}?text=${encodeURIComponent(c.message_snapshot)}`,
+      message:c.message_snapshot,url:whatsappUrl(c.phone_snapshot,c.message_snapshot),
       status:c.status,sentAt:c.sent_at,respondedAt:c.responded_at,scheduledFor:c.scheduled_for,
       visitedAt:c.visited_at,convertedAt:c.converted_at,convertedOrderId:c.converted_order_id,note:c.outcome_note
     }));
