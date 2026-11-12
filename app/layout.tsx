@@ -20,6 +20,7 @@ import "./theme/workshop.css";
 import "./theme/login.css";
 import "./theme/mobile.css";
 import "./theme/motion.css";
+import "./theme/staff.css";
 import { AuthGuard } from "@/components/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { PwaRegister } from "@/components/pwa-register";

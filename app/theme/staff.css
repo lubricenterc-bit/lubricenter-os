@@ -1,0 +1,106 @@
+/* Usuarios por persona: PIN de módulos sensibles, app de mecánicos, tablet de recepción
+   y Administración → Usuarios. Solo en pantalla. */
+@media screen {
+  /* PIN de los módulos del dueño (Edgar) */
+  .os-theme .os-sensitive-gate { display: grid; place-items: center; min-height: 60vh; }
+  .os-theme .os-sensitive-card { display: grid; gap: 14px; width: min(100%, 400px); text-align: center; }
+  .os-theme .os-sensitive-card h1 { margin: 0; font-size: 26px; letter-spacing: -.03em; }
+  .os-theme .os-sensitive-card p { margin: 0; color: var(--ink-2); }
+  .os-theme .os-sensitive-card label { text-align: left; }
+  .os-theme .os-sensitive-card small { color: var(--ink-3); }
+  .os-theme .os-sensitive-icon { display: inline-grid; place-items: center; justify-self: center; width: 60px; height: 60px; border-radius: 50%; background: var(--orange-soft); color: var(--orange-ink); }
+  .os-theme .os-sensitive-pin { font-size: 26px; letter-spacing: .4em; text-align: center; }
+
+  /* App del mecánico (teléfono) */
+  .os-mech-shell { min-height: 100dvh; display: flex; flex-direction: column; background: var(--paper); }
+  .os-theme .os-mech-head { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: max(10px, env(safe-area-inset-top)) 16px 10px; background: rgb(247 245 241 / 92%); backdrop-filter: blur(12px); border-bottom: 1px solid var(--rule); }
+  .os-theme .os-mech-head .os-wordmark { height: 26px; }
+  .os-theme .os-mech-who { display: flex; align-items: center; gap: 10px; }
+  .os-theme .os-mech-who > span { display: grid; text-align: right; line-height: 1.1; }
+  .os-theme .os-mech-who small { color: var(--ink-3); font-size: 11px; }
+  .os-theme .os-mech-who .btn { min-height: 38px; padding: 7px 12px; }
+  .os-theme .os-mech-main { flex: 1; width: min(100%, 720px); margin: 0 auto; padding: 18px 14px calc(96px + env(safe-area-inset-bottom)); }
+  .os-theme .os-mech-tabs { position: fixed; inset: auto 0 0; z-index: 6; display: grid; grid-template-columns: repeat(3, 1fr); padding: 6px 8px max(8px, env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--rule); box-shadow: 0 -8px 24px -18px rgb(0 0 0 / 30%); }
+  .os-theme .os-mech-tabs a { display: grid; justify-items: center; gap: 2px; padding: 7px 4px; border-radius: 14px; color: var(--ink-2); font-size: 12px; font-weight: 650; text-decoration: none; }
+  .os-theme .os-mech-tabs a.is-active { background: var(--orange-soft); color: var(--orange-ink); }
+
+  .os-theme .os-mech-page { display: grid; gap: 14px; }
+  .os-theme .os-mech-title h1 { margin: 0; font-size: 28px; letter-spacing: -.035em; }
+  .os-theme .os-mech-title p { margin: 4px 0 0; color: var(--ink-2); }
+  .os-theme .os-mech-section { margin: 10px 0 0; font-size: 15px; color: var(--ink-2); }
+  .os-theme .os-mech-card { display: grid; gap: 10px; padding: 18px; border-radius: 22px; background: var(--surface); box-shadow: var(--e1); }
+  .os-theme .os-mech-card.is-ready { box-shadow: inset 0 0 0 2px var(--green), var(--e1); }
+  .os-theme .os-mech-card.is-compact { gap: 6px; padding: 14px 16px; }
+  .os-theme .os-mech-card h3 { margin: 0; font-size: 20px; letter-spacing: -.025em; line-height: 1.15; }
+  .os-theme .os-mech-card p { margin: 0; }
+  .os-theme .os-mech-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .os-theme .os-mech-meta { color: var(--ink-2); font-size: 14px; }
+  .os-theme .os-mech-date { color: var(--ink-2); font-size: 13px; text-transform: capitalize; }
+  .os-theme .os-mech-block ul, .os-theme .os-mech-jobs { margin: 4px 0 0; padding-left: 18px; }
+  .os-theme .os-mech-block li, .os-theme .os-mech-jobs li { margin: 2px 0; }
+  .os-theme .os-mech-block .label { color: var(--ink-3); margin-bottom: 2px; }
+  .os-theme .os-mech-notes { display: flex; gap: 6px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--amber-soft); color: var(--amber); font-size: 14px; }
+  .os-theme .os-mech-stage { padding: 4px 10px; border-radius: 999px; background: var(--surface-2); font-size: 12.5px; font-weight: 700; }
+  .os-theme .os-mech-stage.is-in_progress { background: var(--blue-soft); color: var(--blue); }
+  .os-theme .os-mech-stage.is-waiting_part { background: var(--amber-soft); color: var(--amber); }
+  .os-theme .os-mech-stage.is-ready { background: var(--green-soft); color: var(--green); }
+  .os-theme .os-mech-stages { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .os-theme .os-mech-stages button { min-height: 50px; padding: 8px; border: 0; border-radius: 14px; background: var(--surface-2); color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
+  .os-theme .os-mech-stages button.is-on { background: var(--ink); color: #fff; }
+  .os-theme .os-mech-stages button:disabled { opacity: .55; }
+  .os-theme .os-mech-link { display: inline-flex; align-items: center; gap: 6px; color: var(--orange-ink); font-weight: 650; text-decoration: none; }
+  .os-theme .os-mech-empty { display: grid; justify-items: center; gap: 8px; padding: 36px 16px; color: var(--ink-2); text-align: center; }
+  .os-theme .os-mech-filters { display: grid; gap: 10px; }
+  .os-theme .os-mech-seg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--sunk); justify-self: start; }
+  .os-theme .os-mech-seg button { min-height: 38px; padding: 6px 14px; border: 0; border-radius: 11px; background: transparent; color: var(--ink-2); font: inherit; font-weight: 650; cursor: pointer; }
+  .os-theme .os-mech-seg button.is-on { background: var(--surface); color: var(--ink); box-shadow: var(--e1); }
+  .os-theme .os-mech-form { gap: 14px; }
+  .os-theme .os-mech-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .os-theme .os-mech-amount { font-size: 24px; font-weight: 750; }
+  .os-theme .os-mech-proposal { padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; background: var(--amber-soft); color: var(--amber); }
+  .os-theme .os-mech-proposal.is-accepted { background: var(--green-soft); color: var(--green); }
+  .os-theme .os-mech-proposal.is-rejected { background: var(--red-soft); color: var(--red); }
+
+  /* Cotizaciones de los mecánicos (mostrador) */
+  .os-theme .os-proposals { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); }
+  .os-theme .os-proposal { display: grid; gap: 8px; }
+  .os-theme .os-proposal p { margin: 0; }
+  .os-theme .os-proposal-foot { flex-wrap: wrap; }
+  .os-theme .os-proposal-amount { font-size: 22px; letter-spacing: -.02em; }
+
+  /* Inicio de la tablet de recepción */
+  .os-theme .os-reception { display: grid; gap: 14px; }
+  .os-theme .os-reception-title { margin: 12px 0 0; font-size: 15px; color: var(--ink-2); }
+  .os-theme .os-reception-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); }
+  .os-theme .os-reception-tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+  .os-theme .os-tile { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; min-height: 96px; color: var(--ink); text-decoration: none; }
+  .os-theme .os-tile > b { min-width: 44px; font-size: 32px; font-weight: 800; letter-spacing: -.04em; text-align: center; }
+  .os-theme .os-tile strong { display: block; font-size: 17px; }
+  .os-theme .os-tile small { display: block; color: var(--ink-2); }
+  .os-theme .os-tile.is-hot > b { color: var(--orange); }
+  .os-theme .os-tile.is-soon { opacity: .6; grid-template-columns: auto 1fr; }
+
+  /* Administración → Usuarios */
+  .os-theme .os-users .os-user { padding: 0; overflow: hidden; }
+  .os-theme .os-user-head { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 14px; width: 100%; padding: 18px 20px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  .os-theme .os-user-name strong { display: block; font-size: 17px; }
+  .os-theme .os-user-name small { color: var(--ink-2); }
+  .os-theme .os-user-status { padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; background: var(--surface-2); color: var(--ink-2); }
+  .os-theme .os-user-status.is-on { background: var(--green-soft); color: var(--green); }
+  .os-theme .os-user-status.is-off { background: var(--red-soft); color: var(--red); }
+  .os-theme .os-user-body { display: grid; gap: 18px; padding: 0 20px 20px; }
+  .os-theme .os-user-body p { margin: 0; }
+  .os-theme .os-user-section { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--rule); }
+  .os-theme .os-user-section h3 { margin: 0; font-size: 16px; }
+  .os-theme .os-user-inline { display: flex; flex-wrap: wrap; gap: 8px; }
+  .os-theme .os-user-inline .input { flex: 1 1 200px; }
+  .os-theme .os-user-section > .btn { justify-self: start; }
+  .os-theme .os-user-form { display: grid; gap: 12px; }
+  .os-theme .os-user-perms { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
+  .os-theme .os-user-perms fieldset { margin: 0; padding: 12px 14px; border: 1px solid var(--rule); border-radius: 16px; }
+  .os-theme .os-user-perms legend { padding: 0 6px; font-weight: 700; font-size: 13px; color: var(--ink-2); }
+  .os-theme .os-user-perm { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; cursor: pointer; }
+  .os-theme .os-user-perm input { margin-top: 4px; }
+  .os-theme .os-user-perm strong { display: block; font-size: 14px; }
+  .os-theme .os-user-perm small { display: block; color: var(--ink-2); font-size: 12.5px; }
+}

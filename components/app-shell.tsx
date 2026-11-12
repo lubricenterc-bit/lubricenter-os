@@ -4,7 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { canAdministerOrders, financeRole } from "@/lib/session-cache";
+import { canAdministerOrders, clearSessionCache, financeRole, myProfile } from "@/lib/session-cache";
+import { canOpenPath, firstName, homeFor, isSensitivePath, PROFILE_LABEL, type MyProfile } from "@/lib/profile";
+import { SensitiveGate } from "@/components/sensitive-gate";
+import { MechanicShell } from "@/components/mechanic/mechanic-shell";
+import { ATTENDANTS, readAttendant, writeAttendant } from "@/components/attendant-picker";
 import { useVisiblePolling } from "@/lib/use-visible-polling";
 import { PricingStatus } from "@/components/pricing-status";
 import { OsIcon } from "@/components/os-icon";
@@ -26,6 +30,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const currentModule = moduleForPath(pathname);
   const [role, setRole] = useState<NavigationRole>("OPERATOR");
   const [roleLoaded, setRoleLoaded] = useState(false);
+  const [profile, setProfile] = useState<MyProfile | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  // Edgar: hasta cuándo está abierto el módulo sensible actual (se cierra al salir de él).
+  const [unlockedUntil, setUnlockedUntil] = useState<number | null>(null);
+  const [, setTick] = useState(0);
   const [locationName, setLocationName] = useState("Cabudare");
   const [otherLocations, setOtherLocations] = useState(false);
   const [expanded, setExpanded] = useState(currentModule.id);
@@ -45,7 +54,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const refreshScreen = useCallback(() => setRefreshKey(value => value + 1), []);
   const owner = role === "OWNER" || role === "ADMIN";
-  const results = useMemo(() => navigationSearch(search, role), [search, role]);
+  const staffProfile = profile?.profile;
+  // Menú: Edgar ve también los módulos del dueño (le piden PIN al entrar).
+  const navRole: NavigationRole = staffProfile === "ADMIN" ? "ADMIN" : role;
+  const canOpen = useCallback((href: string) => canOpenPath(staffProfile, href), [staffProfile]);
+  const results = useMemo(() => navigationSearch(search, navRole).filter(item => canOpen(item.href)), [search, navRole, canOpen]);
+  const needsPin = staffProfile === "ADMIN" && isSensitivePath(pathname) && (unlockedUntil == null || unlockedUntil <= Date.now());
+  const initials = profile && staffProfile !== "SHARED" ? firstName(profile.name).slice(0, 2).toUpperCase() : owner ? "AD" : "OP";
+  const personLabel = profile && staffProfile !== "SHARED" ? `${firstName(profile.name)} · ${PROFILE_LABEL[profile.profile]}` : owner ? "Administración" : "Operación";
   // El buscador también responde «¿cómo hago…?» con los temas de la Ayuda.
   const helpResults = useMemo(() => search.trim().length > 1 ? searchHelp(search, role === "OWNER" || role === "ADMIN", 4) : [], [search, role]);
 
@@ -68,12 +84,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     async function loadIdentity() {
       // Calienta la caché de sesión: las páginas que piden rol/permiso lo
       // reciben de memoria en vez de hacer otro viaje antes de cargar datos.
-      const [member, locations] = await Promise.all([
+      const [member, locations, , me] = await Promise.all([
         financeRole(),
         supabase.from("locations").select("id,name").eq("active", true).order("created_at").limit(2),
         canAdministerOrders(),
+        myProfile(),
       ]);
       if (!active) return;
+      // Si la RPC falla (p. ej. la base aún no tiene la migración), todo sigue como antes.
+      const person = me.data ?? null;
+      setProfile(person);
+      setProfileLoaded(true);
+      if (person && (person.profile === "ADMIN" || person.profile === "RECEPTION")) {
+        const name = firstName(person.name);
+        if ((ATTENDANTS as readonly string[]).includes(name) && readAttendant() !== name) writeAttendant(name);
+      }
       const value = member.data;
       setRole(value === "OWNER" || value === "ADMIN" ? value : "OPERATOR");
       setRoleLoaded(true);
@@ -93,6 +118,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setSearchOpen(false);
     setSearch("");
   }, [pathname, publicDesignLab]);
+
+  // Cada perfil solo abre sus pantallas; lo demás lo lleva a su inicio.
+  useEffect(() => {
+    if (publicDesignLab || !profileLoaded || pathname === "/login") return;
+    if (!canOpenPath(staffProfile, pathname)) router.replace(homeFor(staffProfile));
+  }, [pathname, profileLoaded, staffProfile, publicDesignLab, router]);
+
+  // Al salir de los módulos del dueño se cierran: la próxima entrada vuelve a pedir el PIN.
+  useEffect(() => {
+    if (staffProfile !== "ADMIN" || isSensitivePath(pathname) || unlockedUntil == null) return;
+    setUnlockedUntil(null);
+    clearSessionCache();
+    void supabase.rpc("lock_sensitive");
+  }, [pathname, staffProfile, unlockedUntil]);
+  // Al vencer los 30 minutos, se vuelve a pedir.
+  useEffect(() => {
+    if (unlockedUntil == null) return;
+    const wait = unlockedUntil - Date.now();
+    if (wait <= 0) return;
+    const timer = window.setTimeout(() => { clearSessionCache(); setTick(value => value + 1); }, wait + 500);
+    return () => window.clearTimeout(timer);
+  }, [unlockedUntil]);
 
   const alertsEnabled = !publicDesignLab && owner && pathname !== "/login";
   const refreshUnread = useCallback(async () => {
@@ -185,6 +232,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (pathname === "/login") return <>{children}</>;
   // Páginas de impresión (recibo 58 mm): sin menú; AuthGuard sigue protegiéndolas.
   if (pathname.startsWith("/print/")) return <>{children}</>;
+  // Cheo y Alexis: su propia app, sin el menú del mostrador.
+  if (staffProfile === "MECHANIC" && profile) return <MechanicShell profile={profile} onSignOut={signOut}>
+    {canOpenPath(staffProfile, pathname) ? children : null}</MechanicShell>;
+  // Hasta saber quién es (una consulta), no se monta la pantalla: así un mecánico o la
+  // tablet nunca ven por un instante algo que no les toca.
+  const blocked = !profileLoaded || !canOpenPath(staffProfile, pathname);
 
   function linkActive(href: string) {
     if (href === "/") return pathname === "/";
@@ -195,21 +248,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AppSessionProvider value={{ role, roleLoaded, locationName }}>
+    <AppSessionProvider value={{ role, roleLoaded, locationName, profile }}>
       <div ref={shellRef} className="shell os-theme os-shell">
         <div ref={workspaceRef} className="os-workspace">
           <a className="os-skip-link" href="#os-main">Ir al contenido</a>
           <OsHeader pathname={pathname} onSearch={() => setSearchOpen(true)} onMenu={() => setMobileMenu(true)}
-            role={role} roleLoaded={roleLoaded} unread={unread} menuOpen={mobileMenu}>
+            role={navRole} roleLoaded={roleLoaded} unread={unread} menuOpen={mobileMenu}
+            initials={profile && staffProfile !== "SHARED" && staffProfile !== "OWNER" ? initials : undefined} canOpen={canOpen}>
             <PricingStatus />
           </OsHeader>
-          <OsSubnav pathname={pathname} role={role} />
+          <OsSubnav pathname={pathname} role={navRole} canOpen={canOpen} />
           <div id="os-main" className="os-workspace-content" tabIndex={-1}>
             <Suspense fallback={null}><BackButton /></Suspense>
-            <PageStage refreshKey={refreshKey}>{children}</PageStage>
+            <PageStage refreshKey={refreshKey}>{blocked ? null : needsPin
+              ? <SensitiveGate key={pathname} unlockedUntil={unlockedUntil} onUnlock={setUnlockedUntil} moduleName={pageLabelForPath(pathname) || "Módulo del dueño"} />
+              : children}</PageStage>
           </div>
           <PullToRefresh onRefresh={refreshScreen} />
-          <OsDock pathname={pathname} onSearch={() => setSearchOpen(true)} onMenu={() => setMobileMenu(true)} menuOpen={mobileMenu} />
+          <OsDock pathname={pathname} onSearch={() => setSearchOpen(true)} onMenu={() => setMobileMenu(true)} menuOpen={mobileMenu} reception={staffProfile === "RECEPTION"} />
         </div>
 
         {mobileMenu && <div className="os-drawer-scrim" onMouseDown={event => { if (event.target === event.currentTarget) setMobileMenu(false); }}>
@@ -220,7 +276,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <nav className="os-drawer-nav" aria-label="Todos los módulos">
             {NAV_MODULES.map(module => {
-              const links = linksForModule(module, role);
+              const links = linksForModule(module, navRole).filter(link => canOpen(link.href));
               if (!links.length) return null;
               const isExpanded = expanded === module.id;
               const isCurrent = currentModule.id === module.id;
@@ -249,7 +305,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
             <div className="os-drawer-footer">
               <label className="os-calm-toggle"><input type="checkbox" checked={calm} onChange={toggleCalm}/><span><strong>Animación tranquila</strong><small>Reduce el movimiento de Gotín y de los iconos en este equipo.</small></span></label>
-              <div className="os-drawer-person"><span className="os-mono">{owner ? "AD" : "OP"}</span><span><strong>{!roleLoaded ? "Cargando…" : owner ? "Administración" : "Operación"}</strong><small>{locationName}</small></span>
+              <div className="os-drawer-person"><span className="os-mono">{initials}</span><span><strong>{!roleLoaded ? "Cargando…" : personLabel}</strong><small>{locationName}</small></span>
                 <button type="button" className="btn btn-ghost" onClick={signOut}><OsIcon name="logout" size={17}/> Salir</button></div>
             </div>
           </section>
@@ -267,7 +323,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="os-command-results" ref={commandLive}>
               {search.trim() === "" && <div className="os-command-start">
                 <p>Atajos del mostrador</p>
-                {([["F2", "Venta rápida", "/quick-sale", "can"], ["F3", "Recibir vehículo", "/orders/new", "car"], ["F4", "Cotizar", "/quote", "clip"], ["F6", "Taller", "/workshop", "wrench"]] as const).map(([key, label, href, icon]) =>
+                {([["F2", "Venta rápida", "/quick-sale", "can"], ["F3", "Recibir vehículo", "/orders/new", "car"], ["F4", "Cotizar", "/quote", "clip"], ["F6", "Taller", "/workshop", "wrench"]] as const).filter(([, , href]) => canOpen(href)).map(([key, label, href, icon]) =>
                   <Link key={href} href={href} className="os-command-result hov" onClick={() => setSearchOpen(false)}>
                     <span className="os-command-result-icon"><BrandIcon name={icon}/></span><span><strong>{label}</strong><small>Atajo {key}</small></span><kbd>{key}</kbd>
                   </Link>)}

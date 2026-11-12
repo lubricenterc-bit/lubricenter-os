@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import type { MyProfile } from "@/lib/profile";
 
 /**
  * Caché en memoria para consultas que solo dependen de QUIÉN es el usuario
@@ -53,7 +54,8 @@ export function cachedRpc<T>(fn: SessionRpc, ttlMs = DEFAULT_TTL_MS): Promise<Rp
 }
 
 /** Solo RPC sin argumentos que dependen exclusivamente de la identidad del usuario. */
-export type SessionRpc = "finance_role" | "can_administer_orders";
+export type SessionRpc = "finance_role" | "can_administer_orders" | "my_profile";
 
 export const financeRole = () => cachedRpc<string>("finance_role");
 export const canAdministerOrders = () => cachedRpc<boolean>("can_administer_orders");
+export const myProfile = () => cachedRpc<MyProfile | null>("my_profile");

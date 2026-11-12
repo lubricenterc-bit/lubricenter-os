@@ -65,6 +65,8 @@ export default function WorkshopPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  // Cotizaciones de mano de obra que mandan los mecánicos desde su teléfono.
+  const [proposals, setProposals] = useState(0);
   const boardLive = useLive<HTMLDivElement>();
   const boardRef = useRef<HTMLDivElement | null>(null);
   const before = useRef<Map<string, DOMRect> | null>(null);
@@ -78,6 +80,8 @@ export default function WorkshopPage() {
       .order("workflow_updated_at", { ascending: true })
       .limit(500);
     setLoaded(true);
+    void supabase.rpc("labor_proposals_list", { p_status: "PENDING" })
+      .then(({ data, error: proposalError }) => { if (!proposalError) setProposals(Array.isArray(data) ? data.length : 0); });
     if (error) return setError(error.message);
     setRows((data ?? []).map((r: any) => ({ ...r, item_count: Number(r.item_count ?? 0), current_total_ref: Number(r.current_total_ref ?? 0) })) as BoardRow[]);
   }
@@ -183,6 +187,8 @@ export default function WorkshopPage() {
           <div><dt>En trabajo</dt><dd>{loaded ? grouped.IN_PROGRESS.length : <Skel w={34} h={28} />}</dd></div>
           <div className="is-ready"><dt>Listos</dt><dd>{loaded ? grouped.READY.length : <Skel w={34} h={28} />}</dd></div>
         </dl>
+        <Link className={"btn " + (proposals ? "btn-primary" : "btn-ghost")} href="/workshop/propuestas">
+          <OsIcon name="receipt" size={18} /> Cotizaciones de mecánicos{proposals ? ` (${proposals})` : ""}</Link>
         <Link className="btn btn-primary" href="/orders/new"><OsIcon name="plus" size={18} /> Nueva orden o servicio rápido <kbd>F3</kbd></Link>
       </div>
     </header>

@@ -21,7 +21,19 @@ export type OsHeaderProps = NavigationProps & {
   roleLoaded?: boolean;
   unread?: number;
   children?: ReactNode;
+  /** Iniciales de la persona; si se dan, la cuenta es personal y no se pregunta quién atiende. */
+  initials?: string;
+  /** Filtra las pantallas que el perfil puede abrir. */
+  canOpen?: (href: string) => boolean;
 };
+
+const ALL = () => true;
+
+/** Destino de un módulo: su pantalla principal, o la primera que el perfil pueda abrir. */
+function moduleHref(module: (typeof NAV_MODULES)[number], role: NavigationRole, canOpen: (href: string) => boolean) {
+  if (canOpen(module.defaultHref)) return module.defaultHref;
+  return linksForModule(module, role).find(link => canOpen(link.href))?.href ?? module.defaultHref;
+}
 
 function intercept(event: MouseEvent<HTMLAnchorElement>, href: string, onNavigate?: (href: string) => void) {
   if (!onNavigate || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -32,10 +44,10 @@ function intercept(event: MouseEvent<HTMLAnchorElement>, href: string, onNavigat
 const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /** Cabecera de la aplicación: logo, módulos con la gota que marca dónde estás, buscador y quién atiende. */
-export function OsHeader({ pathname, onSearch, onMenu, onNavigate, menuOpen = false, role = "OPERATOR", roleLoaded = true, unread = 0, children }: OsHeaderProps) {
+export function OsHeader({ pathname, onSearch, onMenu, onNavigate, menuOpen = false, role = "OPERATOR", roleLoaded = true, unread = 0, children, initials, canOpen = ALL }: OsHeaderProps) {
   const owner = role === "OWNER" || role === "ADMIN";
   const current = moduleForPath(pathname);
-  const modules = NAV_MODULES.filter(module => linksForModule(module, role).length > 0);
+  const modules = NAV_MODULES.filter(module => linksForModule(module, role).some(link => canOpen(link.href)));
   const navRef = useRef<HTMLElement>(null);
   const dropRef = useRef<HTMLSpanElement>(null);
   const placed = useRef(false);
@@ -67,9 +79,10 @@ export function OsHeader({ pathname, onSearch, onMenu, onNavigate, menuOpen = fa
       <nav ref={navRef} className="os-modules" aria-label="Módulos">
         {modules.map(module => {
           const active = module.id === current.id;
-          return <Link key={module.id} href={module.defaultHref} data-current={active}
+          const href = moduleHref(module, role, canOpen);
+          return <Link key={module.id} href={href} data-current={active}
             aria-current={active ? "page" : undefined} className={active ? "is-active" : undefined}
-            onClick={event => intercept(event, module.defaultHref, onNavigate)}>{module.label}</Link>;
+            onClick={event => intercept(event, href, onNavigate)}>{module.label}</Link>;
         })}
         <span ref={dropRef} className="os-nav-drop" aria-hidden="true"><BrandIcon name="drop" /></span>
       </nav>
@@ -84,10 +97,10 @@ export function OsHeader({ pathname, onSearch, onMenu, onNavigate, menuOpen = fa
         </Link>}
         <Link href="/ayuda" className="os-bell os-help-link" title="Ayuda: ¿cómo hago…?" aria-label="Ayuda"
           onClick={event => intercept(event, "/ayuda", onNavigate)}><OsIcon name="help" size={19} /></Link>
-        <AttendantMenu />
+        {!initials && <AttendantMenu />}
         <button type="button" className="os-profile" onClick={onMenu} aria-label="Abrir todos los módulos y la sesión"
           aria-expanded={menuOpen} aria-controls="os-modules-drawer" aria-haspopup="dialog">
-          <span className="os-mono">{!roleLoaded ? "…" : owner ? "AD" : "OP"}</span>
+          <span className="os-mono">{!roleLoaded ? "…" : initials || (owner ? "AD" : "OP")}</span>
           <OsIcon name="menu" size={18} />
         </button>
       </div>
@@ -96,9 +109,9 @@ export function OsHeader({ pathname, onSearch, onMenu, onNavigate, menuOpen = fa
 }
 
 /** Accesos de la sección actual, siempre a la vista bajo la cabecera. */
-export function OsSubnav({ pathname, role = "OPERATOR", onNavigate }: { pathname: string; role?: NavigationRole; onNavigate?: (href: string) => void }) {
+export function OsSubnav({ pathname, role = "OPERATOR", onNavigate, canOpen = ALL }: { pathname: string; role?: NavigationRole; onNavigate?: (href: string) => void; canOpen?: (href: string) => boolean }) {
   const module = moduleForPath(pathname);
-  const links = linksForModule(module, role);
+  const links = linksForModule(module, role).filter(link => canOpen(link.href));
   if (module.id === "home" || links.length < 2) return null;
   const active = links.filter(link => pathname === link.href || pathname.startsWith(link.href + "/"))
     .sort((a, b) => b.href.length - a.href.length)[0]?.href;
@@ -140,10 +153,11 @@ export function AttendantMenu() {
 }
 
 /** Barra inferior en el teléfono: las cuatro acciones del mostrador y el menú. */
-export function OsDock({ pathname, onSearch, onMenu, onNavigate, menuOpen = false }: NavigationProps) {
+export function OsDock({ pathname, onSearch, onMenu, onNavigate, menuOpen = false, reception = false }: NavigationProps & { reception?: boolean }) {
+  // La tablet de recepción no cobra: en lugar de «Vender» lleva al seguimiento de clientes.
   const links: { href: string; label: string; icon: OsIconName }[] = [
     { href: "/", label: "Inicio", icon: "home" },
-    { href: "/quick-sale", label: "Vender", icon: "sale" },
+    reception ? { href: "/crm", label: "Clientes", icon: "customers" } : { href: "/quick-sale", label: "Vender", icon: "sale" },
     { href: "/orders/new", label: "Recibir", icon: "car" },
     { href: "/workshop", label: "Taller", icon: "workshop" },
   ];
