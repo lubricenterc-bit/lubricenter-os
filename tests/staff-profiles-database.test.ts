@@ -22,6 +22,7 @@ const fails = async (sql: string, params: unknown[] = []) => {
 beforeAll(async () => {
   db = new PGlite();
   await db.exec(`
+   set check_function_bodies = off;
    create role anon; create role authenticated; create role service_role;
    create schema auth; create schema lubricenter_private;
    create table auth.users(id uuid primary key, email text, email_confirmed_at timestamptz, last_sign_in_at timestamptz);
