@@ -1,6 +1,6 @@
 import {createClient, type SupabaseClient} from '@supabase/supabase-js';
 import {whatsappUrl} from '../../../../lib/whatsapp';
-import {selectContacts, type Customer, type Vehicle, type Service, type Visit} from '../../../../lib/campaign/oil-promo';
+import {CAMPAIGN_END, selectContacts, type Customer, type Vehicle, type Service, type Visit} from '../../../../lib/campaign/oil-promo';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -68,7 +68,9 @@ export async function GET(request:Request) {
       name_snapshot:c.name,phone_snapshot:c.phone,vehicle_snapshot:c.vehicle,plate_snapshot:c.plate,
       segment:c.kind,priority:c.first,rank:index+1,reason:c.reason,message_snapshot:c.message,status:'PENDING'
     }]);
-    if(missing.length){
+    // Una campaña cerrada o vencida ya no suma contactos nuevos (antes cada visita a la página agregaba PENDING).
+    const open=current.status==='ACTIVE'&&asOf<=CAMPAIGN_END;
+    if(open&&missing.length){
       const {error}=await client.from('crm_campaign_contacts').insert(missing);
       if(error)throw error;
     }
@@ -81,7 +83,7 @@ export async function GET(request:Request) {
       status:c.status,sentAt:c.sent_at,respondedAt:c.responded_at,scheduledFor:c.scheduled_for,
       visitedAt:c.visited_at,convertedAt:c.converted_at,convertedOrderId:c.converted_order_id,note:c.outcome_note
     }));
-    return reply({campaign:current,contacts,asOf,userId});
+    return reply({campaign:current,contacts,asOf,userId,closed:!open});
   }catch(error){
     console.error('campaign GET failed',error);
     return reply({error:'No se pudo cargar la campaña completa. Intenta nuevamente.'},503);

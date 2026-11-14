@@ -20,7 +20,7 @@ function RichMessage({text}:{text:string}) {
 export function OilCampaign(){
   const [contacts,setContacts]=useState<Contact[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState('');
   const [search,setSearch]=useState(''),[group,setGroup]=useState('first'),[pending,setPending]=useState(false);
-  const [asOf,setAsOf]=useState(''),[retry,setRetry]=useState(0),[notice,setNotice]=useState(''),[busyId,setBusyId]=useState('');
+  const [closed,setClosed]=useState(false),[asOf,setAsOf]=useState(''),[retry,setRetry]=useState(0),[notice,setNotice]=useState(''),[busyId,setBusyId]=useState('');
   useEffect(()=>{
     const controller=new AbortController();let mounted=true;
     setLoading(true);setError('');setContacts([]);
@@ -33,14 +33,14 @@ export function OilCampaign(){
         const data=await response.json();
         if(!response.ok)throw new Error(data.error||'No se pudo cargar la lista.');
         if(!mounted)return;
-        setAsOf(data.asOf);setContacts(data.contacts);
+        setAsOf(data.asOf);setClosed(!!data.closed);setContacts(data.contacts);
       }catch(e){if(mounted&&!controller.signal.aborted)setError(e instanceof Error?e.message:'No se pudo cargar la lista.');}
       finally{if(mounted)setLoading(false);}
     }
     void load();
     return()=>{mounted=false;controller.abort();subscription.data.subscription.unsubscribe();};
   },[retry]);
-  const expired=!!asOf&&asOf>CAMPAIGN_END;
+  const expired=closed||(!!asOf&&asOf>CAMPAIGN_END);
   const visible=useMemo(()=>contacts.filter(c=>(group==='all'||group==='first'&&c.first||group===c.kind)&&(!pending||c.status==='PENDING')&&`${c.name} ${c.phone} ${c.vehicle} ${c.plate||''}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())),[contacts,group,pending,search]);
   async function setStatus(contact:Contact,status:CampaignStatus){
     if(busyId)return;
@@ -93,7 +93,7 @@ export function OilCampaign(){
       <p>Tu trabajo aquí es solo <strong>enviar el mensaje</strong>. Lubricenter OS registra el envío y detecta automáticamente si ese mismo vehículo vuelve al negocio durante la campaña.</p><p className="muted"><strong>Regla comercial:</strong> debe comprar aceite + filtro con nosotros. Internamente se cobran $5 por el servicio de cambio. No aplica Cashea. Lubricenter cubre los insumos normales; fallas o repuestos de inyectores van por cuenta del cliente. Vehículos complicados se cotizan aparte y mantienen la regla especial del 70% de descuento.</p>
       <p className="muted">No necesitas marcar Respondió, Agendó o Visitó. Una orden cerrada de ese vehículo en Cabudare entra al registro operativo y se marca como éxito automáticamente.</p>
       {asOf&&<p className="muted">Consulta actualizada: {asOf.split('-').reverse().join('/')} · {contacts.length} contactos · {sentCount} enviados · {convertedCount} éxitos · {conversionRate}% conversión</p>}
-      {expired&&<p className="error" role="alert">La promoción terminó. Los enlaces están desactivados para no enviar una fecha vencida.</p>}
+      {expired&&<p className="error" role="alert">{closed?'Campaña cerrada: no se agregan contactos nuevos y los enlaces están desactivados. Las visitas y conversiones se siguen registrando.':'La promoción terminó. Los enlaces están desactivados para no enviar una fecha vencida.'}</p>}
     </header>
     {loading?<div className="campaign-card" role="status">Revisando clientes e historial…</div>:error?<div className="campaign-card"><p className="error" role="alert">{error}</p><button className="btn" onClick={()=>setRetry(x=>x+1)}>Intentar nuevamente</button></div>:<>
       <section className="campaign-controls" aria-label="Filtrar contactos">
