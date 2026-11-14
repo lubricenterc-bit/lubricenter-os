@@ -23,6 +23,7 @@ import { Skel, SkelRows } from "@/components/skeleton";
 import { haptic } from "@/lib/haptics";
 import type { BrandIconName } from "@/lib/brand-art";
 import { NumberInput } from "@/components/number-field";
+import { CheckoutError } from "@/components/checkout-error";
 
 type InventoryProduct = {
   id: string; sku: string; brand: string | null; description: string; category: string | null;
@@ -34,7 +35,7 @@ type CartLine = { key: string; kind: "STOCK" | "CATALOG" | "MANUAL"; inventory_i
 type QuickPayloadLine = { kind: "STOCK" | "CATALOG" | "MANUAL"; inventory_item_id: string | null; product_id: string | null; description: string; quantity: number; unit_ref: number };
 type Customer = { id: string; name: string | null; phone: string | null; document_id: string | null };
 type Rates = { bcv: number; operative: number };
-type PaymentMethod = "TRANSFER_BDV" | "TRANSFER_BNC" | "CASH_VES" | "CASH_USD" | "ZELLE" | "BINANCE";
+type PaymentMethod = "TRANSFER_BDV" | "TRANSFER_BNC" | "CASH_VES" | "CASH_USD" | "ZELLE" | "BINANCE" | "POR_COBRAR";
 type CompletedSale = {
   order_id: string; order_number: string; total_ves: number; total_ref: number;
   cashea?: { initial_ref: number; financed_ref: number; commission_ref: number };
@@ -44,7 +45,7 @@ type CompletedSale = {
 const PAYMENT_METHODS: readonly [PaymentMethod, string][] = [
   ["TRANSFER_BDV", "Pago móvil · Venezuela"], ["TRANSFER_BNC", "Pago móvil · BNC"], ["CASH_VES", "Efectivo Bs"], ["CASH_USD", "Efectivo USD"],
 ];
-const DIRECT_PAYMENT_METHODS: readonly [PaymentMethod, string][] = [...PAYMENT_METHODS, ["ZELLE", "Zelle USD"], ["BINANCE", "Binance USD"]];
+const DIRECT_PAYMENT_METHODS: readonly [PaymentMethod, string][] = [...PAYMENT_METHODS, ["ZELLE", "Zelle USD"], ["BINANCE", "Binance USD"], ["POR_COBRAR", "Por cobrar · con nota"]];
 const CASHEA_MIN_REF = 25;
 
 function normalize(value: string | null | undefined) { return (value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
@@ -250,9 +251,12 @@ export function QuickSaleScreen() {
   async function applyCartAdjustment(next: AdjustmentState, pin: string | null) {
     setAdjustError("");
     if (pin) {
-      const { data, error } = await supabase.rpc("verify_owner_pin", { p_pin: pin });
+      // El servidor valida el PIN y deja una autorización de un solo uso para esta venta:
+      // al cerrar, la rebaja mayor al límite solo pasa si existe (migración quick_sale_server_pricing).
+      const { data, error } = await supabase.rpc("authorize_price_override", { p_owner_pin: pin });
       if (error) return setAdjustError(error.message);
-      if (data !== true) return setAdjustError("El PIN del dueño no coincide.");
+      const result = data as { ok?: boolean; error?: string } | null;
+      if (!result?.ok) return setAdjustError(result?.error ?? "El PIN del dueño no coincide.");
     }
     setAdjust(next);
   }
@@ -268,6 +272,7 @@ export function QuickSaleScreen() {
     if (!cartValid || submitLock.current) return;
     const re = referenceError(selectedPayment, reference); if (re) return setError(re);
     if(selectedPayment.startsWith("CASH")){setTenderOpen(true);return;}
+    if(selectedPayment==="POR_COBRAR")return completePorCobrar();
     submitLock.current=true;setBusy(true);setError("");setCompleted(null);
     const signature=JSON.stringify([payload(),selectedPayment,reference.trim(),businessInstant(saleDate)]);
     if(!directRequest.current){try{directRequest.current=JSON.parse(sessionStorage.getItem('lubricenter:quick-direct-request')||'null');}catch{}}
@@ -284,6 +289,24 @@ export function QuickSaleScreen() {
     finally{submitLock.current=false;setBusy(false);}
   }
 
+
+  // «Por cobrar»: la venta se registra a precio normal y el importe queda en la cuenta «Por cobrar»
+  // con la nota obligatoria (p. ej. lo cobró el negocio de al lado para abonar a una deuda).
+  async function completePorCobrar() {
+    submitLock.current=true;setBusy(true);setError("");setCompleted(null);
+    const signature=JSON.stringify(["POR_COBRAR",payload(),reference.trim(),businessInstant(saleDate)]);
+    if(directRequest.current?.signature!==signature)directRequest.current={signature,id:crypto.randomUUID()};
+    sessionStorage.setItem('lubricenter:quick-direct-request',JSON.stringify(directRequest.current));
+    try{
+      const r=await supabase.rpc("quick_sale_por_cobrar",{p_request:directRequest.current.id,p_items:payload(),p_note:reference.trim(),p_business_at:businessInstant(saleDate)});
+      if(r.error)throw r.error;
+      const row=r.data as {order_id?:string;order_number:string;total_ves:number;total_ref:number}|null;
+      if(!row?.order_id)throw new Error('No se recibió la confirmación de guardado. Reintenta esta misma venta.');
+      setCompleted({order_id:row.order_id,order_number:row.order_number,total_ves:Number(row.total_ves),total_ref:Number(row.total_ref)});
+      resetAfterSale();await load();
+    }catch(e:any){setError(e.message||'No se pudo confirmar el guardado. Reintenta sin cambiar los datos.');}
+    finally{submitLock.current=false;setBusy(false);}
+  }
 
   async function continueAsOrder() {
     if (!cartValid || busy) return;
@@ -369,7 +392,7 @@ export function QuickSaleScreen() {
   }
   const rate = (value: number) => ratesLoading || !value ? <Skel w={72} h={22} /> : value.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  if(prepared)return <main className="container os-sale" ref={doneLive}>{error&&<div className="error" role="alert">{error}</div>}
+  if(prepared)return <main className="container os-sale" ref={doneLive}><CheckoutError message={error} />
     <section className="os-sale-pending">
       <Gotin pose="clip" />
       <div><span className="os-kicker">Orden guardada, pendiente de cobro</span><h1>{prepared.order_number}</h1>
@@ -394,7 +417,7 @@ export function QuickSaleScreen() {
         </div>
       </header>
       {!attendant && <AttendantPicker />}
-      {error && <div className="error" role="alert">{error}</div>}
+      <CheckoutError message={error} />
       {quoteFlow && <section className="os-banner">
         <BrandIcon name="clip" className="os-banner-icon" />
         <div className="os-banner-text"><strong>{quoteFlow==="order"?"Continuar cotización como orden":"Cotización lista para cobrar"}</strong>
@@ -511,7 +534,9 @@ export function QuickSaleScreen() {
                 {DIRECT_PAYMENT_METHODS.map(([method, label]) => <button key={method} type="button" className="os-pay" aria-pressed={selectedPayment === method} onClick={() => setSelectedPayment(method)} disabled={busy}>
                   <span>{label.split(" · ")[0]}{label.includes(" · ") && <em>{label.split(" · ")[1]}</em>}</span><small>{method === "CASH_USD" || method === "ZELLE" || method === "BINANCE" ? "$" : "Bs"}</small></button>)}
               </div>
-              <input className="input" value={reference} onChange={e => setReference(e.target.value)} aria-label="Referencia de pago" placeholder={selectedPayment.startsWith("TRANSFER") ? "Últimos 4 de referencia · obligatorio" : "Referencia de pago (opcional)"} />
+              {selectedPayment === "POR_COBRAR"
+                ? <textarea className="input" rows={2} maxLength={1000} value={reference} onChange={e => setReference(e.target.value)} aria-label="Nota de por cobrar" placeholder="Nota obligatoria: qué se debe y quién lo cobra (ej. lo cobró el negocio de al lado)" />
+                : <input className="input" value={reference} onChange={e => setReference(e.target.value)} aria-label="Referencia de pago" placeholder={selectedPayment.startsWith("TRANSFER") ? "Últimos 4 de referencia · obligatorio" : "Referencia de pago (opcional)"} />}
             </> : <p className="os-note"><BrandIcon name={totalRef >= CASHEA_MIN_REF ? "cal" : "clock"} /><span>Primero guarda la orden para obtener su número. Después registra la compra en Cashea y confirma la inicial recibida.{totalRef < CASHEA_MIN_REF && <> Cashea acepta compras desde <b>{fmtRef(CASHEA_MIN_REF)}</b>.</>}</span></p>}
           </section>
 
@@ -538,7 +563,7 @@ export function QuickSaleScreen() {
           <div className="os-trow"><span>En bolívares, tasa BCV</span><b>{fmtVes(totalVes)}</b></div>
           <div className="os-trow"><span>USD físico aprox., tasa operativa</span><b>${cashUsd.toFixed(2)}</b></div>
           <div className="os-tbig"><span>Total a cobrar</span><b key={totalRef.toFixed(2)} className="os-tick">{fmtRef(totalRef)}</b></div>
-          {checkoutMode==="DIRECT" && <label className="os-check" ref={receivedRef}><input type="checkbox" checked={received} onChange={e=>setReceived(e.target.checked)} /><span>Confirmo que recibí el pago de la venta.</span></label>}
+          {checkoutMode==="DIRECT" && <label className="os-check" ref={receivedRef}><input type="checkbox" checked={received} onChange={e=>setReceived(e.target.checked)} /><span>{selectedPayment === "POR_COBRAR" ? "Confirmo que esta venta queda por cobrar, con su nota." : "Confirmo que recibí el pago de la venta."}</span></label>}
           {checkoutMode === "DIRECT"
             ? <button ref={chargeRef} className="btn btn-primary btn-block os-charge" disabled={!cartValid || busy || !received} onClick={completeDirect}>{chargeLabel}</button>
             : <button ref={chargeRef} className="btn btn-primary btn-block os-charge" disabled={!cartValid || totalRef<CASHEA_MIN_REF || busy} onClick={prepareCashea}>{chargeLabel}</button>}
@@ -573,6 +598,6 @@ function QuickPartialCreditSheet({ items, totalVes, totalRef, rates, saleDate, o
   useEffect(()=>{let active=true;const text=query.trim().replace(/[,().%_*\\]/g," ").trim();setCustomers([]);if(text.length<2)return;const timer=window.setTimeout(async()=>{const {data,error}=await supabase.from("customers").select("id,name,phone,document_id").or(`name.ilike.%${text}%,phone.ilike.%${text}%,document_id.ilike.%${text}%`).order("name").limit(8);if(!active)return;if(error)setError(error.message);else setCustomers((data??[]) as Customer[]);},250);return()=>{active=false;window.clearTimeout(timer);};},[query]);
   async function createCustomer(){if(!name.trim())return setError("Escribe el nombre del cliente.");setBusy(true);setError("");const {data,error}=await supabase.rpc("upsert_customer",{p_name:name.trim(),p_phone:phone.trim()||null,p_document_id:null});if(error){setBusy(false);return setError(error.message);}const saved=await supabase.from("customers").select("id,name,phone,document_id").eq("id",data).single();setBusy(false);if(saved.error)return setError(saved.error.message);setCustomer(saved.data as Customer);setCreating(false);setQuery("");}
   async function confirm(){const re=referenceError(method,reference);if(re)return setError(re);if(!customer)return setError("Busca o crea el cliente que asumirá el saldo.");if(!received)return setError("Confirma que recibiste el abono antes de registrar la venta.");if(!Number.isFinite(amount)||amount<=0)return setError("Indica el abono recibido.");if(paidVes>=totalVes-1)return setError("El abono cubre todo. Usa Cobro directo para cerrar la venta como pagada.");setBusy(true);setError("");const {data,error}=await supabase.rpc("quick_sale_partial_credit",{p_items:items,p_customer_id:customer.id,p_method:method,p_amount_original:amount,p_reference:reference.trim()||null,p_due_date:dueDate||null,p_business_at:businessInstant(saleDate)});setBusy(false);if(error)return setError(error.message);await onDone(Array.isArray(data)?data[0]:data);}
-  return <div className="overlay"><div className="sheet stack" role="dialog" aria-modal="true" aria-labelledby="partial-credit-title"><div className="row-between"><div><h2 id="partial-credit-title" style={{margin:0}}>Abono + Crédito LC</h2><div className="muted small">La venta se cierra; lo recibido entra hoy y el saldo queda por cobrar.</div></div><button className="btn btn-ghost" disabled={busy} onClick={onCancel}>Cancelar</button></div><div className="card stack" style={{borderColor:"rgba(255,106,26,.6)"}}><div className="row-between"><span>Total venta</span><div style={{textAlign:"right"}}><strong>{fmtVes(totalVes)}</strong><div className="muted small">{fmtRef(totalRef)}</div></div></div><div className="divider"/><div><span className="label">Cliente que llevará el saldo</span><input className="input" autoFocus value={query} onChange={e=>{setQuery(e.target.value);setCustomer(null);}} placeholder="Nombre, teléfono o cédula · mínimo 2 caracteres"/></div>{customers.map(c=><button key={c.id} type="button" className={`directory-option ${customer?.id===c.id?"selected":""}`} onClick={()=>{setCustomer(c);setQuery("");setError("");}}><strong>{c.name||c.phone}</strong><span>{[c.phone,c.document_id].filter(Boolean).join(" · ")}</span></button>)}{customer&&<div className="success"><strong>{customer.name||customer.phone}</strong><div className="small">Cliente seleccionado para Crédito LC</div></div>}<button type="button" className="btn btn-ghost" disabled={busy} onClick={()=>setCreating(v=>!v)}>{creating?"Ocultar cliente nuevo":"+ Cliente nuevo"}</button>{creating&&<div className="grid grid-2"><label><span className="label">Nombre *</span><input className="input" value={name} onChange={e=>setName(e.target.value)}/></label><label><span className="label">Teléfono</span><input className="input" inputMode="tel" value={phone} onChange={e=>setPhone(e.target.value)}/></label><button type="button" className="btn" disabled={busy||!name.trim()} onClick={createCustomer}>Guardar cliente</button></div>}</div><div><span className="label">Cómo recibiste el abono</span><div className="grid grid-2">{DIRECT_PAYMENT_METHODS.map(([value,label])=><button type="button" key={value} className={method===value?"btn btn-primary":"btn"} onClick={()=>setMethod(value)}>{method===value?`✓ ${label}`:label}</button>)}</div></div><label><span className="label">Abono recibido · {currency}</span><NumberInput className="input" kind="money" min="0.01" step="0.01" max={maxAmount} value={amount||""} onChange={e=>setAmount(Number(e.target.value))}/></label>{method!=="CASH_USD"&&method!=="CASH_VES"&&<label><span className="label">{method.startsWith("TRANSFER")?"Últimos 4 de referencia · obligatorio":"Referencia · opcional"}</span><input className="input" value={reference} onChange={e=>setReference(e.target.value)}/></label>}<label><span className="label">Fecha prometida de pago · opcional</span><input className="input" type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label><div className="grid grid-2"><div className="card"><div className="muted small">ABONO HOY</div><strong>{fmtVes(paidVes)}</strong></div><div className="card" style={{borderColor:"rgba(255,106,26,.65)"}}><div className="muted small">SALDO CRÉDITO LC</div><strong>{fmtVes(pendingVes)}</strong><div className="muted small">{fmtRef(pendingRef)}</div></div></div><label className="row"><input type="checkbox" checked={received} onChange={e=>setReceived(e.target.checked)}/> Confirmo que recibí este abono.</label>{error&&<div className="error">{error}</div>}<button className="btn btn-primary btn-block" disabled={busy||!customer||!received||amount<=0||pendingVes<=1} onClick={confirm}>{busy?"Registrando…":"Registrar abono y cerrar con Crédito LC"}</button></div></div>;
+  return <div className="overlay"><div className="sheet stack" role="dialog" aria-modal="true" aria-labelledby="partial-credit-title"><div className="row-between"><div><h2 id="partial-credit-title" style={{margin:0}}>Abono + Crédito LC</h2><div className="muted small">La venta se cierra; lo recibido entra hoy y el saldo queda por cobrar.</div></div><button className="btn btn-ghost" disabled={busy} onClick={onCancel}>Cancelar</button></div><div className="card stack" style={{borderColor:"rgba(255,106,26,.6)"}}><div className="row-between"><span>Total venta</span><div style={{textAlign:"right"}}><strong>{fmtVes(totalVes)}</strong><div className="muted small">{fmtRef(totalRef)}</div></div></div><div className="divider"/><div><span className="label">Cliente que llevará el saldo</span><input className="input" autoFocus value={query} onChange={e=>{setQuery(e.target.value);setCustomer(null);}} placeholder="Nombre, teléfono o cédula · mínimo 2 caracteres"/></div>{customers.map(c=><button key={c.id} type="button" className={`directory-option ${customer?.id===c.id?"selected":""}`} onClick={()=>{setCustomer(c);setQuery("");setError("");}}><strong>{c.name||c.phone}</strong><span>{[c.phone,c.document_id].filter(Boolean).join(" · ")}</span></button>)}{customer&&<div className="success"><strong>{customer.name||customer.phone}</strong><div className="small">Cliente seleccionado para Crédito LC</div></div>}<button type="button" className="btn btn-ghost" disabled={busy} onClick={()=>setCreating(v=>!v)}>{creating?"Ocultar cliente nuevo":"+ Cliente nuevo"}</button>{creating&&<div className="grid grid-2"><label><span className="label">Nombre *</span><input className="input" value={name} onChange={e=>setName(e.target.value)}/></label><label><span className="label">Teléfono</span><input className="input" inputMode="tel" value={phone} onChange={e=>setPhone(e.target.value)}/></label><button type="button" className="btn" disabled={busy||!name.trim()} onClick={createCustomer}>Guardar cliente</button></div>}</div><div><span className="label">Cómo recibiste el abono</span><div className="grid grid-2">{DIRECT_PAYMENT_METHODS.map(([value,label])=><button type="button" key={value} className={method===value?"btn btn-primary":"btn"} onClick={()=>setMethod(value)}>{method===value?`✓ ${label}`:label}</button>)}</div></div><label><span className="label">Abono recibido · {currency}</span><NumberInput className="input" kind="money" min="0.01" step="0.01" max={maxAmount} value={amount||""} onChange={e=>setAmount(Number(e.target.value))}/></label>{method!=="CASH_USD"&&method!=="CASH_VES"&&<label><span className="label">{method.startsWith("TRANSFER")?"Últimos 4 de referencia · obligatorio":"Referencia · opcional"}</span><input className="input" value={reference} onChange={e=>setReference(e.target.value)}/></label>}<label><span className="label">Fecha prometida de pago · opcional</span><input className="input" type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label><div className="grid grid-2"><div className="card"><div className="muted small">ABONO HOY</div><strong>{fmtVes(paidVes)}</strong></div><div className="card" style={{borderColor:"rgba(255,106,26,.65)"}}><div className="muted small">SALDO CRÉDITO LC</div><strong>{fmtVes(pendingVes)}</strong><div className="muted small">{fmtRef(pendingRef)}</div></div></div><label className="row"><input type="checkbox" checked={received} onChange={e=>setReceived(e.target.checked)}/> Confirmo que recibí este abono.</label><CheckoutError message={error} /><button className="btn btn-primary btn-block" disabled={busy||!customer||!received||amount<=0||pendingVes<=1} onClick={confirm}>{busy?"Registrando…":"Registrar abono y cerrar con Crédito LC"}</button></div></div>;
 }
 
