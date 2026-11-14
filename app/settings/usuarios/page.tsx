@@ -176,7 +176,8 @@ function UserCard({ row, catalog, employees, open, onToggle, onChanged }: {
 function ProfileForm({ row, employees, onDone }: { row?: StaffRow; employees: Employee[]; onDone: (savedId: string | null) => void | Promise<void> }) {
   const [name, setName] = useState(row?.full_name || "");
   const [job, setJob] = useState(row?.job_title || "");
-  const [profile, setProfile] = useState<Profile>(row?.profile || "RECEPTION");
+  // Una persona nueva no trae perfil por defecto: hay que elegirlo (la base pone RECEPTION si falta).
+  const [profile, setProfile] = useState<Profile | "">(row?.profile || "");
   const [device, setDevice] = useState(row?.device || "");
   const [employee, setEmployee] = useState(row?.employee_id || "");
   const [busy, setBusy] = useState(false);
@@ -184,6 +185,7 @@ function ProfileForm({ row, employees, onDone }: { row?: StaffRow; employees: Em
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    if (!profile) { setError("Elige el perfil de esta persona."); return; }
     setBusy(true); setError("");
     const { data, error } = await supabase.rpc("staff_admin_save", {
       p_id: row?.id ?? null, p_full_name: name, p_job_title: job, p_profile: profile, p_device: device,
@@ -200,7 +202,8 @@ function ProfileForm({ row, employees, onDone }: { row?: StaffRow; employees: Em
       <label><span className="label">Nombre</span><input className="input" value={name} onChange={e => setName(e.target.value)} required /></label>
       <label><span className="label">Cargo</span><input className="input" value={job} onChange={e => setJob(e.target.value)} placeholder="Ej. Atención al cliente" /></label>
       <label><span className="label">Perfil</span>
-        <select className="select" value={profile} onChange={e => setProfile(e.target.value as Profile)}>
+        <select className="select" value={profile} onChange={e => setProfile(e.target.value as Profile)} required>
+          {!profile && <option value="">Elegir perfil…</option>}
           <option value="ADMIN">Administración (computadora)</option>
           <option value="RECEPTION">Recepción (tablet)</option>
           <option value="MECHANIC">Mecánico (teléfono)</option>
@@ -212,10 +215,10 @@ function ProfileForm({ row, employees, onDone }: { row?: StaffRow; employees: Em
           {employees.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select></label>}
     </div>
-    <p className="muted">{PROFILE_HELP[profile]}</p>
+    {profile && <p className="muted">{PROFILE_HELP[profile]}</p>}
     {error && <div className="error" role="alert">{error}</div>}
     <div className="row">
-      <button type="submit" className="btn btn-primary" disabled={busy || !name.trim()}>{busy ? "Guardando…" : "Guardar"}</button>
+      <button type="submit" className="btn btn-primary" disabled={busy || !name.trim() || !profile}>{busy ? "Guardando…" : "Guardar"}</button>
       <button type="button" className="btn btn-ghost" onClick={() => onDone(null)}>Cancelar</button>
     </div>
   </form>;
