@@ -35,7 +35,7 @@ type CartLine = { key: string; kind: "STOCK" | "CATALOG" | "MANUAL"; inventory_i
 type QuickPayloadLine = { kind: "STOCK" | "CATALOG" | "MANUAL"; inventory_item_id: string | null; product_id: string | null; description: string; quantity: number; unit_ref: number };
 type Customer = { id: string; name: string | null; phone: string | null; document_id: string | null };
 type Rates = { bcv: number; operative: number };
-type PaymentMethod = "TRANSFER_BDV" | "TRANSFER_BNC" | "CASH_VES" | "CASH_USD" | "ZELLE" | "BINANCE";
+type PaymentMethod = "TRANSFER_BDV" | "TRANSFER_BNC" | "CASH_VES" | "CASH_USD" | "ZELLE" | "BINANCE" | "POR_COBRAR";
 type CompletedSale = {
   order_id: string; order_number: string; total_ves: number; total_ref: number;
   cashea?: { initial_ref: number; financed_ref: number; commission_ref: number };
@@ -45,7 +45,7 @@ type CompletedSale = {
 const PAYMENT_METHODS: readonly [PaymentMethod, string][] = [
   ["TRANSFER_BDV", "Pago móvil · Venezuela"], ["TRANSFER_BNC", "Pago móvil · BNC"], ["CASH_VES", "Efectivo Bs"], ["CASH_USD", "Efectivo USD"],
 ];
-const DIRECT_PAYMENT_METHODS: readonly [PaymentMethod, string][] = [...PAYMENT_METHODS, ["ZELLE", "Zelle USD"], ["BINANCE", "Binance USD"]];
+const DIRECT_PAYMENT_METHODS: readonly [PaymentMethod, string][] = [...PAYMENT_METHODS, ["ZELLE", "Zelle USD"], ["BINANCE", "Binance USD"], ["POR_COBRAR", "Por cobrar · con nota"]];
 const CASHEA_MIN_REF = 25;
 
 function normalize(value: string | null | undefined) { return (value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
@@ -272,6 +272,7 @@ export function QuickSaleScreen() {
     if (!cartValid || submitLock.current) return;
     const re = referenceError(selectedPayment, reference); if (re) return setError(re);
     if(selectedPayment.startsWith("CASH")){setTenderOpen(true);return;}
+    if(selectedPayment==="POR_COBRAR")return completePorCobrar();
     submitLock.current=true;setBusy(true);setError("");setCompleted(null);
     const signature=JSON.stringify([payload(),selectedPayment,reference.trim(),businessInstant(saleDate)]);
     if(!directRequest.current){try{directRequest.current=JSON.parse(sessionStorage.getItem('lubricenter:quick-direct-request')||'null');}catch{}}
@@ -288,6 +289,24 @@ export function QuickSaleScreen() {
     finally{submitLock.current=false;setBusy(false);}
   }
 
+
+  // «Por cobrar»: la venta se registra a precio normal y el importe queda en la cuenta «Por cobrar»
+  // con la nota obligatoria (p. ej. lo cobró el negocio de al lado para abonar a una deuda).
+  async function completePorCobrar() {
+    submitLock.current=true;setBusy(true);setError("");setCompleted(null);
+    const signature=JSON.stringify(["POR_COBRAR",payload(),reference.trim(),businessInstant(saleDate)]);
+    if(directRequest.current?.signature!==signature)directRequest.current={signature,id:crypto.randomUUID()};
+    sessionStorage.setItem('lubricenter:quick-direct-request',JSON.stringify(directRequest.current));
+    try{
+      const r=await supabase.rpc("quick_sale_por_cobrar",{p_request:directRequest.current.id,p_items:payload(),p_note:reference.trim(),p_business_at:businessInstant(saleDate)});
+      if(r.error)throw r.error;
+      const row=r.data as {order_id?:string;order_number:string;total_ves:number;total_ref:number}|null;
+      if(!row?.order_id)throw new Error('No se recibió la confirmación de guardado. Reintenta esta misma venta.');
+      setCompleted({order_id:row.order_id,order_number:row.order_number,total_ves:Number(row.total_ves),total_ref:Number(row.total_ref)});
+      resetAfterSale();await load();
+    }catch(e:any){setError(e.message||'No se pudo confirmar el guardado. Reintenta sin cambiar los datos.');}
+    finally{submitLock.current=false;setBusy(false);}
+  }
 
   async function continueAsOrder() {
     if (!cartValid || busy) return;
@@ -515,7 +534,9 @@ export function QuickSaleScreen() {
                 {DIRECT_PAYMENT_METHODS.map(([method, label]) => <button key={method} type="button" className="os-pay" aria-pressed={selectedPayment === method} onClick={() => setSelectedPayment(method)} disabled={busy}>
                   <span>{label.split(" · ")[0]}{label.includes(" · ") && <em>{label.split(" · ")[1]}</em>}</span><small>{method === "CASH_USD" || method === "ZELLE" || method === "BINANCE" ? "$" : "Bs"}</small></button>)}
               </div>
-              <input className="input" value={reference} onChange={e => setReference(e.target.value)} aria-label="Referencia de pago" placeholder={selectedPayment.startsWith("TRANSFER") ? "Últimos 4 de referencia · obligatorio" : "Referencia de pago (opcional)"} />
+              {selectedPayment === "POR_COBRAR"
+                ? <textarea className="input" rows={2} maxLength={1000} value={reference} onChange={e => setReference(e.target.value)} aria-label="Nota de por cobrar" placeholder="Nota obligatoria: qué se debe y quién lo cobra (ej. lo cobró el negocio de al lado)" />
+                : <input className="input" value={reference} onChange={e => setReference(e.target.value)} aria-label="Referencia de pago" placeholder={selectedPayment.startsWith("TRANSFER") ? "Últimos 4 de referencia · obligatorio" : "Referencia de pago (opcional)"} />}
             </> : <p className="os-note"><BrandIcon name={totalRef >= CASHEA_MIN_REF ? "cal" : "clock"} /><span>Primero guarda la orden para obtener su número. Después registra la compra en Cashea y confirma la inicial recibida.{totalRef < CASHEA_MIN_REF && <> Cashea acepta compras desde <b>{fmtRef(CASHEA_MIN_REF)}</b>.</>}</span></p>}
           </section>
 
@@ -542,7 +563,7 @@ export function QuickSaleScreen() {
           <div className="os-trow"><span>En bolívares, tasa BCV</span><b>{fmtVes(totalVes)}</b></div>
           <div className="os-trow"><span>USD físico aprox., tasa operativa</span><b>${cashUsd.toFixed(2)}</b></div>
           <div className="os-tbig"><span>Total a cobrar</span><b key={totalRef.toFixed(2)} className="os-tick">{fmtRef(totalRef)}</b></div>
-          {checkoutMode==="DIRECT" && <label className="os-check" ref={receivedRef}><input type="checkbox" checked={received} onChange={e=>setReceived(e.target.checked)} /><span>Confirmo que recibí el pago de la venta.</span></label>}
+          {checkoutMode==="DIRECT" && <label className="os-check" ref={receivedRef}><input type="checkbox" checked={received} onChange={e=>setReceived(e.target.checked)} /><span>{selectedPayment === "POR_COBRAR" ? "Confirmo que esta venta queda por cobrar, con su nota." : "Confirmo que recibí el pago de la venta."}</span></label>}
           {checkoutMode === "DIRECT"
             ? <button ref={chargeRef} className="btn btn-primary btn-block os-charge" disabled={!cartValid || busy || !received} onClick={completeDirect}>{chargeLabel}</button>
             : <button ref={chargeRef} className="btn btn-primary btn-block os-charge" disabled={!cartValid || totalRef<CASHEA_MIN_REF || busy} onClick={prepareCashea}>{chargeLabel}</button>}

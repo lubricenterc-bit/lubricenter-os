@@ -23,6 +23,7 @@ export function tolerance(expected: string, absolute = '5', relative = '0.001'):
 }
 export const bankMethod = (method: string) => ['TRANSFER_BDV', 'TRANSFER_BNC', 'MOBILE_PAYMENT'].includes(method);
 export function referenceError(method: string, reference: string): string | null {
+  if (method === 'POR_COBRAR') return reference.trim().length < 5 ? 'Escribe la nota de «Por cobrar»: qué se debe y quién lo cobra.' : null;
   return bankMethod(method) && !/^\d{4,32}$/.test(reference.trim()) ? 'Escribe al menos los últimos 4 números de la referencia bancaria.' : null;
 }
 export const natures = {
