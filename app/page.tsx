@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAppSession } from "@/components/app-session-context";
+import { ReceptionHome } from "@/components/reception-home";
 import { OsHome, type HomeBoardRow, type HomeDashboard as Dashboard, type HomeProfit } from "@/components/os-home";
 
 const INITIAL: Dashboard = {
@@ -14,6 +15,13 @@ const INITIAL: Dashboard = {
   inventoryReview: 0, inventoryNegative: 0, bcv: 0, operative: 0,
 };
 export default function HomePage() {
+  const { profile } = useAppSession();
+  // La tablet de recepción tiene su propio inicio: recibir, CRM y taller.
+  if (profile?.profile === "RECEPTION") return <ReceptionHome name={profile.name} />;
+  return <StaffHome />;
+}
+
+function StaffHome() {
   const { role, roleLoaded, locationName } = useAppSession();
   const owner = roleLoaded && (role === "OWNER" || role === "ADMIN");
   const [data, setData] = useState<Dashboard>(INITIAL);

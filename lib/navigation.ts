@@ -29,7 +29,8 @@ export const NAV_MODULES: readonly NavModule[] = [
     { href: "/orders/new", label: "Nueva orden", description: "Crear una orden de servicio o cambio de aceite", keywords: "recibir vehículo" }
   ] },
   { id: "workshop", label: "Taller", icon: "workshop", defaultHref: "/workshop", links: [
-    { href: "/workshop", label: "Tablero de vehículos", description: "Recepción, reparación y entrega", keywords: "mecánica avance" }
+    { href: "/workshop", label: "Tablero de vehículos", description: "Recepción, reparación y entrega", keywords: "mecánica avance" },
+    { href: "/workshop/propuestas", label: "Cotizaciones de mecánicos", description: "Precios de mano de obra que proponen Cheo y Alexis", keywords: "cotizar mano de obra cheo alexis propuesta presupuesto" }
   ] },
   { id: "customers", label: "Clientes", icon: "customers", defaultHref: "/customers", links: [
     { href: "/customers", label: "Directorio", description: "Clientes y vehículos" },
@@ -60,6 +61,7 @@ export const NAV_MODULES: readonly NavModule[] = [
   ] },
   { id: "admin", label: "Administración", icon: "settings", defaultHref: "/settings", links: [
     { href: "/settings", label: "Configuración y precios", description: "Tasas, sincronización y reglas" },
+    { href: "/settings/usuarios", label: "Usuarios", description: "Cuentas de Edgar, Ender, Cheo y Alexis: perfil, contraseña y permisos", ownerOnly: true, keywords: "usuario cuenta contraseña permiso acceso mecanico tablet" },
     { href: "/ayuda", label: "Ayuda", description: "¿Cómo hago…? Pasos y acceso directo a cada función", keywords: "ayuda como hago tutorial pasos no se donde esta" }
   ] }
 ];
