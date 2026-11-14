@@ -2,7 +2,15 @@
 import { changeQuote } from '@/lib/finance/change';
 import { D } from '@/lib/finance/money';
 export type TenderDraft = {received:string;returnUsd:string;returnCurrency:string;changeRate:string;customerLabel:string;confirmed:boolean};
-export function TenderFields({value,onChange,currency,remainingVes,paymentRate,fixedUsd,cash=true}:{value:TenderDraft;onChange:(v:TenderDraft)=>void;currency:string;remainingVes:number;paymentRate:number;fixedUsd?:number;cash?:boolean}) {
+export type CashRoundDirection='DOWN'|'UP'|'NONE';
+/** Botones ↓ / ↑ para dejar en entero el saldo en dólares físicos. */
+export function CashRoundButtons({due,applied,unit='REF',busy,onRound}:{due:number;applied:number;unit?:'REF'|'USD';busy?:boolean;onRound:(d:CashRoundDirection)=>void|Promise<void>}){
+ const cents=Math.round(due*100)%100!==0;
+ if(!(due>0)||(!cents&&applied===0))return null;
+ const down=Math.floor(due+1e-9),up=Math.ceil(due-1e-9);
+ return <div className="stack os-cash-round">{applied!==0?<div className="row-between"><span className="muted">Redondeo del efectivo {applied<0?'−':'+'}{unit==='USD'?'$':''}{Math.abs(applied).toFixed(2)}{unit==='REF'?' REF':''} · saldo ${due.toFixed(2)}</span><button type="button" className="btn btn-ghost" disabled={busy} onClick={()=>onRound('NONE')}>Deshacer</button></div>:<><span className="muted small">Redondear el saldo en efectivo (${due.toFixed(2)})</span><div className="grid grid-2">{down>0&&<button type="button" className="btn" disabled={busy} onClick={()=>onRound('DOWN')}>↓ ${down}</button>}<button type="button" className="btn" disabled={busy} onClick={()=>onRound('UP')}>↑ ${up}</button></div></>}</div>;
+}
+export function TenderFields({value,onChange,currency,remainingVes,paymentRate,fixedUsd,cash=true,onRoundCash,cashRoundingRef=0,roundBusy}:{value:TenderDraft;onChange:(v:TenderDraft)=>void;currency:string;remainingVes:number;paymentRate:number;fixedUsd?:number;cash?:boolean;onRoundCash?:(d:CashRoundDirection)=>void|Promise<void>;cashRoundingRef?:number;roundBusy?:boolean}) {
  const update=(patch:Partial<TenderDraft>)=>onChange({...value,...patch,confirmed:false});
  let quote:ReturnType<typeof changeQuote>|null=null,error='';
  let due:string|null=null;
@@ -11,7 +19,7 @@ export function TenderFields({value,onChange,currency,remainingVes,paymentRate,f
  const usd=Number(quote?.changeUsd||0), returned=Number(value.returnUsd||0);
  const pending=usd-returned;
  if(!cash)return <div className="stack os-tender">{due&&<strong>Total por cobrar: {due} {currency}</strong>}<label>Monto del pago · {currency}<input className="input" inputMode="decimal" value={value.received} onChange={e=>update({received:e.target.value})}/></label>{fixedUsd!==undefined&&currency==='VES'&&<label>Tasa BCV · Bs por USD<input className="input" inputMode="decimal" value={value.changeRate} readOnly/></label>}{due&&<button type="button" className="btn" onClick={()=>update({received:due!,returnUsd:'0'})}>Usar monto exacto · {due} {currency}</button>}{usd>0&&<p className="error" role="alert">El monto supera el saldo de la venta. Corrige el pago o el precio acordado antes de registrarlo.</p>}{error&&<p className="error" role="alert">{error}</p>}</div>;
- return <div className="card stack os-tender"><label>Recibido realmente · {currency}<input className="input" inputMode="decimal" value={value.received} onChange={e=>update({received:e.target.value})}/></label>
+ return <div className="card stack os-tender">{onRoundCash&&currency==='USD'&&due&&<CashRoundButtons due={Number(due)} applied={cashRoundingRef} busy={roundBusy} onRound={onRoundCash}/>}<label>Recibido realmente · {currency}<input className="input" inputMode="decimal" value={value.received} onChange={e=>update({received:e.target.value})}/></label>
  <div className="row os-bills">{(currency==='USD'?[1,2,5,10,20,50,100]:[5,10,20,50,100,200,500]).map(b=><button type="button" className="btn btn-ghost" key={b} onClick={()=>update({received:new D(Number.isFinite(Number(value.received))?value.received||0:0).add(b).toFixed(2)})}>+ {currency==='USD'?'$':'Bs '}{b}</button>)}<button type="button" className="btn btn-ghost" onClick={()=>update({received:'',returnUsd:'0'})}>Limpiar billetes</button></div>
  <label>{currency==='VES'?'Tasa BCV · Bs por USD':'Tasa para entregar vuelto en Bs'}<input className="input" inputMode="decimal" value={value.changeRate} readOnly={currency==='VES'} onChange={e=>update({changeRate:e.target.value})}/></label><div className="muted small">{fixedUsd!==undefined?'Conserva el precio USD. Convierte el cobro en Bs y el vuelto en Bs a esta tasa.':'Convierte el vuelto; conserva la cotización y la tasa de cobro de la orden.'}</div>
  {due&&<button type="button" className="btn" onClick={()=>update({received:due!})}>Cobrar exacto · {due} {currency}</button>}
