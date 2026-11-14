@@ -5,6 +5,7 @@ import { casheaPaymentPreview, newCasheaSplitLine, type CasheaSplitLine } from "
 import { supabase } from "@/lib/supabase";
 import { fmtRef, fmtVes } from "@/lib/format";
 import { NumberInput } from "@/components/number-field";
+import { CheckoutError } from "@/components/checkout-error";
 
 export function OrderCasheaSheet({ orderId, totalRef: initialTotalRef, totalVes: initialTotalVes, paidVes, onDone, onCancel }: {
   orderId: string; totalRef: number; totalVes: number; paidVes: number;
@@ -114,7 +115,7 @@ export function OrderCasheaSheet({ orderId, totalRef: initialTotalRef, totalVes:
       {totalRef < minimum && <div className="error">El mínimo configurado es {fmtRef(minimum)}.</div>}
       {paidVes > initialVes + .01 && <div className="error">Los pagos registrados superan esta inicial. Aumenta el porcentaje o vuelve a la orden para corregir el pago.</div>}
     </>}
-    {error && <div className="error" role="alert">{error}</div>}
+    <CheckoutError message={error} />
     <button className="btn btn-primary btn-block" disabled={busy || !valid || !confirmed} onClick={save}>{busy ? "Registrando…" : "Registrar inicial y cerrar con Cashea"}</button>
   </div></div>;
 }

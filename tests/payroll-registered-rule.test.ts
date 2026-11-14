@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { isOwnerApprovalHold, isRegisteredRuleWarning, laborRuleNotice } from '../lib/payroll-registered-rule';
 
-const migration = readFileSync('supabase/migrations/20261114170000_payroll_registered_rule.sql', 'utf8');
+const migration = readFileSync('supabase/migrations/20261114154110_payroll_registered_rule.sql', 'utf8');
 let db: PGlite;
 const one = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await db.query<T>(sql, params)).rows[0];
 
