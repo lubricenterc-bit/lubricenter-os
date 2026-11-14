@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { canOpenPath, homeFor, isSensitivePath } from '../lib/profile';
 
-const migration = readFileSync('supabase/migrations/20261112150000_staff_profiles.sql', 'utf8');
+const migration = readFileSync('supabase/migrations/20261114154736_staff_profiles.sql', 'utf8');
 let db: PGlite;
 const q = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await db.query<T>(sql, params)).rows;
 const one = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await q<T>(sql, params))[0];
