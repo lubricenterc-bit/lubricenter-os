@@ -7,6 +7,7 @@ import {CasheaPayrollChoices,PayrollOrderPeek,type CasheaPayrollOption,type Payr
 import {downloadPayrollDraftPdf,type DraftPayrollInput} from "@/lib/payroll-draft-pdf";
 import {calculatePayrollQuote} from "@/lib/payroll-quote";
 import { NumberInput } from "@/components/number-field";
+import { isOwnerApprovalHold, isRegisteredRuleWarning } from "@/lib/payroll-registered-rule";
 type Work={id:string;employee_id:string;order_id:string;order_number:string;description:string;currency:string;original_amount:number;amount:number;obligation_usd:number|null;payout_mode:'HARD_USD'|'BCV_VES'|null;decision:string;reason:string|null;version:number;earned_at:string;reversal_of:string|null};
 type OrderTotal={id:string;total_ves:number;total_ref:number;total_cash_usd_equivalent:number};
 function money(n:number,c:string){return c==='USD'?`$${Number(n).toFixed(2)} USD`:fmtVes(n);}
@@ -168,13 +169,15 @@ export default function PayrollReview(){
     {s.advanceReady>0&&<span className="muted small"> · Se descuentan del saldo al liquidar; NO reducen las comisiones y NO crean otro egreso.</span>}</div>
   {s.availableAdvances.map(a=><div className="muted small" key={a.id}>• Anticipo del {a.paid_on}, {a.account_code} · ${Number(a.unapplied_usd).toFixed(2)} · {a.note}</div>)}
  <div className="muted small">{s.adjHold} ajuste(s) prorrogado(s) · {s.hold} trabajo(s) pendientes · {s.exclude} excluido(s).</div>
+ {s.rows.some(w=>isOwnerApprovalHold(w))&&<div className="error" role="status"><strong>{s.rows.filter(w=>isOwnerApprovalHold(w)).length} trabajo(s) por aprobar del dueño</strong>: la orden no tiene cliente y vehículo. No entran a la liquidación hasta que el dueño los pase a «Pagar» en Revisar / ajustar.</div>}
+ {s.rows.some(w=>isRegisteredRuleWarning(w))&&<div className="muted small">Marcha blanca: {s.rows.filter(w=>isRegisteredRuleWarning(w)).length} trabajo(s) de órdenes sin cliente o vehículo se pagan esta semana, pero desde el 30/11 quedarían por aprobar.</div>}
  <details><summary>Ver trabajos y órdenes ({s.rows.length})</summary><div className="stack" style={{marginTop:12}}>
  {grouped(s.rows).map(group=>{const total=orders[group.id];return <article className="card stack" key={group.id}>
  <div className="row-between" style={{flexWrap:"wrap"}}><strong>{group.number}</strong>
  <button className="btn" onClick={()=>setOrderPeek(group.id)}>Ver detalles aquí (sin salir)</button></div>
  {total&&<div>Total de la orden: <strong>{fmtVes(total.total_ves)}</strong> · {fmtRef(total.total_ref)} de referencia{Number(total.total_cash_usd_equivalent)>0?` · ${fmtRef(total.total_cash_usd_equivalent)} pactados en divisas`:''}</div>}
  {group.rows.map(w=><div className="stack" key={w.id} style={{borderTop:'1px solid var(--border, #ddd)',paddingTop:8}}>
- <div><strong>{w.description}</strong> · {new Date(w.earned_at).toLocaleDateString('es-VE',{timeZone:'America/Caracas'})} · {{PAY:'Pagar',HOLD:'Pendiente',EXCLUDE:'Excluido'}[w.decision]}{new Date(w.earned_at).toLocaleDateString('en-CA',{timeZone:'America/Caracas'}) < start(end)?' · ARRASTRADO':''}</div>
+ <div><strong>{w.description}</strong> · {new Date(w.earned_at).toLocaleDateString('es-VE',{timeZone:'America/Caracas'})} · {isOwnerApprovalHold(w)?'Por aprobar del dueño':{PAY:'Pagar',HOLD:'Pendiente',EXCLUDE:'Excluido'}[w.decision]}{new Date(w.earned_at).toLocaleDateString('en-CA',{timeZone:'America/Caracas'}) < start(end)?' · ARRASTRADO':''}</div>
  <div>Le corresponde: <strong>{w.decision==='PAY'?`${Number(w.obligation_usd??0).toFixed(2)}`:'No se paga'}</strong>{w.decision==='PAY'&&<span className="muted small"> · {w.payout_mode==='HARD_USD'?'se paga en USD':bcv?`se paga en Bs: ${fmtVes(Number(w.obligation_usd??0)*bcv.value)} al BCV del ${paymentDate}`:'se paga en Bs a BCV del día de pago'}</span>}</div>
  <div className="muted small">Origen del cobro: {money(w.original_amount,w.currency)}{w.reason?` · Motivo: ${w.reason}`:''}</div>
  <div className="row" style={{flexWrap:'wrap'}}><button className="btn" disabled={busy} onClick={()=>{setEdit(w);setDecision(w.decision);setAmount(String(w.obligation_usd??0));setReason('');setError('');}}>Revisar / ajustar</button><button className="btn btn-ghost" onClick={()=>showHistory(w.id)}>Historial</button></div>
